@@ -370,11 +370,20 @@ export default function Home() {
        const options = { 
            quality: 1, 
            pixelRatio: 1, 
+           cacheBust: true, // Force reload images
            backgroundColor: "#000",
            width: 1080, 
            height: 1080,
-           filter: (node: HTMLElement) => !node.classList?.contains("export-exclude"),
+           filter: (node: HTMLElement) => {
+               if (node.classList?.contains("export-exclude")) return false;
+               // Robust Ghost Filter: Ignore images inside cells marked as empty
+               if (node.tagName === 'IMG' && node.closest('[data-export-empty="true"]')) {
+                   return false; 
+               }
+               return true;
+           },
            style: {
+               // ... existing style ...
                width: "1080px",
                height: "1080px",
                boxSizing: "border-box", 
@@ -382,45 +391,47 @@ export default function Home() {
                maxWidth: "none",
                maxHeight: "none",
                margin: "0",
-               padding: "30px", // More padding for elegant look
+               padding: "30px",
                display: "flex", 
                flexDirection: "column",
                alignItems: "center", 
-               justifyContent: "center", // Vertically Center Title + Grid
+               justifyContent: "center",
                overflow: "hidden" 
            }
        };
 
-       // 1. Force the Inner Grid to be 950px (Safe fit)
+       // ... (Resize logic same as before) ...
+       // 1. Force the Inner Grid to be 950px
        const nodes = gridRef.current.querySelectorAll('.grid');
        nodes.forEach(n => {
            const el = n as HTMLElement;
-           el.style.width = '950px'; // Explicit 950px
-           el.style.height = '950px'; // Explicit 950px
+           el.style.width = '950px';
+           el.style.height = '950px';
+           // ... (rest of styles)
            el.style.maxWidth = 'none';
            el.style.aspectRatio = 'unset';
            el.style.gap = '0px'; 
            el.style.display = 'grid';
-           el.style.gridTemplateColumns = 'repeat(10, 95px)'; // EXACT 95px cols
-           el.style.gridTemplateRows = 'repeat(10, 95px)';    // EXACT 95px rows
+           el.style.gridTemplateColumns = 'repeat(10, 95px)';
+           el.style.gridTemplateRows = 'repeat(10, 95px)';
            el.style.padding = '0';
            el.style.margin = '0';
            el.style.border = 'none';
        });
        
-       // 2. Adjust Title (Larger & Spaced)
+       // ... (Title logic same as before) ...
        const titles = gridRef.current.querySelectorAll('h2');
        titles.forEach(t => {
            const el = t as HTMLElement;
-           el.style.marginBottom = '25px'; // Increased margin
-           el.style.fontSize = '42px'; // Larger Title (was 32px)
+           el.style.marginBottom = '25px';
+           el.style.fontSize = '42px';
            el.style.textAlign = 'center';
            el.style.width = '100%';
            el.style.color = '#fff';
-           el.style.textShadow = '0 2px 10px rgba(168, 85, 247, 0.5)'; // subtle purple glow
+           el.style.textShadow = '0 2px 10px rgba(168, 85, 247, 0.5)';
        });
        
-       // 3. Force Container Matches Options
+       // ... (Container logic same as before) ...
        gridRef.current.style.width = '1080px';
        gridRef.current.style.height = '1080px';
        gridRef.current.style.maxWidth = 'none';
@@ -429,7 +440,7 @@ export default function Home() {
        gridRef.current.style.padding = '0';
        gridRef.current.style.margin = '0';
        
-       // 4. Force Cells to be Exact 95px
+       // 4. Force Cells to be Exact 95px + MARK EMPTY CELLS
        const cells = gridRef.current.querySelectorAll('.grid > div');
        cells.forEach((c, idx) => {
            const el = c as HTMLElement;
@@ -440,11 +451,13 @@ export default function Home() {
            el.style.minWidth = '95px';
            el.style.minHeight = '95px';
            
-           // Clean Empty Cells
-           if (!el.querySelector('img')) {
+           // Clean Empty Cells (Source of Truth: Grid State)
+           if (!grid[idx]?.character) {
+               // Visual cleanup
                el.style.backgroundImage = 'none';
                el.style.backgroundColor = '#000000';
-               el.setAttribute('data-empty', 'true');
+               // Mark for Filter
+               el.setAttribute('data-export-empty', 'true'); 
            }
        });
 
