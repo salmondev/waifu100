@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
 @theme inline {
@@ -12,15 +12,142 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Animations */
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: rgba(147, 51, 234, 0.5);
+    box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.4);
+  }
+  50% {
+    border-color: rgba(147, 51, 234, 1);
+    box-shadow: 0 0 12px 2px rgba(147, 51, 234, 0.6);
+  }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+/* Grid cell hover effect */
+.grid-cell {
+  transition: all 0.2s ease;
+}
+
+.grid-cell:hover {
+  transform: scale(1.02);
+  z-index: 10;
+}
+
+/* Dragging states */
+.grid-cell[draggable="true"] {
+  cursor: grab;
+}
+
+.grid-cell[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Cell being dragged */
+.grid-cell.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+/* Drop target animation */
+@keyframes pulse-drop {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px 4px rgba(147, 51, 234, 0.5);
+  }
+}
+
+.drop-target {
+  animation: pulse-drop 0.6s ease-in-out infinite;
+  border-color: #9333ea !important;
+  border-width: 2px !important;
+  background: rgba(147, 51, 234, 0.2) !important;
+}
+
+/* Swap animation */
+@keyframes swap-in {
+  0% {
+    transform: scale(0.8) rotate(-5deg);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.1) rotate(2deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.swap-animation {
+  animation: swap-in 0.3s ease-out;
+}
+
+/* Pop animation for drops */
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 20px rgba(147, 51, 234, 0.6);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Character card hover */
+.character-card {
+  transition: all 0.2s ease;
+}
+
+.character-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(147, 51, 234, 0.3);
+}
+
+/* Character card dragging */
+.character-card:active {
+  transform: scale(0.95);
+  box-shadow: 0 0 30px rgba(147, 51, 234, 0.5);
+}
+
+/* Selected state */
+.selected-character {
+  ring: 2px solid #9333ea;
+  box-shadow: 0 0 20px rgba(147, 51, 234, 0.5);
 }
