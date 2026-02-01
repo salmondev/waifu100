@@ -23,12 +23,13 @@ export async function POST(request: NextRequest) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const prompt = `You are an anime and game character expert. Based on the following list of characters that a user has selected as their favorites, suggest 15 similar characters they might also like.
+    const prompt = `You are an expert in Anime, Manga, VTubers, and Video Games (Gacha, JRPG, Visual Novels). Based on the following list of characters that a user has selected as their favorites, suggest 15 similar characters they might also like.
 
 User's favorite characters:
 ${characterNames.map((name: string, i: number) => `${i + 1}. ${name}`).join("\n")}
 
-Analyze the themes, personality types, art styles, genres, and appeal of these characters. Then suggest 15 OTHER characters (not in the list above) that share similar qualities.
+Analyze the themes, personality types, art styles, genres, and appeal of these characters. Then suggest 15 OTHER characters (not in the list above) that share similar qualities. 
+You MUST include a mix of characters from Anime, Video Games (e.g., Genshin Impact, Fate/Grand Order, Persona, Nier, etc.), and VTubers (Hololive, Nijisanji, etc.) if they fit the vibe.
 
 IMPORTANT: Return ONLY valid JSON in this exact format, no markdown, no code blocks:
 {
