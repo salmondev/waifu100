@@ -173,9 +173,19 @@ export async function POST(request: NextRequest) {
     // Deduplicate by URL
     const seen = new Set<string>();
     const uniqueImages = images.filter((img) => {
-      if (seen.has(img.url)) return false;
-      seen.add(img.url);
-      return true;
+      // Normalize URL for deduplication (ignore query params)
+      try {
+          const urlObj = new URL(img.url);
+          const cleanUrl = urlObj.origin + urlObj.pathname;
+          if (seen.has(cleanUrl)) return false;
+          seen.add(cleanUrl);
+          return true;
+      } catch (e) {
+          // Fallback for invalid URLs or relative paths
+          if (seen.has(img.url)) return false;
+          seen.add(img.url);
+          return true;
+      }
     });
 
     console.log(`[Gallery] Total: ${uniqueImages.length} unique images`);

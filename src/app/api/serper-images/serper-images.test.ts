@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock environment variables
-vi.stubEnv("SERPER_API_KEY", "test-api-key");
-vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+process.env.SERPER_API_KEY = "test-api-key";
+process.env.GEMINI_API_KEY = "test-gemini-key";
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -222,21 +222,29 @@ describe("Gallery API with Serper Integration", () => {
     expect(data.images.length).toBeGreaterThan(0);
   });
 
-  it("should deduplicate images with same URL", async () => {
-    const duplicateUrl = "https://example.com/same-image.jpg";
+  it("should deduplicate images with same URL or different params", async () => {
+    const baseUrl = "https://example.com/same-image.jpg";
+    const duplicateUrl1 = `${baseUrl}?width=200`;
+    const duplicateUrl2 = `${baseUrl}?source=web`;
 
     const mockSerperResponse = {
       images: [
         {
-          title: "Image 1",
-          imageUrl: duplicateUrl,
-          thumbnailUrl: duplicateUrl,
+          title: "Image 1 (Base)",
+          imageUrl: baseUrl,
+          thumbnailUrl: baseUrl,
           domain: "example.com",
         },
         {
-          title: "Image 2",
-          imageUrl: duplicateUrl,
-          thumbnailUrl: duplicateUrl,
+          title: "Image 2 (Params 1)",
+          imageUrl: duplicateUrl1,
+          thumbnailUrl: duplicateUrl1,
+          domain: "example.com",
+        },
+        {
+          title: "Image 3 (Params 2)",
+          imageUrl: duplicateUrl2,
+          thumbnailUrl: duplicateUrl2,
           domain: "example.com",
         },
       ],
@@ -260,8 +268,7 @@ describe("Gallery API with Serper Integration", () => {
     const data = await response.json();
 
     // Check that duplicates are removed
-    const urls = data.images.map((img: { url: string }) => img.url);
-    const uniqueUrls = [...new Set(urls)];
-    expect(urls.length).toBe(uniqueUrls.length);
+    expect(data.images.length).toBe(1);
+    expect(data.images[0].url).toContain(baseUrl);
   });
 });

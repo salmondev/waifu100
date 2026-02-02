@@ -1129,21 +1129,19 @@ export default function Home() {
             </div>
          )}
          
-         <div ref={gridRef} className="bg-black p-4 shadow-2xl w-full max-w-[85vh] aspect-square mx-auto transition-all">
-             <h2 className="text-2xl font-bold text-center mb-6 tracking-widest uppercase text-zinc-300">#CHALLENGEอายุน้อยร้อยเมน</h2>
+          <div ref={gridRef} className="bg-black p-3 shadow-2xl w-full max-w-[calc(100vh-12rem)] mx-auto transition-all">
+             <h2 className="text-xl font-bold text-center mb-3 tracking-widest uppercase text-zinc-300">#CHALLENGEอายุน้อยร้อยเมน</h2>
              
-             {/* Onboarding Hint (shows when grid is mostly empty) */}
-             {filledCount < 5 && (
-                <div className="mb-4 p-3 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg text-center export-exclude">
-                   <div className="flex items-center justify-center gap-2 text-purple-300 text-sm font-medium mb-1">
-                      <GripVertical className="w-4 h-4"/>
-                      <span>Drag & Drop to Build Your Grid</span>
-                   </div>
-                   <p className="text-xs text-zinc-500">Search characters on the left, then drag them here. Drag to reorder or drop on red zones to delete.</p>
+             {/* Onboarding Hint */}
+             <div className="mb-2 p-2 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg text-center export-exclude">
+                <div className="flex items-center justify-center gap-2 text-purple-300 text-sm font-medium mb-1">
+                   <GripVertical className="w-4 h-4"/>
+                   <span>Drag & Drop to Build Your Grid</span>
                 </div>
-             )}
+                <p className="text-[10px] text-zinc-500">Search characters on the left, then drag them here. Drag to reorder or drop on red zones to delete.</p>
+             </div>
              
-             <div className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-2 rounded-sm border border-zinc-700 w-full">
+             <div className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full">
                 {grid.map((cell, idx) => (
                   <div 
                     key={idx}
@@ -1192,10 +1190,10 @@ export default function Home() {
                   </div>
                 ))}
              </div>
-             <p className="text-center text-zinc-600 text-[10px] mt-4 uppercase tracking-wider export-exclude">Drag to Move • Drag Out to Delete</p>
+             <p className="text-center text-zinc-600 text-[10px] mt-2 uppercase tracking-wider export-exclude">Drag to Move • Drag Out to Delete</p>
              
              {/* Credit Footer */}
-             <div className="text-center mt-2 export-exclude">
+             <div className="text-center mt-1 export-exclude">
                <a 
                  href="https://x.com/omuricep/status/1511279132487094277" 
                  target="_blank" 
