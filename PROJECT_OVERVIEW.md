@@ -1,0 +1,128 @@
+# Waifu100 Challenge - Project Overview
+
+## 📖 Introduction
+**Waifu100** is a highly interactive, Next.js-based web application designed for users to create, manage, and share their "100 Favorite Characters" 10x10 grid. It combines a seamless drag-and-drop interface with powerful search capabilities (aggregating MyAnimeList, AniList, and Fanart APIs) and AI-powered recommendations.
+
+This project is built to be **robust, pixel-perfect, and user-friendly**, featuring local persistence, advanced export options, and a polished dark-mode aesthetic.
+
+---
+
+## 🛠 Tech Stack
+- **Framework**: [Next.js 16.1.6 (App Router)](https://nextjs.org) + Turbopack
+- **Language**: TypeScript
+- **Styling**: TailwindCSS v4 + `clsx` + `tailwind-merge` + `lucide-react`
+- **Grid Export**: `html-to-image` (Custom pixel-strict implementation)
+- **AI/LLM**: Google Gemini API (`@google/generative-ai`)
+- **State Management**: React Hooks (`useState`, `useReducer`, `useEffect`) + LocalStorage
+- **Data Fetching**: Native `fetch` with Next.js API Routes (Proxy pattern)
+
+---
+
+## 🌟 Key Features
+
+### 1. The Grid (Core)
+- **10x10 Interactive Grid**: 100 slots for characters.
+- **Drag & Drop**:
+  - Drag from Search -> Grid
+  - Drag from Grid -> Grid (Reorder)
+  - Drag Grid -> Trash (Delete)
+  - Drag JSON File -> Page (Load)
+- **Persistence**: Auto-saves to `localStorage`.
+- **Smart Click**: Empty cells open search; filled cells show details/gallery.
+
+### 2. Search & Discovery (Hybrid Engine)
+- **Multi-Source Search**: Aggregates results from **Jikan (MAL)** and **AniList**.
+- **AI Suggestions**: Uses Gemini AI to analyze the current grid and suggest compatible characters (Games, VTubers, Anime).
+- **Gallery Mode**: Fetches high-quality fanart from **Konachan** (via proxy to bypass CORS/DNS blocks).
+- **Manual Input**: Paste Image URL or Upload Local Files (auto-compressed).
+
+### 3. Export System (Pixel-Perfect)
+- **"Save As" JSON**: Full state encryption/decryption to save progress as a `.json` file.
+- **Image Export**: Generates a high-resolution **1080x1080 PNG**.
+  - **Ghost-Free**: Implements robust DOM filtering to prevent "ghost" images in empty cells.
+  - **Optimized Layout**: Pixel-strict grid sizing (950px grid + 130px header) to prevent text cutoff.
+  - **Privacy**: Excludes UI elements (buttons, hints) automatically.
+
+### 4. UI/UX Polish
+- **Toast Notifications**: Custom animated notification system (replacing native `alert()`).
+- **Glassmorphism**: Modern dark aesthetic with gradients and blur effects.
+- **Responsive**: Adapts to screen sizes, though primarily optimized for desktop/tablet curation.
+
+---
+
+## 📂 Project Structure
+
+```bash
+h:\dev_project\next_\waifu100\
+├── src\
+│   ├── app\
+│   │   ├── api\            # Backend API Routes (Proxies)
+│   │   │   ├── gallery\    # Fetches images from Konachan/Safebooru
+│   │   │   ├── images\     # Image proxy for CORS handling
+│   │   │   ├── search\     # Aggregates MAL/AniList
+│   │   │   └── suggest\    # Gemini AI integration
+│   │   ├── page.tsx        # MAIN APPLICATION LOGIC (Monolithic Client Component)
+│   │   └── layout.tsx      # Root layout
+│   └── lib\                # Utility functions (if separated)
+├── public\                 # Static assets
+├── .env                    # Environment variables (API Keys)
+├── next.config.ts          # Next.js configuration
+├── package.json            # Dependencies
+└── PROJECT_OVERVIEW.md     # This file
+```
+
+> **Note**: `src/app/page.tsx` is the core file containing most UI state and interaction logic. API routes handle all external data fetching to avoid CORS issues.
+
+---
+
+## 🚀 Setup & Installation
+
+### 1. Prerequisites
+- Node.js 18+ or Bun (Recommended)
+- A Google Gemini API Key
+
+### 2. Environment Variables
+Create a `.env` file in the root:
+```env
+# Required for AI Suggestions
+GEMINI_API_KEY=your_api_key_here
+```
+
+### 3. Install & Run
+```bash
+# Install dependencies
+bun install
+
+# Run development server
+bun run dev
+
+# Build for production
+bun run build
+bun start
+```
+
+---
+
+## 🧠 "Gotchas" & Context for AI Agents
+
+1.  **Ghost Images in Export**:
+    - *Issue*: `html-to-image` sometimes clones empty `div`s with stale background images.
+    - *Fix*: We use a strict filter in `handleExport` that checks `[data-export-empty="true"]`. **Always** use `grid` state as the source of truth, not the DOM.
+
+2.  **CORS Handling**:
+    - External images (MAL, AniList, Konachan) often block cross-origin Canvas tainting.
+    - *Solution*: All images in the grid pass through `/_next/image?url=...` or our own API proxy to ensure they can be drawn to the export canvas.
+
+3.  **Local Storage Quota**:
+    - Storing 100 base64 images will crash `localStorage`.
+    - *Optimization*: We prioritize storing URLs. Local uploads are compressed and resized (max 500px) before storage.
+
+4.  **Taiwind v4**:
+    - This project uses the latest Tailwind v4 alpha/beta. Configuration is zero-config (in CSS), so you won't find a `tailwind.config.js`.
+
+---
+
+## 🧪 Status (v0.0.2)
+- **Build**: Passing
+- **Tests**: Manual verification passed.
+- **Ready for**: Production Deployment.
