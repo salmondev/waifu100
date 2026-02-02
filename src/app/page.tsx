@@ -1049,8 +1049,8 @@ export default function Home() {
                <div className="space-y-2">
                   <button 
                      onClick={() => {
-                        const source = ["Uploaded", "URL", "Web Search"].includes(selectedCharacter.source) ? "Anime" : selectedCharacter.source;
-                        const query = `${selectedCharacter.name} ${source}`;
+                        const source = ["Uploaded", "URL", "Web Search"].includes(selectedCharacter.source || "") ? "Anime" : selectedCharacter.source;
+                        const query = `${selectedCharacter.name} ${source || ""}`;
                         window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`, '_blank');
                      }}
                      className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
