@@ -75,7 +75,7 @@ export default function Home() {
   
   // --- State: Search (Left Panel) ---
   const [searchQuery, setSearchQuery] = useState("");
-  const debouncedQuery = useDebounce(searchQuery, 500); 
+  const debouncedQuery = useDebounce(searchQuery, 600); // 600ms debounce to reduce API spam
   const [characterResults, setCharacterResults] = useState<Character[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
@@ -622,7 +622,7 @@ export default function Home() {
 
   const handleLoadJson = () => {
       let data: any[] = [];
-      let input = jsonInput.trim();
+      const input = jsonInput.trim();
 
       // Scavenger Function: Finds balanced {...} objects in 'soup'
       const scavenge = (str: string) => {

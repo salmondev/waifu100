@@ -16,7 +16,9 @@ This document outlines both **Project-Specific** checks for Waifu100 and **Gener
   - Rapidly click "Gallery" on multiple characters. **Verify**: The app handles API rate limits gracefully (loading states shown) without crashing.
 
 ### 2. Environment Configuration
-- [ ] **Secrets**: Ensure `GEMINI_API_KEY` is set in the production environment (Vercel/Netlify Dashboard).
+- [ ] **Secrets**: Ensure the following are set in the production environment (Vercel/Netlify Dashboard):
+  - `GEMINI_API_KEY` - For AI suggestions and query optimization
+  - `SERPER_API_KEY` - For Google Image search via Serper API
 - [ ] **CORS**: If hosting images or APIs on a different domain, verify `next.config.ts` image domains.
 
 ---
@@ -66,7 +68,9 @@ This document outlines both **Project-Specific** checks for Waifu100 and **Gener
 ## 🚀 Final Pre-Flight Checklist
 1.  **Build**: `bun run build` passes locally with **zero** errors.
 2.  **Lint**: `bun run lint` returns clean.
-3.  **Clean Start**: `rm -rf .next && bun run dev` starts without caching issues.
-4.  **Device Test**: Open the production URL on a **Mobile Device** (iOS/Android) to verify touch interactions and responsive layout.
+3.  **Tests**: `bun run test` passes all unit tests.
+4.  **Clean Start**: `rm -rf .next && bun run dev` starts without caching issues.
+5.  **Device Test**: Open the production URL on a **Mobile Device** (iOS/Android) to verify touch interactions and responsive layout.
+6.  **Image Search Test**: Search for characters from Anime, VTubers, and Games to verify Serper integration returns accurate results.
 
 **Ready for Liftoff!** 🌌
