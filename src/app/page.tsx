@@ -1193,6 +1193,23 @@ export default function Home() {
                 ))}
              </div>
              <p className="text-center text-zinc-600 text-[10px] mt-4 uppercase tracking-wider export-exclude">Drag to Move • Drag Out to Delete</p>
+             
+             {/* Credit Footer */}
+             <div className="text-center mt-2 export-exclude">
+               <a 
+                 href="https://x.com/omuricep/status/1511279132487094277" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 className="inline-flex items-center gap-1.5 text-sm font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
+               >
+                 <Link className="w-3.5 h-3.5 text-pink-500" />
+                 Challenge Credit: #CHALLENGEอายุน้อยร้อยเมน by @omuricep
+                 {/* X Logo */}
+                 <svg viewBox="0 0 24 24" aria-label="X (formerly Twitter)" className="w-3 h-3 fill-purple-500">
+                    <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/>
+                 </svg>
+               </a>
+             </div>
          </div>
       </main>
 
