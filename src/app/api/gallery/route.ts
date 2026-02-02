@@ -72,9 +72,13 @@ Output JSON:
             let tags = `${characterName} rating:general`;
             try {
                 const result = await model.generateContent(prompt);
-                const text = result.response.text().replace(/```json|```/g, "").trim();
-                const json = JSON.parse(text);
-                if (json.tags) tags = json.tags;
+                const text = result.response.text();
+                // Robust Extract: Find the first { ... } block
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const json = JSON.parse(jsonMatch[0]);
+                    if (json.tags) tags = json.tags;
+                }
                 console.log(`[Gallery] Gemini Tags: ${tags}`);
             } catch (e) {
                 console.warn("[Gallery] Gemini Tag Gen failed, using raw fallback", e);

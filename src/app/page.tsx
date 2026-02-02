@@ -370,7 +370,7 @@ export default function Home() {
        const options = { 
            quality: 1, 
            pixelRatio: 1, 
-           cacheBust: true, // Force reload images
+           // cacheBust: true, // REMOVED: Breaks Data URLs and causes duplication
            backgroundColor: "#000",
            width: 1080, 
            height: 1080,
@@ -457,7 +457,14 @@ export default function Home() {
                el.style.backgroundImage = 'none';
                el.style.backgroundColor = '#000000';
                // Mark for Filter
-               el.setAttribute('data-export-empty', 'true'); 
+               el.setAttribute('data-export-empty', 'true');
+               
+               // Force hide any images in empty slots (Defense in Depth)
+               const imgs = el.querySelectorAll('img');
+               imgs.forEach(img => {
+                   (img as HTMLElement).style.display = 'none';
+                   (img as HTMLElement).style.visibility = 'hidden';
+               });
            }
        });
 
@@ -1041,12 +1048,15 @@ export default function Home() {
                
                <div className="space-y-2">
                   <button 
-                     onClick={() => openGallery(selectedCharacter)}
-                     disabled={selectedCharacter.source === "Uploaded" || selectedCharacter.source === "URL"}
-                     className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                     onClick={() => {
+                        const source = ["Uploaded", "URL", "Web Search"].includes(selectedCharacter.source) ? "Anime" : selectedCharacter.source;
+                        const query = `${selectedCharacter.name} ${source}`;
+                        window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`, '_blank');
+                     }}
+                     className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                   >
-                     <Images className="w-4 h-4 text-purple-400"/>
-                     Find More Images
+                     <Search className="w-4 h-4 text-blue-400"/>
+                     Search Google Images
                   </button>
                   <p className="text-xs text-zinc-600 text-center">Drag image to a cell or click a cell</p>
                </div>
@@ -1143,7 +1153,11 @@ export default function Home() {
                     {cell.character ? (
                        <>
                            <img 
-                             src={`/_next/image?url=${encodeURIComponent(cell.character.customImageUrl || cell.character.images.jpg.image_url)}&w=384&q=75`} 
+                             src={(() => {
+                                 const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
+                                 if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+                                 return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
+                             })()} 
                              alt={cell.character.name}
                              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" 
                              loading="eager"
