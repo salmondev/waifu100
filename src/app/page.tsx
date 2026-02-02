@@ -940,9 +940,9 @@ export default function Home() {
              </div>
           ) : (
              <div className="space-y-2">
-               {characterResults.map(char => (
+               {characterResults.map((char, idx) => (
                  <div
-                   key={char.mal_id}
+                   key={`${char.mal_id}-${idx}`}
                    draggable
                    onDragStart={(e) => handleDragStartFromSearch(e, char)}
                    onDragEnd={handleDragEnd}
