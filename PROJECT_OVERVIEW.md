@@ -1,7 +1,7 @@
 # Waifu100 Challenge - Project Overview
 
 ## 📖 Introduction
-**Waifu100** is a highly interactive, Next.js-based web application designed for users to create, manage, and share their "100 Favorite Characters" 10x10 grid. It combines a seamless drag-and-drop interface with powerful search capabilities (aggregating MyAnimeList, AniList, and Fanart APIs) and AI-powered recommendations.
+**Waifu100** is a highly interactive, Next.js-based web application designed for users to create, manage, and share their "100 Favorite Characters" 10x10 grid. It combines a seamless drag-and-drop interface with powerful search capabilities (aggregating **Serper/Google Images**, MyAnimeList, AniList, and Konachan APIs) and AI-powered recommendations.
 
 This project is built to be **robust, pixel-perfect, and user-friendly**, featuring local persistence, advanced export options, and a polished dark-mode aesthetic.
 
@@ -31,9 +31,10 @@ This project is built to be **robust, pixel-perfect, and user-friendly**, featur
 - **Smart Click**: Empty cells open search; filled cells show details/gallery.
 
 ### 2. Search & Discovery (Hybrid Engine)
-- **Multi-Source Search**: Aggregates results from **Jikan (MAL)** and **AniList**.
+- **Multi-Source Character Search**: Aggregates results from **Jikan (MAL)** and **AniList**.
+- **AI-Powered Image Search**: Uses **Serper API** (Google Images) with Gemini-optimized queries for precise character image discovery.
 - **AI Suggestions**: Uses Gemini AI to analyze the current grid and suggest compatible characters (Games, VTubers, Anime).
-- **Gallery Mode**: Fetches high-quality fanart from **Konachan** (via proxy to bypass CORS/DNS blocks).
+- **Gallery Mode**: Fetches high-quality images from **Serper (Google)**, **Jikan (Official Art)**, and **Konachan (Fanart)** in parallel.
 - **Manual Input**: Paste Image URL or Upload Local Files (auto-compressed).
 
 ### 3. Export System (Pixel-Perfect)
@@ -56,10 +57,10 @@ This project is built to be **robust, pixel-perfect, and user-friendly**, featur
 h:\dev_project\next_\waifu100\
 ├── src\
 │   ├── app\
-│   │   ├── api\            # Backend API Routes (Proxies)
-│   │   │   ├── gallery\    # Fetches images from Konachan/Safebooru
+│   │   │   ├── serper-images\ # Serper API image search
+│   │   │   ├── gallery\    # Multi-source images (Serper + Jikan + Konachan)
 │   │   │   ├── images\     # Image proxy for CORS handling
-│   │   │   ├── search\     # Aggregates MAL/AniList
+│   │   │   ├── search\     # Character search (MAL + AniList)
 │   │   │   └── suggest\    # Gemini AI integration
 │   │   ├── page.tsx        # MAIN APPLICATION LOGIC (Monolithic Client Component)
 │   │   └── layout.tsx      # Root layout
@@ -84,8 +85,11 @@ h:\dev_project\next_\waifu100\
 ### 2. Environment Variables
 Create a `.env` file in the root:
 ```env
-# Required for AI Suggestions
-GEMINI_API_KEY=your_api_key_here
+# Required for AI Suggestions & Query Optimization
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Required for Image Search (Primary)
+SERPER_API_KEY=your_serper_api_key_here
 ```
 
 ### 3. Install & Run
@@ -122,7 +126,11 @@ bun start
 
 ---
 
-## 🧪 Status (v0.0.2)
+## 🧪 Status (v0.1.0)
 - **Build**: Passing
-- **Tests**: Manual verification passed.
+- **Tests**: Unit tests with Vitest (`bun run test`)
 - **Ready for**: Production Deployment.
+
+### Changelog
+- **v0.1.0**: Added Serper API integration for Google Image search, improved gallery with multi-source parallel fetching.
+- **v0.0.2**: Initial release with MAL/AniList search and Konachan fanart.
