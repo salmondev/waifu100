@@ -88,6 +88,7 @@ export default function Home() {
   const [galleryImages, setGalleryImages] = useState<ImageResult[]>([]);
   const [isGalleryLoading, setIsGalleryLoading] = useState(false);
   const [galleryTargetName, setGalleryTargetName] = useState<string>("");
+  const [gallerySearchQuery, setGallerySearchQuery] = useState<string>(""); // Custom search keywords
 
   // Suggestions State
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -128,13 +129,19 @@ export default function Home() {
     }
   }, []);
 
+  // Track if we've already shown the storage warning this session
+  const storageWarningShown = useRef(false);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
+      storageWarningShown.current = false; // Reset if save succeeds
     } catch (e: any) {
-      if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
-         showNotification("Storage Full! Remove some items to save.", 'error');
-         console.error("Storage Quota Exceeded");
+      if ((e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) 
+          && !storageWarningShown.current) {
+         storageWarningShown.current = true;
+         showNotification("Storage nearly full. Your changes are saved in memory.", 'info');
+         console.warn("Storage Quota Exceeded - changes saved in memory only");
       }
     }
   }, [grid, showNotification]);
@@ -176,23 +183,26 @@ export default function Home() {
   }, [debouncedQuery]);
 
   // --- Gallery Logic ---
-  const openGallery = useCallback(async (char: Character) => {
+  const openGallery = useCallback(async (char: Character, customQuery?: string) => {
     setShowRightPanel(true);
     setActiveTab('gallery');
     setGalleryTargetName(char.name);
     setGalleryImages([]);
     
-    // Check if we need to load unique images for this char
-    // (If user clicks same char, maybe don't reload? But explicit click usually implies refresh)
     setIsGalleryLoading(true);
     setSelectedCharacter(char);
 
     try {
+      // Combine character name with custom query if provided
+      const searchName = customQuery 
+        ? `${char.name} ${customQuery}`.trim()
+        : char.name;
+        
       const res = await fetch("/api/gallery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-            characterName: char.name, 
+            characterName: searchName, 
             animeSource: char.source,
             malId: char.jikan_id 
         })
@@ -207,6 +217,12 @@ export default function Home() {
       setIsGalleryLoading(false);
     }
   }, []);
+
+  // Search gallery with custom keywords
+  const searchGalleryWithQuery = useCallback(() => {
+    if (!selectedCharacter) return;
+    openGallery(selectedCharacter, gallerySearchQuery);
+  }, [selectedCharacter, gallerySearchQuery, openGallery]);
 
   // --- Suggestions Logic ---
   const handleGetSuggestions = async () => {
@@ -1280,6 +1296,28 @@ export default function Home() {
                            <span className="w-2 h-2 rounded-full bg-pink-500"/>
                            {galleryTargetName}
                         </h3>
+                        {/* Custom search input */}
+                        <div className="px-2 mb-3">
+                           <div className="relative flex gap-1">
+                              <input 
+                                 className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg py-1.5 px-3 text-xs focus:ring-2 focus:ring-pink-500 outline-none placeholder-zinc-500"
+                                 placeholder="Add keywords (e.g., wallpaper, fanart)"
+                                 value={gallerySearchQuery}
+                                 onChange={e => setGallerySearchQuery(e.target.value)}
+                                 onKeyDown={e => e.key === 'Enter' && searchGalleryWithQuery()}
+                              />
+                              <button
+                                 onClick={searchGalleryWithQuery}
+                                 disabled={isGalleryLoading}
+                                 className="px-3 py-1.5 bg-pink-600 hover:bg-pink-500 disabled:opacity-50 rounded-lg text-xs font-medium transition-colors"
+                              >
+                                 <Search className="w-3 h-3"/>
+                              </button>
+                           </div>
+                           <p className="text-[10px] text-zinc-600 mt-1 px-1">
+                              Searching: {galleryTargetName} {gallerySearchQuery && `+ "${gallerySearchQuery}"`}
+                           </p>
+                        </div>
                         {isGalleryLoading ? (
                            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-pink-500"/></div>
                         ) : galleryImages.length > 0 ? (
