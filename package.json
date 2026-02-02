@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "precheck": "npx tsc --noEmit && bun run build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
