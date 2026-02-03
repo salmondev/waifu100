@@ -16,7 +16,7 @@ export function DraggableSidebarItem({ char, onClick, children }: DraggableSideb
     });
     
     return (
-        <div ref={setNodeRef} {...listeners} {...attributes} onClick={onClick} className={cn("touch-none", isDragging ? "opacity-30" : "opacity-100")}>
+        <div ref={setNodeRef} {...listeners} {...attributes} onClick={onClick} className={cn("touch-pan-y", isDragging ? "opacity-30" : "opacity-100")}>
             {children}
         </div>
     );
