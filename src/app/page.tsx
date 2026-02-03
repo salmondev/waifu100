@@ -264,12 +264,14 @@ export default function Home() {
       // Fill the search bar and trigger search
       setSearchQuery(`${suggestion.name} ${suggestion.from}`);
       // The useEffect will pick this up and search
+      setIsMobileSidebarOpen(true); // Switch to search view so user sees results
   };
 
   // --- Selection Logic ---
   const handleSelectCharacter = (char: Character) => {
     setSelectedCharacter(char);
     openGallery(char); // Auto-find more images
+    setIsMobileSidebarOpen(false); // Close search sidebar to show Gallery (Right Panel)
   };
   
   const handleCellClick = (index: number) => {
@@ -915,6 +917,14 @@ export default function Home() {
         />
       )}
 
+      {/* Mobile Burger Menu - Fixed Positioning */}
+      <button 
+        onClick={() => setIsMobileSidebarOpen(true)}
+        className="lg:hidden fixed top-4 left-4 p-2 bg-zinc-800/80 backdrop-blur rounded-lg text-zinc-300 hover:text-white z-50 border border-zinc-700 shadow-xl"
+      >
+        <Menu className="w-5 h-5"/>
+      </button>
+
       {/* 1. LEFT SIDEBAR: Character Discovery */}
       <aside className={cn(
           "fixed inset-y-0 left-0 z-50 w-80 bg-zinc-950 border-r border-zinc-800 flex flex-col shadow-xl shrink-0 transition-transform duration-300 lg:static lg:translate-x-0",
@@ -1123,12 +1133,6 @@ export default function Home() {
          )}
          
           <div ref={gridRef} className="bg-black p-1 lg:p-3 shadow-2xl w-full lg:max-w-[calc(100vh-12rem)] mx-auto transition-all pt-12 pb-40 lg:pt-3 lg:pb-3">
-             <button 
-                onClick={() => setIsMobileSidebarOpen(true)}
-                className="lg:hidden absolute top-4 left-4 p-2 bg-zinc-800/80 backdrop-blur rounded-lg text-zinc-300 hover:text-white z-40 border border-zinc-700"
-             >
-                <Menu className="w-5 h-5"/>
-             </button>
              <h2 className="text-xl font-bold text-center mb-3 tracking-widest uppercase text-zinc-300">#CHALLENGEอายุน้อยร้อยเมน</h2>
              
              {/* Onboarding Hint */}
