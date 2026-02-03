@@ -1,15 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ExternalLink, ImageIcon, Images, Grid3X3, Lightbulb, GripVertical, HelpCircle, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info } from "lucide-react";
+import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, ImageIcon, Images, Grid3X3, Lightbulb, GripVertical, HelpCircle, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu } from "lucide-react";
 import { toPng, toBlob, toJpeg } from "html-to-image";
 import NextImage from "next/image";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-
-function cn(...inputs: (string | undefined | null | boolean)[]) {
-  return twMerge(clsx(inputs));
-}
+import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartEvent, DragEndEvent, DragOverEvent, pointerWithin } from "@dnd-kit/core";
+import { cn } from "@/lib/utils";
+import { Character, GridCell, ImageResult } from "@/types";
+import { GridCell as GridComponent } from "@/components/grid/GridCell";
+import { DraggableSidebarItem } from "@/components/sidebar/DraggableSidebarItem";
+import { DragOverlayWrapper } from "@/components/dnd/DragOverlayWrapper";
+import { TrashZone } from "@/components/dnd/TrashZone";
 
 // --- Types ---
 interface Notification {
@@ -17,29 +20,7 @@ interface Notification {
   type: 'success' | 'error' | 'info';
 }
 
-interface Character {
-  mal_id: number;
-  jikan_id?: number | null; // ID specific to Jikan (MyAnimeList)
-  name: string;
-  images: {
-    jpg: {
-      image_url: string;
-    };
-  };
-  customImageUrl?: string;
-  source?: string;
-}
 
-interface ImageResult {
-  url: string;
-  thumbnail: string;
-  title: string;
-  source: string;
-}
-
-interface GridCell {
-  character: Character | null;
-}
 
 interface Suggestion {
   name: string;
@@ -60,13 +41,38 @@ function useDebounce<T>(value: T, delay: number): T {
 const STORAGE_KEY = "waifu100-grid";
 
 export default function Home() {
+  // --- Sensors ---
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 10 }, // Require 10px movement before drag starts
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 15 }, // Faster activation for mobile
+    })
+  );
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeDragData, setActiveDragData] = useState<any>(null);
   // --- State: Grid ---
   const [grid, setGrid] = useState<GridCell[]>(() =>
     Array(100).fill(null).map(() => ({ character: null }))
   );
-  
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showRightPanel, setShowRightPanel] = useState(false); // Default closed to satisfy mobile requirement
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+      setMounted(true);
+      // Auto-open gallery on desktop
+      if (window.innerWidth >= 1024) {
+          setShowRightPanel(true);
+      }
+  }, []);
+
   // --- State: Notifications ---
   const [notification, setNotification] = useState<Notification | null>(null);
+
+
 
   const showNotification = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
       setNotification({ message, type });
@@ -81,7 +87,7 @@ export default function Home() {
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
 
   // --- State: Right Panel (Gallery & Suggestions) ---
-  const [showRightPanel, setShowRightPanel] = useState(true);
+
   const [activeTab, setActiveTab] = useState<'suggestions' | 'gallery'>('suggestions');
   
   // Gallery State
@@ -180,7 +186,7 @@ export default function Home() {
       }
     };
     doSearch();
-  }, [debouncedQuery]);
+  }, [debouncedQuery, searchQuery]);
 
   // --- Gallery Logic ---
   const openGallery = useCallback(async (char: Character, customQuery?: string) => {
@@ -289,90 +295,82 @@ export default function Home() {
   };
 
   // --- Drag & Drop Handlers ---
-  const handleDragStartFromSearch = (e: React.DragEvent, char: Character) => {
-    setDraggedCharacter(char);
-    setDraggedFromIndex(null);
+  // --- Drag & Drop Handlers (dnd-kit) ---
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    setActiveId(active.id as string);
+    setActiveDragData(active.data.current);
+    // Backward compatibility for UI states that rely on these
+    setDraggedCharacter(active.data.current?.character || null);
+    setDraggedFromIndex(active.data.current?.index ?? null);
     setIsDragging(true);
-    e.dataTransfer.effectAllowed = "copy";
   };
 
-  const handleDragStartFromGallery = (e: React.DragEvent, img: ImageResult) => {
-    const char: Character = {
-       mal_id: Date.now() + Math.floor(Math.random() * 10000),
-       name: galleryTargetName || "Character",
-       // Use thumbnail first to avoid hotlink/cors issues with full URLs
-       images: { jpg: { image_url: img.thumbnail || img.url } },
-       customImageUrl: img.thumbnail || img.url
-    };
-    setDraggedCharacter(char);
-    setDraggedFromIndex(null);
-    setIsDragging(true);
-    e.dataTransfer.effectAllowed = "copy";
-  };
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
 
-  const handleDragStartFromGrid = (e: React.DragEvent, index: number, char: Character) => {
-    setDraggedCharacter(char);
-    setDraggedFromIndex(index);
-    setIsDragging(true);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    setDragOverIndex(index);
-    e.dataTransfer.dropEffect = draggedFromIndex !== null ? "move" : "copy";
-  };
-
-  const handleDrop = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    setDragOverIndex(null);
-
-    if (draggedCharacter) {
-       const existingChar = grid[index].character;
-       
-       // If dragged from grid (swap), always allow
-       if (draggedFromIndex !== null) {
-          setGrid(prev => {
-            const next = [...prev];
-            const targetChar = next[index].character;
-            next[index] = { character: draggedCharacter };
-            next[draggedFromIndex] = { character: targetChar };
-            return next;
-          });
-          setLastDroppedIndex(index);
-          setTimeout(() => setLastDroppedIndex(null), 300);
-       } 
-       // If dropping from search onto occupied cell, ask for confirmation
-       else if (existingChar) {
-          setPendingReplace({ index, newChar: draggedCharacter, oldChar: existingChar });
-       }
-       // If dropping onto empty cell, just place
-       else {
-          setGrid(prev => {
-            const next = [...prev];
-            next[index] = { character: draggedCharacter };
-            return next;
-          });
-          setLastDroppedIndex(index);
-          setTimeout(() => setLastDroppedIndex(null), 300);
-       }
-    }
-    setDraggedCharacter(null);
-    setDraggedFromIndex(null);
-  };
-
-  const handleDragEnd = (e: React.DragEvent) => {
-    if (e.dataTransfer.dropEffect === "none" && draggedFromIndex !== null) {
-       setGrid(prev => {
-         const next = [...prev];
-         next[draggedFromIndex!] = { character: null };
-         return next;
-       });
-    }
+    
+    // Reset States
+    setActiveId(null);
+    setActiveDragData(null);
     setDraggedCharacter(null);
     setDraggedFromIndex(null);
     setDragOverIndex(null);
     setIsDragging(false);
+
+    if (!over) return;
+
+    const sourceData = active.data.current;
+    const targetData = over.data.current;
+
+    // 1. Drop on Trash
+    if (targetData?.type === 'trash') {
+        if (sourceData?.index !== undefined && sourceData.index !== null) {
+             setGrid(prev => {
+                const next = [...prev];
+                next[sourceData.index] = { character: null };
+                return next;
+             });
+        }
+        return;
+    }
+
+    // 2. Drop on Grid Cell
+    if (targetData?.type === 'cell') {
+         const targetIndex = targetData.index;
+         const sourceIndex = sourceData?.index;
+         const char = sourceData?.character;
+
+         if (!char) return;
+
+         // Move Logic (Swap)
+         if (sourceIndex !== undefined && sourceIndex !== null) {
+             // Don't do anything if dropped on same cell
+             if (sourceIndex === targetIndex) return;
+
+             setGrid(prev => {
+                const next = [...prev];
+                const targetChar = next[targetIndex].character;
+                next[targetIndex] = { character: char };
+                next[sourceIndex] = { character: targetChar }; // Swap
+                return next;
+             });
+         } else {
+             // New Item Logic (from Sidebar/Gallery)
+             const existingChar = grid[targetIndex].character;
+             if (existingChar) {
+                 setPendingReplace({ index: targetIndex, newChar: char, oldChar: existingChar });
+             } else {
+                 setGrid(prev => {
+                    const next = [...prev];
+                    next[targetIndex] = { character: char };
+                    return next;
+                 });
+             }
+         }
+         setLastDroppedIndex(targetIndex);
+         setTimeout(() => setLastDroppedIndex(null), 300);
+    }
   };
 
   // --- Export ---
@@ -897,16 +895,40 @@ export default function Home() {
 
   const filledCount = grid.filter(c => c.character).length;
 
+  if (!mounted) return null;
+
   return (
-    <>
+    <DndContext 
+      sensors={sensors} 
+      collisionDetection={pointerWithin} // Use pointer for aiming at cursor/finger location
+      onDragStart={handleDragStart} 
+      onDragEnd={handleDragEnd}
+      // autoScroll is enabled by default in dnd-kit
+    >
     <div className="min-h-screen bg-black flex flex-col lg:flex-row text-white font-sans h-screen overflow-hidden">
       
+      {/* Mobile Sidebar Backdrop */}
+      {isMobileSidebarOpen && (
+        <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+            onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* 1. LEFT SIDEBAR: Character Discovery */}
-      <aside className="w-full lg:w-80 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20 shadow-xl shrink-0">
-        <div className="p-4 border-b border-zinc-800">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent mb-4">
+      <aside className={cn(
+          "fixed inset-y-0 left-0 z-50 w-80 bg-zinc-950 border-r border-zinc-800 flex flex-col shadow-xl shrink-0 transition-transform duration-300 lg:static lg:translate-x-0",
+          isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
             Waifu100
           </h1>
+          <button onClick={() => setIsMobileSidebarOpen(false)} className="lg:hidden p-1 text-zinc-400 hover:text-white">
+            <X className="w-6 h-6"/>
+          </button>
+        </div>
+        <div className="px-4 pb-2 relative">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"/>
             <input 
@@ -941,31 +963,30 @@ export default function Home() {
           ) : (
              <div className="space-y-2">
                {characterResults.map((char, idx) => (
-                 <div
-                   key={`${char.mal_id}-${idx}`}
-                   draggable
-                   onDragStart={(e) => handleDragStartFromSearch(e, char)}
-                   onDragEnd={handleDragEnd}
-                   onClick={() => handleSelectCharacter(char)}
-                   className={cn(
-                     "group flex items-center gap-3 p-2 rounded-lg cursor-grab active:cursor-grabbing border transition-all",
-                     selectedCharacter?.mal_id === char.mal_id ? "bg-purple-900/20 border-purple-500" : "bg-zinc-900/50 border-transparent hover:bg-zinc-800"
-                   )}
-                 >
-                   <img src={char.images.jpg.image_url} alt={char.name} className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0"/>
-                   <div className="flex-1 min-w-0">
-                     <p className="font-medium truncate text-sm">{char.name}</p>
-                     <p className="text-xs text-zinc-500 truncate">{char.source}</p>
-                   </div>
-                   <button 
-                     onClick={(e) => { e.stopPropagation(); openGallery(char); }}
-                     title="Gallery: Find more images"
-                     className="p-2 rounded-full hover:bg-purple-600/20 text-zinc-400 hover:text-pink-400 transition-colors"
-                   >
-                     <ImageIcon className="w-4 h-4"/>
-                   </button>
-                 </div>
-               ))}
+                  <DraggableSidebarItem
+                    key={`${char.mal_id}-${idx}`}
+                    char={char}
+                    onClick={() => handleSelectCharacter(char)}
+                  >
+                     <div className={cn(
+                       "group flex items-center gap-3 p-2 rounded-lg cursor-grab active:cursor-grabbing border transition-all w-full",
+                       selectedCharacter?.mal_id === char.mal_id ? "bg-purple-900/20 border-purple-500" : "bg-zinc-900/50 border-transparent hover:bg-zinc-800"
+                     )}>
+                       <img src={char.images.jpg.image_url} alt={char.name} className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
+                       <div className="flex-1 min-w-0">
+                         <p className="font-medium truncate text-sm">{char.name}</p>
+                         <p className="text-xs text-zinc-500 truncate">{char.source}</p>
+                       </div>
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); openGallery(char); }}
+                         title="Gallery: Find more images"
+                         className="p-2 rounded-full hover:bg-purple-600/20 text-zinc-400 hover:text-pink-400 transition-colors"
+                       >
+                         <ImageIcon className="w-4 h-4"/>
+                       </button>
+                     </div>
+                  </DraggableSidebarItem>
+                ))}
              </div>
           )}
         </div>
@@ -1040,12 +1061,12 @@ export default function Home() {
                </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-               <div 
-                  draggable
-                  onDragStart={(e) => handleDragStartFromSearch(e, selectedCharacter)}
-                  onDragEnd={handleDragEnd}
-                  className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-zinc-900 mb-4 border border-zinc-800 cursor-grab active:cursor-grabbing hover:border-purple-500 transition-colors"
-               >
+               <DraggableSidebarItem
+                   char={selectedCharacter}
+                   onClick={() => {}}
+                >
+                   <div className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-zinc-900 mb-4 border border-zinc-800 cursor-grab active:cursor-grabbing hover:border-purple-500 transition-colors">
+                      
                   {selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url ? (
                       <img 
                          src={selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url} 
@@ -1056,80 +1077,58 @@ export default function Home() {
                       <div className="w-full h-full flex flex-col items-center justify-center text-zinc-700 bg-zinc-900">
                          <ImageIcon className="w-12 h-12 mb-2 opacity-20"/>
                          <span className="text-xs font-medium uppercase tracking-widest opacity-40">No Preview</span>
-                      </div>
+                      
+                   </div>
                   )}
                </div>
+            </DraggableSidebarItem>
                <h3 className="font-bold text-lg text-white mb-1">{selectedCharacter.name}</h3>
                <p className="text-sm text-zinc-500 mb-4">{selectedCharacter.source || "Unknown Source"}</p>
                
                <div className="space-y-2">
-                  <button 
-                     onClick={() => {
-                        const source = ["Uploaded", "URL", "Web Search"].includes(selectedCharacter.source || "") ? "Anime" : selectedCharacter.source;
-                        const query = `${selectedCharacter.name} ${source || ""}`;
-                        window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`, '_blank');
-                     }}
-                     className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-                  >
-                     <Search className="w-4 h-4 text-blue-400"/>
-                     Search Google Images
-                  </button>
-                  <p className="text-xs text-zinc-600 text-center">Drag image to a cell or click a cell</p>
-               </div>
+                  {!["Uploaded", "URL", "Custom", "Web Search", "Custom Character"].includes(selectedCharacter.source || "") && (
+                   <button 
+                      onClick={() => {
+                         const source = ["Uploaded", "URL", "Web Search"].includes(selectedCharacter.source || "") ? "Anime" : selectedCharacter.source;
+                         const query = `${selectedCharacter.name} ${source || ""}`;
+                         window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`, '_blank');
+                      }}
+                      className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                   >
+                      <Search className="w-4 h-4 text-blue-400"/>
+                      Search Google Images
+                   </button>
+                  )}
+                   <p className="text-xs text-zinc-600 text-center">Drag image to a cell or click a cell</p>
+                </div>
             </div>
          </aside>
       )}
 
       {/* 2. MAIN GRID AREA */}
-      <main className="flex-1 bg-black flex items-center justify-center p-4 lg:p-8 overflow-auto h-full relative">
+       <main className="flex-1 bg-black flex flex-col lg:flex-row lg:items-center justify-center p-1 lg:p-8 overflow-auto h-full relative">
          
          {/* Left Delete Zone */}
          {isDragging && draggedFromIndex !== null && (
-            <div 
-              className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-red-900/80 to-transparent border-r-2 border-dashed border-red-500 flex items-center justify-start pl-4 z-30"
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-              onDrop={(e) => {
-                 e.preventDefault();
-                 if (draggedFromIndex !== null) {
-                    setGrid(prev => {
-                       const next = [...prev];
-                       next[draggedFromIndex] = { character: null };
-                       return next;
-                    });
-                 }
-                 setDraggedCharacter(null);
-                 setDraggedFromIndex(null);
-                 setIsDragging(false);
-              }}
-            >
+            <TrashZone id="trash-left" className="hidden lg:flex absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-red-900/80 to-transparent border-r-2 border-dashed border-red-500 items-center justify-start pl-4 z-30">
                <Trash2 className="w-8 h-8 text-red-400 animate-pulse"/>
-            </div>
+            </TrashZone>
          )}
          
          {/* Right Delete Zone */}
          {isDragging && draggedFromIndex !== null && (
-            <div 
-              className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-red-900/80 to-transparent border-l-2 border-dashed border-red-500 flex items-center justify-end pr-4 z-30"
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-              onDrop={(e) => {
-                 e.preventDefault();
-                 if (draggedFromIndex !== null) {
-                    setGrid(prev => {
-                       const next = [...prev];
-                       next[draggedFromIndex] = { character: null };
-                       return next;
-                    });
-                 }
-                 setDraggedCharacter(null);
-                 setDraggedFromIndex(null);
-                 setIsDragging(false);
-              }}
-            >
+            <TrashZone id="trash-right" className="hidden lg:flex absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-red-900/80 to-transparent border-l-2 border-dashed border-red-500 items-center justify-end pr-4 z-30">
                <Trash2 className="w-8 h-8 text-red-400 animate-pulse"/>
-            </div>
+            </TrashZone>
          )}
          
-          <div ref={gridRef} className="bg-black p-3 shadow-2xl w-full max-w-[calc(100vh-12rem)] mx-auto transition-all">
+          <div ref={gridRef} className="bg-black p-1 lg:p-3 shadow-2xl w-full lg:max-w-[calc(100vh-12rem)] mx-auto transition-all pt-12 pb-40 lg:pt-3 lg:pb-3">
+             <button 
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="lg:hidden absolute top-4 left-4 p-2 bg-zinc-800/80 backdrop-blur rounded-lg text-zinc-300 hover:text-white z-40 border border-zinc-700"
+             >
+                <Menu className="w-5 h-5"/>
+             </button>
              <h2 className="text-xl font-bold text-center mb-3 tracking-widest uppercase text-zinc-300">#CHALLENGEอายุน้อยร้อยเมน</h2>
              
              {/* Onboarding Hint */}
@@ -1143,52 +1142,44 @@ export default function Home() {
              
              <div className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full">
                 {grid.map((cell, idx) => (
-                  <div 
-                    key={idx}
-                    draggable={!!cell.character}
-                    onDragStart={(e) => cell.character && handleDragStartFromGrid(e, idx, cell.character)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDrop={(e) => handleDrop(e, idx)}
-                    onDragEnd={handleDragEnd}
-                    onClick={() => { 
-                        if (selectedCharacter) {
-                            handleCellClick(idx);
-                        } else if(cell.character) { 
-                            openGallery(cell.character); 
-                        }
-                    }}
-                    className={cn(
-                      "aspect-square bg-zinc-950 relative group cursor-pointer border border-zinc-800/50 transition-all duration-200",
-                      dragOverIndex === idx && "border-purple-500 bg-purple-500/20 scale-110",
-                      selectedCharacter && !cell.character && "animate-pulse ring-1 ring-purple-500/50",
-                      lastDroppedIndex === idx && "animate-[pop_0.3s_ease-out] scale-105"
-                    )}
-                  >
-                    {cell.character ? (
-                       <>
-                           <img 
-                             src={(() => {
-                                 const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
-                                 if (url.startsWith('data:') || url.startsWith('blob:')) return url;
-                                 return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
-                             })()} 
-                             alt={cell.character.name}
-                             className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" 
-                             loading="eager"
-                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-1 pointer-events-none">
-                             <p className="text-[10px] text-white font-bold text-center px-1 truncate w-full shadow-black drop-shadow-md">
-                                {cell.character.name}
-                             </p>
-                          </div>
-                       </>
-                    ) : ( 
-                       <div className="w-full h-full flex items-center justify-center text-zinc-900 font-bold text-xs select-none">
-                         {idx + 1}
-                       </div>
-                    )}
-                  </div>
-                ))}
+                   <GridComponent
+                     key={idx}
+                     idx={idx}
+                     cell={cell}
+                     isSelected={selectedCharacter?.customImageUrl === cell.character?.customImageUrl}
+                     onClick={() => { 
+                         if (selectedCharacter) {
+                             handleCellClick(idx);
+                         } else if(cell.character) { 
+                             openGallery(cell.character); 
+                         }
+                     }}
+                   >
+                     {cell.character ? (
+                        <>
+                            <img 
+                              src={(() => {
+                                  const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
+                                  if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+                                  return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
+                              })()} 
+                              alt={cell.character.name}
+                              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" 
+                              loading="eager"
+                            />
+                           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-1 pointer-events-none">
+                              <p className="text-[10px] text-white font-bold text-center px-1 truncate w-full shadow-black drop-shadow-md">
+                                 {cell.character.name}
+                              </p>
+                           </div>
+                        </>
+                     ) : ( 
+                        <div className="w-full h-full flex items-center justify-center text-zinc-900 font-bold text-xs select-none">
+                          {idx + 1}
+                        </div>
+                     )}
+                   </GridComponent>
+                 ))}
              </div>
              <p className="text-center text-zinc-600 text-[10px] mt-2 uppercase tracking-wider export-exclude">Drag to Move • Drag Out to Delete</p>
              
@@ -1213,8 +1204,8 @@ export default function Home() {
 
       {/* 3. RIGHT SIDEBAR: Suggestions & Gallery */}
       <aside className={cn(
-        "bg-zinc-950 border-l border-zinc-800 flex flex-col h-[50vh] lg:h-screen z-20 shadow-xl shrink-0 transition-all duration-300",
-        showRightPanel ? "w-full lg:w-80" : "w-12"
+        "bg-zinc-950 border-t lg:border-t-0 border-l border-zinc-800 flex flex-col lg:h-screen z-20 shadow-xl shrink-0 transition-all duration-300",
+        showRightPanel ? "h-[50vh] w-full lg:w-80" : "h-14 w-full lg:w-12"
       )}>
          
          {/* Toggle / Header */}
@@ -1235,14 +1226,18 @@ export default function Home() {
                    </button>
                 </div>
             ) : (
-                <div className="flex flex-col items-center w-full gap-4 pt-4">
-                   <button onClick={() => setShowRightPanel(true)} title="Expand"><ChevronLeft className="text-zinc-500"/></button>
+                <div className="flex lg:flex-col items-center justify-center lg:justify-start w-full gap-4 pt-0 lg:pt-4 h-full lg:h-auto">
+                   <button onClick={() => setShowRightPanel(true)} title="Expand">
+                        <ChevronLeft className="hidden lg:block text-zinc-500"/>
+                        <ChevronUp className="lg:hidden text-zinc-500"/>
+                   </button>
                 </div>
             )}
             
             {showRightPanel && (
               <button onClick={() => setShowRightPanel(false)} className="p-2 hover:bg-zinc-800 rounded text-zinc-500">
-                <ChevronRight className="w-4 h-4"/>
+                <ChevronRight className="hidden lg:block w-4 h-4"/>
+                <ChevronDown className="lg:hidden w-4 h-4"/>
               </button>
             )}
          </div>
@@ -1337,35 +1332,35 @@ export default function Home() {
                            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-pink-500"/></div>
                         ) : galleryImages.length > 0 ? (
                            <div className="grid grid-cols-2 gap-2">
-                              {galleryImages.map((img, i) => (
-                                 <div
-                                    key={i}
-                                    draggable
-                                    onDragStart={(e) => handleDragStartFromGallery(e, img)}
-                                    onDragEnd={handleDragEnd}
-                                    onClick={() => {
-                                        // Create char object for selection
-                                        const char: Character = {
-                                           mal_id: Date.now() + Math.floor(Math.random() * 10000),
-                                           name: galleryTargetName || "Character",
-                                           // Use thumbnail first to avoid hotlink/cors issues
-                                           images: { jpg: { image_url: img.thumbnail || img.url } },
-                                           customImageUrl: img.thumbnail || img.url
-                                        };
-                                        // Just select, don't re-fetch gallery
-                                        setSelectedCharacter(char);
-                                    }}
-                                    className={cn(
-                                       "aspect-square relative group rounded-lg overflow-hidden border border-zinc-800 cursor-pointer hover:border-pink-500 transition-all bg-zinc-900",
-                                       selectedCharacter?.customImageUrl === img.url && "ring-2 ring-pink-500 border-transparent"
-                                    )}
-                                 >
-                                    <img src={img.thumbnail} className="w-full h-full object-cover pointer-events-none"/>
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                                       <span className="text-[9px] text-white bg-black/50 px-1 rounded">{img.source}</span>
-                                    </div>
-                                 </div>
-                              ))}
+                              {galleryImages.map((img, i) => {
+                                  const char = {
+                                     mal_id: 990000 + i,
+                                     name: galleryTargetName || "Character",
+                                     images: { jpg: { image_url: img.thumbnail || img.url } },
+                                     customImageUrl: img.thumbnail || img.url,
+                                     source: img.source
+                                  };
+                                  return (
+                                     <DraggableSidebarItem
+                                        key={i}
+                                        char={char}
+                                        onClick={() => {
+                                            const selection = { ...char, mal_id: Date.now() };
+                                            setSelectedCharacter(selection);
+                                        }}
+                                     >
+                                      <div className={cn(
+                                         "aspect-square relative group rounded-lg overflow-hidden border border-zinc-800 cursor-pointer hover:border-pink-500 transition-all bg-zinc-900 w-full",
+                                         selectedCharacter?.customImageUrl === img.url && "ring-2 ring-pink-500 border-transparent"
+                                      )}>
+                                         <img src={img.thumbnail} className="w-full h-full object-cover pointer-events-none select-none"/>
+                                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                                            <span className="text-[9px] text-white bg-black/50 px-1 rounded">{img.source}</span>
+                                         </div>
+                                      </div>
+                                     </DraggableSidebarItem>
+                                  );
+                               })}
                            </div>
                         ) : (
                            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
@@ -1385,7 +1380,16 @@ export default function Home() {
     </div>
     
     {/* URL Paste Modal */}
-    {showUrlModal && (
+    
+          {/* Mobile Trash Zone */}
+          {isDragging && (
+             <TrashZone id="trash-mobile" className="lg:hidden fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-red-950/95 via-red-900/80 to-transparent z-50 flex flex-col items-center justify-end pb-8 border-t border-red-500/30">
+                 <div className="w-16 h-1 bg-red-500/30 rounded-full mb-4"/>
+                 <Trash2 className="w-8 h-8 text-red-400 animate-bounce"/>
+                 <p className="text-red-200 text-xs font-bold mt-2 uppercase tracking-widest">Drop to Remove</p>
+             </TrashZone>
+          )}
+        {showUrlModal && (
        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md p-6">
              <div className="flex justify-between items-center mb-4">
@@ -1617,6 +1621,10 @@ export default function Home() {
               </div>
            </div>
         )}
-    </>
+         <DragOverlayWrapper activeDragData={activeDragData} />
+       </DndContext>
   );
 }
+
+// --- Helper Components ---
+

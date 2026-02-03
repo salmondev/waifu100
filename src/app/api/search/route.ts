@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // Check cache first
     const cached = searchCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log(`[Search] Cache hit "${cleanQuery}" (${Date.now() - startTime}ms)`);
+      // console.log(`[Search] Cache hit "${cleanQuery}" (${Date.now() - startTime}ms)`);
       return NextResponse.json(cached.data);
     }
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       rateLimitMap.set(clientIP, { count: 1, resetTime: now + RATE_WINDOW });
     }
 
-    console.log(`[Search] "${cleanQuery}"`);
+    // console.log(`[Search] "${cleanQuery}"`);
 
     const headers = { "Content-Type": "application/json" };
 
@@ -265,7 +265,7 @@ Rules:
     
     // If anime title matched, prioritize those results
     if (animeResult.status === "fulfilled" && animeResult.value.length >= 3) {
-      console.log(`[Search] Anime match (${Date.now() - startTime}ms)`);
+      // console.log(`[Search] Anime match (${Date.now() - startTime}ms)`);
       const response = { characters: animeResult.value.slice(0, 12), debugQuery: cleanQuery };
       searchCache.set(cacheKey, { data: response, timestamp: Date.now() });
       return NextResponse.json(response);
@@ -328,7 +328,7 @@ Rules:
     const response = { characters: finalResults, debugQuery: cleanQuery };
     searchCache.set(cacheKey, { data: response, timestamp: Date.now() });
 
-    console.log(`[Search] Found ${finalResults.length} (${Date.now() - startTime}ms)`);
+    // console.log(`[Search] Found ${finalResults.length} (${Date.now() - startTime}ms)`);
     return NextResponse.json(response);
   } catch (error) {
     console.error("[Search] Failed:", error);
