@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         try {
           // Fast heuristic query without Gemini
           const serperQuery = `${characterName} ${animeSource || ""} anime character official art`.trim();
-          console.log(`[Gallery] Serper: Searching "${serperQuery}"`);
+          // console.log(`[Gallery] Serper: Searching "${serperQuery}"`);
           
           const res = await fetch("https://google.serper.dev/images", {
             method: "POST",
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
             source: `Google (${img.domain || "Serper"})`,
           }));
 
-          console.log(`[Gallery] Serper: Found ${results.length} images`);
+          // console.log(`[Gallery] Serper: Found ${results.length} images`);
           return results;
         } catch (e) {
           console.error("[Gallery] Serper error:", e);
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
           const tags = `${cleanName} rating:safe`;
           
           const url = `https://konachan.net/post.json?limit=15&tags=${encodeURIComponent(tags)}`;
-          console.log(`[Gallery] Konachan: Fetching ${cleanName}`);
+          // console.log(`[Gallery] Konachan: Fetching ${cleanName}`);
 
           const browserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
           const res = await fetch(url, { headers: { "User-Agent": browserUA } });
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    console.log(`[Gallery] Total: ${uniqueImages.length} unique images`);
+    // console.log(`[Gallery] Total: ${uniqueImages.length} unique images`);
 
     return NextResponse.json({ images: uniqueImages });
   } catch (error) {

@@ -90,7 +90,7 @@ Return ONLY the search query, nothing else. No quotes, no explanation.`;
       }
     }
 
-    console.log(`[Serper] Searching images for: "${searchQuery}"`);
+    // console.log(`[Serper] Searching images for: "${searchQuery}"`);
 
     // Call Serper API
     const serperResponse = await fetch("https://google.serper.dev/images", {
@@ -126,7 +126,7 @@ Return ONLY the search query, nothing else. No quotes, no explanation.`;
       source: `Serper (${img.domain || "Google Images"})`,
     }));
 
-    console.log(`[Serper] Found ${images.length} images`);
+    // console.log(`[Serper] Found ${images.length} images`);
 
     return NextResponse.json({
       query: searchQuery,
