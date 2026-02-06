@@ -71,8 +71,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
          const gridData = await Promise.all(grid.map(async (cell, idx) => {
               if (!cell.character) return null;
 
-              let finalImg = cell.character.images.jpg.image_url;
-              let finalCustomImg = cell.character.customImageUrl;
+              let finalImg: string | undefined = cell.character.images.jpg.image_url;
+              let finalCustomImg: string | undefined = cell.character.customImageUrl;
 
               // Helper for client-side upload
               const uploadAsset = async (base64OrUrl: string, name: string) => {
@@ -98,8 +98,11 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
                   }
               } catch (e) {
                   console.error("Asset upload failed", e);
-                  // If upload fails, we might still fail on payload size, but we try sending anyway 
-                  // or we could nullify it to save the rest of the grid.
+                  // CRITICAL FIX: Do NOT fallback to base64 if upload fails.
+                  // This causes the payload to explode and crash the API.
+                  // Instead, we omit the image for this share.
+                  if (finalImg && finalImg.startsWith('data:')) finalImg = undefined;
+                  if (finalCustomImg && finalCustomImg.startsWith('data:')) finalCustomImg = undefined;
               }
 
               return {
