@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, ImageIcon, Images, Grid3X3, Lightbulb, GripVertical, HelpCircle, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu } from "lucide-react";
+import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, ImageIcon, Images, Grid3X3, Lightbulb, GripVertical, HelpCircle, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2 } from "lucide-react";
 import { toPng, toBlob, toJpeg } from "html-to-image";
 import NextImage from "next/image";
 import { clsx } from "clsx";
@@ -13,6 +13,7 @@ import { GridCell as GridComponent } from "@/components/grid/GridCell";
 import { DraggableSidebarItem } from "@/components/sidebar/DraggableSidebarItem";
 import { DragOverlayWrapper } from "@/components/dnd/DragOverlayWrapper";
 import { TrashZone } from "@/components/dnd/TrashZone";
+import { ShareModal } from "@/components/share/ShareModal";
 
 // --- Types ---
 interface Notification {
@@ -117,12 +118,35 @@ export default function Home() {
   // Reverted format toggle to ensure stability
   const gridRef = useRef<HTMLDivElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const loadRef = useRef<HTMLInputElement>(null);
+
+  // --- File Picker Load Logic ---
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+          setJsonInput(ev.target?.result as string || "");
+      };
+      reader.readAsText(file);
+      // Reset
+      e.target.value = "";
+  };
+  
+// ... (Adding this block requires carefully targeting the file. 
+// I will split this into two replacements to be safe.
+// First: Add Ref and Handler. Second: Update UI.)
+
   
   // --- State: URL Modal ---
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [isValidatingUrl, setIsValidatingUrl] = useState(false);
+  
+  // --- State: Share Modal ---
+  const [showShareModal, setShowShareModal] = useState(false);
   
   // --- State: Replace Confirmation ---
   const [pendingReplace, setPendingReplace] = useState<{index: number, newChar: Character, oldChar: Character} | null>(null);
@@ -197,6 +221,13 @@ export default function Home() {
     
     setIsGalleryLoading(true);
     setSelectedCharacter(char);
+
+    // FIX: Skip search for Manual Uploads / URLs
+    if (char.source === "Uploaded" || char.source === "URL" || char.source === "Web Search") {
+        setGalleryImages([]);
+        setIsGalleryLoading(false);
+        return;
+    }
 
     try {
       // Combine character name with custom query if provided
@@ -378,161 +409,158 @@ export default function Home() {
   // --- Export ---
   // --- Export ---
   // --- Export ---
+  // --- Export Helper ---
+  const getGridBlob = async (filename: string) => {
+    if (!gridRef.current) return null;
+    
+    // Options for high-quality export
+    const options = { 
+        quality: 0.95, 
+        pixelRatio: 2, 
+        backgroundColor: "#000",
+        width: 1080, 
+        height: 1080,
+        filter: (node: HTMLElement) => {
+            if (node.classList?.contains("export-exclude")) return false;
+            // Robust Ghost Filter: Ignore images inside cells marked as empty
+            if (node.tagName === 'IMG' && node.closest('[data-export-empty="true"]')) {
+                return false; 
+            }
+            return true;
+        },
+        style: {
+            width: "1080px",
+            height: "1080px",
+            boxSizing: "border-box", 
+            transform: "none",
+            maxWidth: "none",
+            maxHeight: "none",
+            margin: "0",
+            padding: "30px",
+            display: "flex", 
+            flexDirection: "column",
+            alignItems: "center", 
+            justifyContent: "center",
+            overflow: "hidden" 
+        }
+    };
+
+    // 1. Force Styles for Export
+    const nodes = gridRef.current.querySelectorAll('.grid');
+    nodes.forEach(n => {
+        const el = n as HTMLElement;
+        el.style.width = '950px';
+        el.style.height = '950px';
+        el.style.maxWidth = 'none';
+        el.style.aspectRatio = 'unset';
+        el.style.gap = '0px'; 
+        el.style.display = 'grid';
+        el.style.gridTemplateColumns = 'repeat(10, 95px)';
+        el.style.gridTemplateRows = 'repeat(10, 95px)';
+        el.style.padding = '0';
+        el.style.margin = '0';
+        el.style.border = 'none';
+    });
+    
+    const titles = gridRef.current.querySelectorAll('h2');
+    titles.forEach(t => {
+        const el = t as HTMLElement;
+        el.style.marginBottom = '25px';
+        el.style.fontSize = '42px';
+        el.style.textAlign = 'center';
+        el.style.width = '100%';
+        el.style.color = '#fff';
+        el.style.textShadow = '0 2px 10px rgba(168, 85, 247, 0.5)';
+    });
+    
+    gridRef.current.style.width = '1080px';
+    gridRef.current.style.height = '1080px';
+    gridRef.current.style.maxWidth = 'none';
+    gridRef.current.style.maxHeight = 'none';
+    gridRef.current.style.aspectRatio = 'unset';
+    gridRef.current.style.padding = '0';
+    gridRef.current.style.margin = '0';
+    
+    const cells = gridRef.current.querySelectorAll('.grid > div');
+    cells.forEach((c, idx) => {
+        const el = c as HTMLElement;
+        el.style.width = '95px';
+        el.style.height = '95px';
+        el.style.border = 'none';
+        el.style.borderRadius = '0';
+        el.style.minWidth = '95px';
+        el.style.minHeight = '95px';
+        
+        if (!grid[idx]?.character) {
+            el.style.backgroundImage = 'none';
+            el.style.backgroundColor = '#000000';
+            el.setAttribute('data-export-empty', 'true');
+            const imgs = el.querySelectorAll('img');
+            imgs.forEach(img => {
+                (img as HTMLElement).style.display = 'none';
+                (img as HTMLElement).style.visibility = 'hidden';
+            });
+        }
+    });
+
+    try {
+        // Generate Blob
+        return await toBlob(gridRef.current, options);
+    } finally {
+        // Restore styles
+        gridRef.current.style.width = '';
+        gridRef.current.style.height = '';
+        gridRef.current.style.maxWidth = '';
+        gridRef.current.style.maxHeight = '';
+        gridRef.current.style.aspectRatio = '';
+        gridRef.current.style.padding = '';
+        gridRef.current.style.margin = '';
+        
+        titles.forEach(t => {
+             const el = t as HTMLElement;
+             el.style.marginBottom = '';
+             el.style.fontSize = '';
+             el.style.textAlign = '';
+             el.style.width = '';
+             el.style.color = '';
+             el.style.textShadow = '';
+        });
+
+        nodes.forEach(n => {
+            const el = n as HTMLElement;
+            el.style.width = '';
+            el.style.height = '';
+            el.style.maxWidth = '';
+            el.style.aspectRatio = '';
+            el.style.gap = '';
+            el.style.gridTemplateColumns = '';
+            el.style.gridTemplateRows = '';
+            el.style.display = '';
+            el.style.padding = '';
+            el.style.margin = '';
+            el.style.border = '';
+        });
+        
+        cells.forEach(c => {
+             const el = c as HTMLElement;
+             el.style.width = '';
+             el.style.height = '';
+             el.style.border = '';
+             el.style.borderRadius = '';
+             el.style.minWidth = '';
+             el.style.minHeight = '';
+             el.style.backgroundImage = '';
+             el.style.backgroundColor = '';
+        });
+    }
+  };
+
   const handleExport = async () => {
-    if (!gridRef.current) return;
     setIsExporting(true);
     try {
        const filename = 'waifu100-challenge.png';
-       const options = { 
-           quality: 1, 
-           pixelRatio: 1, 
-           // cacheBust: true, // REMOVED: Breaks Data URLs and causes duplication
-           backgroundColor: "#000",
-           width: 1080, 
-           height: 1080,
-           filter: (node: HTMLElement) => {
-               if (node.classList?.contains("export-exclude")) return false;
-               // Robust Ghost Filter: Ignore images inside cells marked as empty
-               if (node.tagName === 'IMG' && node.closest('[data-export-empty="true"]')) {
-                   return false; 
-               }
-               return true;
-           },
-           style: {
-               // ... existing style ...
-               width: "1080px",
-               height: "1080px",
-               boxSizing: "border-box", 
-               transform: "none",
-               maxWidth: "none",
-               maxHeight: "none",
-               margin: "0",
-               padding: "30px",
-               display: "flex", 
-               flexDirection: "column",
-               alignItems: "center", 
-               justifyContent: "center",
-               overflow: "hidden" 
-           }
-       };
-
-       // ... (Resize logic same as before) ...
-       // 1. Force the Inner Grid to be 950px
-       const nodes = gridRef.current.querySelectorAll('.grid');
-       nodes.forEach(n => {
-           const el = n as HTMLElement;
-           el.style.width = '950px';
-           el.style.height = '950px';
-           // ... (rest of styles)
-           el.style.maxWidth = 'none';
-           el.style.aspectRatio = 'unset';
-           el.style.gap = '0px'; 
-           el.style.display = 'grid';
-           el.style.gridTemplateColumns = 'repeat(10, 95px)';
-           el.style.gridTemplateRows = 'repeat(10, 95px)';
-           el.style.padding = '0';
-           el.style.margin = '0';
-           el.style.border = 'none';
-       });
+       const blob = await getGridBlob(filename);
        
-       // ... (Title logic same as before) ...
-       const titles = gridRef.current.querySelectorAll('h2');
-       titles.forEach(t => {
-           const el = t as HTMLElement;
-           el.style.marginBottom = '25px';
-           el.style.fontSize = '42px';
-           el.style.textAlign = 'center';
-           el.style.width = '100%';
-           el.style.color = '#fff';
-           el.style.textShadow = '0 2px 10px rgba(168, 85, 247, 0.5)';
-       });
-       
-       // ... (Container logic same as before) ...
-       gridRef.current.style.width = '1080px';
-       gridRef.current.style.height = '1080px';
-       gridRef.current.style.maxWidth = 'none';
-       gridRef.current.style.maxHeight = 'none';
-       gridRef.current.style.aspectRatio = 'unset';
-       gridRef.current.style.padding = '0';
-       gridRef.current.style.margin = '0';
-       
-       // 4. Force Cells to be Exact 95px + MARK EMPTY CELLS
-       const cells = gridRef.current.querySelectorAll('.grid > div');
-       cells.forEach((c, idx) => {
-           const el = c as HTMLElement;
-           el.style.width = '95px';
-           el.style.height = '95px';
-           el.style.border = 'none';
-           el.style.borderRadius = '0';
-           el.style.minWidth = '95px';
-           el.style.minHeight = '95px';
-           
-           // Clean Empty Cells (Source of Truth: Grid State)
-           if (!grid[idx]?.character) {
-               // Visual cleanup
-               el.style.backgroundImage = 'none';
-               el.style.backgroundColor = '#000000';
-               // Mark for Filter
-               el.setAttribute('data-export-empty', 'true');
-               
-               // Force hide any images in empty slots (Defense in Depth)
-               const imgs = el.querySelectorAll('img');
-               imgs.forEach(img => {
-                   (img as HTMLElement).style.display = 'none';
-                   (img as HTMLElement).style.visibility = 'hidden';
-               });
-           }
-       });
-
-       // Generate Blob
-       const blob = await toBlob(gridRef.current, options);
-       
-       // Restore styles
-       gridRef.current.style.width = '';
-       gridRef.current.style.height = '';
-       gridRef.current.style.maxWidth = '';
-       gridRef.current.style.maxHeight = '';
-       gridRef.current.style.aspectRatio = '';
-       gridRef.current.style.padding = '';
-       gridRef.current.style.margin = '';
-       
-       titles.forEach(t => {
-            const el = t as HTMLElement;
-            el.style.marginBottom = '';
-            el.style.fontSize = '';
-            el.style.textAlign = '';
-            el.style.width = '';
-            el.style.color = '';
-            el.style.textShadow = '';
-       });
-
-       nodes.forEach(n => {
-           const el = n as HTMLElement;
-           el.style.width = '';
-           el.style.height = '';
-           el.style.maxWidth = '';
-           el.style.aspectRatio = '';
-           el.style.gap = '';
-           el.style.gridTemplateColumns = '';
-           el.style.gridTemplateRows = '';
-           el.style.display = '';
-           el.style.padding = '';
-           el.style.margin = '';
-           el.style.border = '';
-       });
-       
-       cells.forEach(c => {
-            const el = c as HTMLElement;
-            el.style.width = '';
-            el.style.height = '';
-            el.style.border = '';
-            el.style.borderRadius = '';
-            el.style.minWidth = '';
-            el.style.minHeight = '';
-            el.style.backgroundImage = '';
-            el.style.backgroundColor = '';
-       });
-
        if (!blob) throw new Error("Blob generation failed");
 
        // Try Modern File System Access API (Save As Dialog)
@@ -548,10 +576,9 @@ export default function Home() {
              const writable = await handle.createWritable();
              await writable.write(blob);
              await writable.close();
-             return; // Success
+             return; 
           } catch (err: any) {
-             if (err.name === 'AbortError') return; // User cancelled
-             // Fallback to download on error
+             if (err.name === 'AbortError') return; 
           }
        }
 
@@ -886,6 +913,7 @@ export default function Home() {
         source: "URL"
       };
       setSelectedCharacter(customChar);
+      openGallery(customChar); // Open sidebar but skip search
       setShowUrlModal(false);
       setUrlInput("");
     } catch {
@@ -1046,14 +1074,23 @@ export default function Home() {
               Save / Load Progress
            </button>
 
-           <button 
-             onClick={handleExport}
-             disabled={isExporting}
-             className="w-full py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 flex justify-center items-center gap-2"
-           >
-             {isExporting ? <Loader2 className="animate-spin w-4 h-4"/> : <Download className="w-4 h-4"/>}
+           <div className="flex gap-2 mt-2">
+                <button 
+                  onClick={() => setShowShareModal(true)}
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded-lg transition-colors border border-sky-500/30 text-sm font-medium flex-1"
+                >
+                    <Share2 size={16} />
+                    <span>Share</span>
+                </button>
+
+                <button 
+                  onClick={handleExport}
+                  disabled={isExporting}
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg transition-colors border border-purple-600/30 text-sm font-medium flex-1"
+                >           {isExporting ? <Loader2 className="animate-spin w-4 h-4"/> : <Download className="w-4 h-4"/>}
              Export
            </button>
+           </div>
         </div>
       </aside>
 
@@ -1204,8 +1241,13 @@ export default function Home() {
                </a>
              </div>
          </div>
-      </main>
-
+        <ShareModal 
+        isOpen={showShareModal} 
+        onClose={() => setShowShareModal(false)} 
+        grid={grid}
+        onCapture={getGridBlob}
+      />
+    </main>
       {/* 3. RIGHT SIDEBAR: Suggestions & Gallery */}
       <aside className={cn(
         "bg-zinc-950 border-t lg:border-t-0 border-l border-zinc-800 flex flex-col lg:h-screen z-20 shadow-xl shrink-0 transition-all duration-300",
@@ -1572,9 +1614,26 @@ export default function Home() {
                    </div>
                 ) : (
                    <div className="space-y-4">
-                      <p className="text-sm text-zinc-400">
-                         Paste your save code here, or drag & drop a .json file.
-                      </p>
+                      <div className="flex justify-between items-center text-sm text-zinc-400">
+                          <span>Paste code or load file:</span>
+                          <button 
+                             onClick={() => loadRef.current?.click()}
+                             className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 px-2 py-1 bg-blue-900/20 rounded hover:bg-blue-900/30 transition-colors"
+                          >
+                             <FileJson className="w-3 h-3"/>
+                             Browse .json
+                          </button>
+                      </div>
+                      
+                      {/* Hidden Load Input */}
+                      <input 
+                          type="file"
+                          ref={loadRef}
+                          accept=".json"
+                          onChange={handleFilePick}
+                          className="hidden"
+                      />
+
                       <div 
                          onDragOver={(e) => e.preventDefault()}
                          onDrop={(e) => {
