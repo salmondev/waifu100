@@ -56,10 +56,9 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
              if (blob) {
                  setLoadingState("Uploading thumbnail...");
                  try {
-                    const { url } = await upload('shares/thumbnails/thumb.png', blob, {
+                    const { url } = await upload(`shares/thumbnails/thumb-${Date.now()}.png`, blob, {
                         access: 'public',
                         handleUploadUrl: '/api/upload',
-                        addRandomSuffix: true, // Fix: Prevent conflict if file exists
                     });
                     imageUrl = url;
                  } catch (e) {

@@ -2,7 +2,18 @@ import { Metadata } from "next";
 import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
 import { redis } from '@/lib/redis';
-// ... types ...
+import { GridCell, Character } from "@/types";
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+interface ShareData {
+    grid: GridCell[];
+    title: string;
+    hasImage?: boolean;
+    imageUrl?: string; 
+}
 
 async function getShareData(id: string): Promise<ShareData | null> {
     try {
