@@ -9,9 +9,11 @@ interface ShareModalProps {
   onClose: () => void;
   grid: GridCell[];
   onCapture: (filename: string) => Promise<Blob | null>;
+  initialTitle?: string;
+  onTitleUpdate?: (title: string) => void;
 }
 
-export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate }: ShareModalProps) {
   const [step, setStep] = useState<'customize' | 'result'>('customize');
   const [customTitle, setCustomTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -23,12 +25,12 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
   useEffect(() => {
     if (isOpen) {
         setStep('customize');
-        setCustomTitle("My 100 Favorite Characters"); // Default
+        setCustomTitle(initialTitle || "My 100 Favorite Characters"); 
         setUrl("");
         setError(null);
         setLoadingState("");
     }
-  }, [isOpen]);
+  }, [isOpen, initialTitle]);
 
   const handleGenerateLink = async () => {
      const hasData = grid.some(c => c.character);
@@ -57,6 +59,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
                     const { url } = await upload('shares/thumbnails/thumb.png', blob, {
                         access: 'public',
                         handleUploadUrl: '/api/upload',
+                        addRandomSuffix: true, // Fix: Prevent conflict if file exists
                     });
                     imageUrl = url;
                  } catch (e) {
@@ -205,7 +208,10 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
                             <input 
                                 type="text"
                                 value={customTitle}
-                                onChange={(e) => setCustomTitle(e.target.value)}
+                                onChange={(e) => {
+                                    setCustomTitle(e.target.value);
+                                    onTitleUpdate?.(e.target.value);
+                                }}
                                 maxLength={50}
                                 className="w-full mt-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500 placeholder-zinc-600 transition-all"
                                 placeholder="e.g. My Anime Harem"

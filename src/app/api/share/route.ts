@@ -1,28 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from 'nanoid';
-import { kv } from '@vercel/kv';
-import { put } from '@vercel/blob';
+import { redis } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { grid, customTitle, imageUrl } = body;
 
+        // ... validation logic ...
         if (!grid || !Array.isArray(grid)) {
-            return NextResponse.json({ error: "Invalid grid data" }, { status: 400 });
+             return NextResponse.json({ error: "Invalid grid data" }, { status: 400 });
         }
 
         // Generate Short ID
         const id = nanoid(10); 
-        // 1. Image is already uploaded by Client
-        // We just use the imageUrl provided
-        if (!imageUrl && body.image) {
-            // Fallback: If legacy client sent base64 'image', we ignore or log.
-            // But we assume client is updated.
-        }
+        
+        // ... (data reconstruction logic remains same, implicit in target range or not touched) ...
 
         // 2. Grid is already processed by Client (URLs only)
-        // Just validate minimal structure
         const cleanGrid = grid.map((c: any) => {
             if (typeof c.i === 'undefined' || !c.m || !c.n) return null;
             return {
@@ -43,18 +38,23 @@ export async function POST(req: NextRequest) {
                 title: customTitle || "Waifu100 Grid",
                 createdAt: new Date().toISOString(),
                 hasImage: !!imageUrl,
-                imageUrl: imageUrl // Directly save the blob URL
+                imageUrl: imageUrl 
             },
             grid: cleanGrid
         };
 
-        // 4. Save to Vercel KV (Redis)
-        await kv.set(`waifu100:share:${id}`, fileData);
+        // 4. Save to Redis (ioredis)
+        // Store as stringified JSON
+        await redis.set(`waifu100:share:${id}`, JSON.stringify(fileData));
 
         return NextResponse.json({ id, url: `/view/${id}` });
 
-    } catch (e) {
+    } catch (e: any) {
         console.error("Share Save Error:", e);
-        return NextResponse.json({ error: "Failed to save share" }, { status: 500 });
+        // Return exact error to help debugging
+        return NextResponse.json({ 
+            error: "Failed to save share", 
+            details: e.message || String(e) 
+        }, { status: 500 });
     }
 }
