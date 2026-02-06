@@ -96,6 +96,9 @@ export default function Home() {
   const [isGalleryLoading, setIsGalleryLoading] = useState(false);
   const [galleryTargetName, setGalleryTargetName] = useState<string>("");
   const [gallerySearchQuery, setGallerySearchQuery] = useState<string>(""); // Custom search keywords
+  
+  // --- State: Meta ---
+  const [currentTitle, setCurrentTitle] = useState("My 100 Favorite Characters");
 
   // Suggestions State
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -733,6 +736,20 @@ export default function Home() {
          
          if (data.length === 0) throw new Error("No valid data found");
          
+         // 5. Extract Title if available (User Request)
+         // We re-parse the input safely to check for metadata object structure
+         // (Variable 'parsed' was not available in this scope previously)
+         try {
+             const rawObj = JSON.parse(input);
+             if (!Array.isArray(rawObj) && typeof rawObj === 'object') {
+                 if (rawObj.title && typeof rawObj.title === 'string') {
+                     setCurrentTitle(rawObj.title);
+                 } else if (rawObj.meta?.title && typeof rawObj.meta.title === 'string') {
+                     setCurrentTitle(rawObj.meta.title);
+                 }
+             }
+         } catch (e) { /* Ignore title extraction errors */ }
+
          // Create new grid
          const newGrid = Array(100).fill(null).map(() => ({ character: null as Character | null }));
          let loadedCount = 0;
@@ -1246,6 +1263,8 @@ export default function Home() {
         onClose={() => setShowShareModal(false)} 
         grid={grid}
         onCapture={getGridBlob}
+        initialTitle={currentTitle}
+        onTitleUpdate={setCurrentTitle}
       />
     </main>
       {/* 3. RIGHT SIDEBAR: Suggestions & Gallery */}

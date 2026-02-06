@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
-import { kv } from '@vercel/kv';
+import { redis } from '@/lib/redis';
 import { GridCell, Character } from "@/types";
 
 interface PageProps {
@@ -17,13 +17,15 @@ interface ShareData {
 
 async function getShareData(id: string): Promise<ShareData | null> {
     try {
-        // Read from Vercel KV
-        const raw: any = await kv.get(`waifu100:share:${id}`);
+        // Read from Redis (ioredis)
+        const rawString = await redis.get(`waifu100:share:${id}`);
         
-        if (!raw) return null;
+        if (!rawString) return null;
 
-        // Ensure we have an object
-        // KV might return it directly as object if we saved it as JSON
+        // Redis returns string, parse it
+        const raw = JSON.parse(rawString);
+        
+        // ... (rest of parsing logic is identical)
         
         // Handle Migration/Structure
         let dataArray = [];

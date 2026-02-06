@@ -9,9 +9,11 @@ interface ShareModalProps {
   onClose: () => void;
   grid: GridCell[];
   onCapture: (filename: string) => Promise<Blob | null>;
+  initialTitle?: string;
+  onTitleUpdate?: (title: string) => void;
 }
 
-export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate }: ShareModalProps) {
   const [step, setStep] = useState<'customize' | 'result'>('customize');
   const [customTitle, setCustomTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -23,12 +25,12 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
   useEffect(() => {
     if (isOpen) {
         setStep('customize');
-        setCustomTitle("My 100 Favorite Characters"); // Default
+        setCustomTitle(initialTitle || "My 100 Favorite Characters"); 
         setUrl("");
         setError(null);
         setLoadingState("");
     }
-  }, [isOpen]);
+  }, [isOpen, initialTitle]);
 
   const handleGenerateLink = async () => {
      const hasData = grid.some(c => c.character);
@@ -54,7 +56,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
              if (blob) {
                  setLoadingState("Uploading thumbnail...");
                  try {
-                    const { url } = await upload('shares/thumbnails/thumb.png', blob, {
+                    const { url } = await upload(`shares/thumbnails/thumb-${Date.now()}.png`, blob, {
                         access: 'public',
                         handleUploadUrl: '/api/upload',
                     });
@@ -71,8 +73,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
          const gridData = await Promise.all(grid.map(async (cell, idx) => {
               if (!cell.character) return null;
 
-              let finalImg = cell.character.images.jpg.image_url;
-              let finalCustomImg = cell.character.customImageUrl;
+              let finalImg: string | undefined = cell.character.images.jpg.image_url;
+              let finalCustomImg: string | undefined = cell.character.customImageUrl;
 
               // Helper for client-side upload
               const uploadAsset = async (base64OrUrl: string, name: string) => {
@@ -98,8 +100,11 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
                   }
               } catch (e) {
                   console.error("Asset upload failed", e);
-                  // If upload fails, we might still fail on payload size, but we try sending anyway 
-                  // or we could nullify it to save the rest of the grid.
+                  // CRITICAL FIX: Do NOT fallback to base64 if upload fails.
+                  // This causes the payload to explode and crash the API.
+                  // Instead, we omit the image for this share.
+                  if (finalImg && finalImg.startsWith('data:')) finalImg = undefined;
+                  if (finalCustomImg && finalCustomImg.startsWith('data:')) finalCustomImg = undefined;
               }
 
               return {
@@ -202,7 +207,10 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
                             <input 
                                 type="text"
                                 value={customTitle}
-                                onChange={(e) => setCustomTitle(e.target.value)}
+                                onChange={(e) => {
+                                    setCustomTitle(e.target.value);
+                                    onTitleUpdate?.(e.target.value);
+                                }}
                                 maxLength={50}
                                 className="w-full mt-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500 placeholder-zinc-600 transition-all"
                                 placeholder="e.g. My Anime Harem"
