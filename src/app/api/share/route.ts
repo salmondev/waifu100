@@ -37,10 +37,40 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 2. Reconstruct Grid Data
-        const cleanGrid = grid.map((c: any) => {
+        // 2. Reconstruct Grid Data & Upload Custom Images
+        // optimizing: upload all images in parallel
+        const processedGrid = await Promise.all(grid.map(async (c: any) => {
             // Check for essential valid data
             if (typeof c.i === 'undefined' || !c.m || !c.n) return null;
+
+            let finalImg = c.img;
+            let finalCustomImg = c.c_img;
+
+            // Helper to upload base64
+            const uploadBase64 = async (base64Str: string, namePrefix: string) => {
+                try {
+                    const base64Data = base64Str.replace(/^data:image\/\w+;base64,/, "");
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const blob = await put(`shares/assets/${id}-${namePrefix}-${Date.now()}.png`, buffer, {
+                        access: 'public',
+                        contentType: 'image/png'
+                    });
+                    return blob.url;
+                } catch (e) {
+                    console.error("Asset Upload Error", e);
+                    return base64Str; // Fallback to original if fail (though it might fail KV)
+                }
+            };
+
+            // Check c.img
+            if (finalImg && finalImg.startsWith("data:image")) {
+                finalImg = await uploadBase64(finalImg, `img-${c.i}`);
+            }
+
+            // Check c.c_img
+            if (finalCustomImg && finalCustomImg.startsWith("data:image")) {
+                finalCustomImg = await uploadBase64(finalCustomImg, `custom-${c.i}`);
+            }
 
             return {
                 i: c.i,
@@ -49,14 +79,16 @@ export async function POST(req: NextRequest) {
                     name: c.n,
                     images: {
                         jpg: {
-                            image_url: c.img
+                            image_url: finalImg
                         }
                     },
-                    customImageUrl: c.c_img || undefined,
+                    customImageUrl: finalCustomImg || undefined,
                     source: c.s || undefined
                 }
             };
-        }).filter(Boolean);
+        }));
+
+        const cleanGrid = processedGrid.filter(Boolean);
 
         // 3. Construct Payload
         const fileData = {
