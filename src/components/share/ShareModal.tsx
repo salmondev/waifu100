@@ -1,9 +1,8 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2, ImageIcon } from "lucide-react";
 import { GridCell } from "@/types";
 import { cn } from "@/lib/utils";
+import { upload } from '@vercel/blob/client';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -48,48 +47,86 @@ export function ShareModal({ isOpen, onClose, grid, onCapture }: ShareModalProps
 
      try {
          // 1. Capture Grid Image if possible
-         let imageBase64: string | undefined = undefined;
+         let imageUrl: string | undefined = undefined;
          if (onCapture) {
              setLoadingState("Capturing grid image...");
              const blob = await onCapture('share_thumbnail.png');
              if (blob) {
-                 // Convert to Base64
-                 imageBase64 = await new Promise((resolve) => {
-                     const reader = new FileReader();
-                     reader.onloadend = () => resolve(reader.result as string);
-                     reader.readAsDataURL(blob);
-                 });
+                 setLoadingState("Uploading thumbnail...");
+                 try {
+                    const { url } = await upload('shares/thumbnails/thumb.png', blob, {
+                        access: 'public',
+                        handleUploadUrl: '/api/upload',
+                    });
+                    imageUrl = url;
+                 } catch (e) {
+                    console.error("Thumbnail upload failed", e);
+                 }
              }
          }
 
-         // 2. Prepare Data
-         setLoadingState("Saving...");
-         const gridData = grid
-            .map((cell, idx) => {
+         setLoadingState("Processing images...");
+         
+         // 2. Prepare Data & Upload Custom Images
+         const gridData = await Promise.all(grid.map(async (cell, idx) => {
               if (!cell.character) return null;
+
+              let finalImg = cell.character.images.jpg.image_url;
+              let finalCustomImg = cell.character.customImageUrl;
+
+              // Helper for client-side upload
+              const uploadAsset = async (base64OrUrl: string, name: string) => {
+                  if (base64OrUrl.startsWith('data:')) {
+                      // Convert base64 to Blob
+                      const res = await fetch(base64OrUrl);
+                      const blob = await res.blob();
+                      const { url } = await upload(`shares/assets/${name}.png`, blob, {
+                          access: 'public',
+                          handleUploadUrl: '/api/upload',
+                      });
+                      return url;
+                  }
+                  return base64OrUrl;
+              };
+
+              try {
+                  if (finalImg && finalImg.startsWith('data:')) {
+                      finalImg = await uploadAsset(finalImg, `img-${idx}-${Date.now()}`);
+                  }
+                  if (finalCustomImg && finalCustomImg.startsWith('data:')) {
+                      finalCustomImg = await uploadAsset(finalCustomImg, `custom-${idx}-${Date.now()}`);
+                  }
+              } catch (e) {
+                  console.error("Asset upload failed", e);
+                  // If upload fails, we might still fail on payload size, but we try sending anyway 
+                  // or we could nullify it to save the rest of the grid.
+              }
+
               return {
                 i: idx,
                 m: cell.character.mal_id,
                 n: cell.character.name,
-                img: cell.character.images.jpg.image_url,
-                c_img: cell.character.customImageUrl,
+                img: finalImg,
+                c_img: finalCustomImg,
                 s: cell.character.source
               };
-            })
-            .filter(Boolean);
+          }));
 
-         // 3. Send
+         const cleanGridData = gridData.filter(Boolean);
+
+         // 3. Send Lightweight Payload
+         setLoadingState("Saving...");
          const res = await fetch("/api/share", {
              method: "POST",
              headers: { "Content-Type": "application/json" },
              body: JSON.stringify({ 
-                grid: gridData, 
-                customTitle: customTitle.trim(), // API expects this at root
+                grid: cleanGridData, 
+                customTitle: customTitle.trim(), 
                 meta: {
                     title: customTitle.trim(),
                     createdAt: new Date().toISOString()
                 },
-                image: imageBase64 // Send the image data
+                imageUrl: imageUrl // Send URL, not base64
              })
          });
 
