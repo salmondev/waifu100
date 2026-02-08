@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
         // ... (data reconstruction logic remains same, implicit in target range or not touched) ...
 
         // 2. Grid is already processed by Client (URLs only)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cleanGrid = grid.map((c: any) => {
             if (typeof c.i === 'undefined' || !c.m || !c.n) return null;
             return {
@@ -49,12 +50,13 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ id, url: `/view/${id}` });
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error("Share Save Error:", e);
         // Return exact error to help debugging
+        const errMsg = e instanceof Error ? e.message : String(e);
         return NextResponse.json({ 
             error: "Failed to save share", 
-            details: e.message || String(e) 
+            details: errMsg 
         }, { status: 500 });
     }
 }

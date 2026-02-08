@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
 import { redis } from '@/lib/redis';
-import { GridCell, Character } from "@/types";
+import { GridCell } from "@/types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -51,6 +51,7 @@ async function getShareData(id: string): Promise<ShareData | null> {
         // Reconstruct Grid
         const newGrid: GridCell[] = Array(100).fill(null).map(() => ({ character: null }));
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         dataArray.forEach((item: any) => {
             const index = item.i !== undefined ? item.i : -1;
             if (index >= 0 && index < 100 && item.character) {
