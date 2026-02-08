@@ -2,7 +2,18 @@ import { Metadata } from "next";
 import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
 import { redis } from '@/lib/redis';
-// ... types ...
+import { GridCell } from "@/types";
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+interface ShareData {
+    grid: GridCell[];
+    title: string;
+    hasImage?: boolean;
+    imageUrl?: string; 
+}
 
 async function getShareData(id: string): Promise<ShareData | null> {
     try {
@@ -40,6 +51,7 @@ async function getShareData(id: string): Promise<ShareData | null> {
         // Reconstruct Grid
         const newGrid: GridCell[] = Array(100).fill(null).map(() => ({ character: null }));
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         dataArray.forEach((item: any) => {
             const index = item.i !== undefined ? item.i : -1;
             if (index >= 0 && index < 100 && item.character) {
@@ -76,13 +88,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description: `Check out "${title}" featuring ${count} characters! Create your own at waifu100.`,
       openGraph: {
           title: `${title}`,
-          description: `Check out my full 10x10 grid with ${count} characters!`,
+          description: `My 100 favorite characters!`,
           images: images
       },
       twitter: {
           card: "summary_large_image",
           title: `${title}`,
-          description: `Check out my full 10x10 grid with ${count} characters!`,
+          description: `My 100 favorite characters!`,
           images: images
       }
   };
