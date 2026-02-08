@@ -48,6 +48,9 @@ This project is built to be **robust, pixel-perfect, and user-friendly**, featur
 - **Toast Notifications**: Custom animated notification system (replacing native `alert()`).
 - **Glassmorphism**: Modern dark aesthetic with gradients and blur effects.
 - **Responsive**: Adapts to screen sizes, though primarily optimized for desktop/tablet curation.
+51: - **Custom Upload UX**:
+52:   - **Smart Hints**: iOS-style popup hints ("Tap to edit") guide users when uploading custom images.
+53:   - **Direct Editing**: Clickable names and always-visible edit icons for seamless customization.
 
 ---
 
