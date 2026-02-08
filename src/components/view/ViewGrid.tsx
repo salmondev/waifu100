@@ -12,6 +12,9 @@ interface ViewGridProps {
   title?: string;
 }
 
+// Column labels A-J
+const COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
 export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
   // We can add "Click to view details" modal here later if needed
   // For now, it's a static high-fidelity render
@@ -41,14 +44,16 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
          </div>
          
          <div className="flex flex-col items-center justify-center">
-             <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent px-4 text-center pb-1">
+             {/* Title with beautiful glow effect */}
+             <h1 
+                className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400 bg-clip-text text-transparent px-4 text-center pb-1 drop-shadow-lg"
+                style={{
+                    textShadow: '0 0 30px rgba(168, 85, 247, 0.5), 0 0 60px rgba(236, 72, 153, 0.3), 0 0 100px rgba(168, 85, 247, 0.2)',
+                    filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 0.4))'
+                }}
+             >
                  {title}
              </h1>
-             {title !== "Waifu100 Grid" && (
-                 <p className="text-zinc-400 font-medium text-sm mt-1 max-w-[400px] truncate">
-                     Waifu100 Grid
-                 </p>
-             )}
          </div>
 
          <div className="flex items-center justify-end">
@@ -67,39 +72,66 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
          </div>
       </div>
 
-      {/* Grid */}
-      <div 
-        className="grid grid-cols-10 grid-rows-10 gap-0 border-2 border-zinc-800 bg-black shadow-2xl shadow-purple-900/20"
-        style={{ width: '950px', height: '950px' }}
-      >
-        {grid.map((cell, idx) => (
-          <div 
-            key={idx}
-            className="relative w-[95px] h-[95px] bg-zinc-900/50 border border-zinc-900/50 overflow-hidden group"
-          >
-            {cell.character ? (
-               <>
-                 <Image
-                    src={cell.character.images.jpg.image_url}
-                    alt={cell.character.name}
-                    fill
-                    className="object-cover transition-transform duration-300 group-hover:scale-110"
-                    unoptimized // Allow external URLs
-                 />
-                 {/* Tooltip-like overlay on hover */}
-                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <p className="text-[10px] font-bold truncate text-white text-center leading-tight">
-                        {cell.character.name}
-                    </p>
-                 </div>
-               </>
-            ) : (
-                <div className="w-full h-full flex items-center justify-center opacity-10">
-                    <div className="w-2 h-2 rounded-full bg-zinc-700" />
-                </div>
-            )}
-          </div>
-        ))}
+      {/* Grid Container with Row/Column Headers */}
+      <div className="relative">
+        {/* Column Headers (A-J) */}
+        <div className="absolute -top-6 left-6 right-0 flex">
+          {COLUMNS.map((col) => (
+            <div 
+              key={col} 
+              className="w-[95px] text-center text-xs font-medium text-zinc-600/40 select-none"
+            >
+              {col}
+            </div>
+          ))}
+        </div>
+
+        {/* Row Headers (1-10) */}
+        <div className="absolute -left-6 top-0 bottom-0 flex flex-col">
+          {Array.from({ length: 10 }, (_, i) => (
+            <div 
+              key={i} 
+              className="h-[95px] flex items-center justify-center text-xs font-medium text-zinc-600/40 select-none"
+            >
+              {i + 1}
+            </div>
+          ))}
+        </div>
+
+        {/* Grid */}
+        <div 
+          className="grid grid-cols-10 grid-rows-10 gap-0 border-2 border-zinc-800 bg-black shadow-2xl shadow-purple-900/20"
+          style={{ width: '950px', height: '950px' }}
+        >
+          {grid.map((cell, idx) => (
+            <div 
+              key={idx}
+              className="relative w-[95px] h-[95px] bg-zinc-900/50 border border-zinc-900/50 overflow-hidden group"
+            >
+              {cell.character ? (
+                 <>
+                   <Image
+                      src={cell.character.images.jpg.image_url}
+                      alt={cell.character.name}
+                      fill
+                      className="object-cover transition-transform duration-300 group-hover:scale-110"
+                      unoptimized // Allow external URLs
+                   />
+                   {/* Tooltip-like overlay on hover */}
+                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                      <p className="text-[10px] font-bold truncate text-white text-center leading-tight">
+                          {cell.character.name}
+                      </p>
+                   </div>
+                 </>
+              ) : (
+                  <div className="w-full h-full flex items-center justify-center opacity-10">
+                      <div className="w-2 h-2 rounded-full bg-zinc-700" />
+                  </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="mt-8 text-zinc-500 text-sm">

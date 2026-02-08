@@ -59,7 +59,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                     const { url } = await upload(`shares/thumbnails/thumb-${Date.now()}.png`, blob, {
                         access: 'public',
                         handleUploadUrl: '/api/upload',
-                    });
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    } as any);
                     imageUrl = url;
                  } catch (e) {
                     console.error("Thumbnail upload failed", e);
