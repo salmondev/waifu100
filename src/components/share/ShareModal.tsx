@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2, ImageIcon } from "lucide-react";
+import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2 } from "lucide-react";
 import { GridCell } from "@/types";
 import { cn } from "@/lib/utils";
 import { upload } from '@vercel/blob/client';

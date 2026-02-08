@@ -1,5 +1,5 @@
 import LZString from 'lz-string';
-import { Character, GridCell } from '@/types';
+import { GridCell } from '@/types';
 
 // Minified interface for URL storage
 interface MinifiedChar {

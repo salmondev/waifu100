@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 // Simple in-memory cache (resets on server restart)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const searchCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -31,7 +32,7 @@ interface CharacterResult {
  * 3. Serper (Google) for anything not found in anime DBs
  */
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
+  const _startTime = Date.now();
   
   try {
     const { characterName } = await request.json();
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
             
             // Only return if query closely matches anime title
             if (titleClean.includes(queryClean) || queryClean.includes(titleClean.substring(0, 4))) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               return media.characters?.nodes?.map((c: any) => ({
                 id: c.id,
                 jikan_id: null,
@@ -139,6 +141,7 @@ export async function POST(request: NextRequest) {
             body: JSON.stringify({ query, variables: { search: searchName } }),
           });
           const data = await res.json();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return (data.data?.Page?.characters || []).map((c: any) => {
             const media = c.media?.nodes?.[0];
             return {
@@ -161,6 +164,7 @@ export async function POST(request: NextRequest) {
           const res = await fetch(`https://api.jikan.moe/v4/characters?q=${encodeURIComponent(searchName)}&limit=10`);
           if (!res.ok) return [];
           const data = await res.json();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return (data.data || []).map((c: any) => ({
             id: c.mal_id,
             jikan_id: c.mal_id,
@@ -199,10 +203,12 @@ export async function POST(request: NextRequest) {
               const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
               
               // Generic prompt - works for ANY franchise
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const imageTitles = images.slice(0, 8).map((img: any, i: number) => `${i}. ${img.title}`).join("\n");
               const prompt = `From these image search results for "${cleanQuery}", identify individual character names.
 
 Image titles:
-${images.slice(0, 8).map((img: any, i: number) => `${i}. ${img.title}`).join("\n")}
+${imageTitles}
 
 Return JSON array of characters found:
 [{"name": "CharacterName", "source": "Franchise/Game/Series"}]
@@ -219,6 +225,7 @@ Rules:
               
               if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const validChars = parsed.filter((c: any) => {
                   const name = (c.name || "").toLowerCase();
                   return name.length > 1 
@@ -228,8 +235,10 @@ Rules:
                     && !name.includes("all ");
                 });
                 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 return validChars.slice(0, 6).map((char: any, i: number) => {
                   const charNameLower = char.name.toLowerCase();
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const matchingImg = images.find((img: any) => 
                     img.title?.toLowerCase().includes(charNameLower)
                   ) || images[i] || images[0];
@@ -248,6 +257,7 @@ Rules:
           }
           
           // Fallback: Just return images with query as name
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return images.slice(0, 4).map((img: any, i: number) => ({
             id: Date.now() + i,
             jikan_id: null,
