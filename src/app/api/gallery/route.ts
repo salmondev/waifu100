@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
               }));
             }
           }
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
         return [];
       })(),
 
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
              if (broadRes.ok) {
                const json = await broadRes.json();
                if (Array.isArray(json) && json.length > 0) {
-                 return json.map((p: any) => ({
+                 return json.map((p: { file_url: string; preview_url?: string }) => ({
                    url: p.file_url,
                    thumbnail: p.preview_url || p.file_url,
                    title: "Fanart",
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
           if (seen.has(cleanUrl)) return false;
           seen.add(cleanUrl);
           return true;
-      } catch (e) {
+      } catch {
           // Fallback for invalid URLs or relative paths
           if (seen.has(img.url)) return false;
           seen.add(img.url);

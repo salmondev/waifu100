@@ -1,0 +1,68 @@
+$ eslint
+
+H:\dev_project\next_\waifu100\scripts\fix_syntax.js
+    1:12  error    A `require()` style import is forbidden     @typescript-eslint/no-require-imports
+    2:14  error    A `require()` style import is forbidden     @typescript-eslint/no-require-imports
+  171:15  warning  'after' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+H:\dev_project\next_\waifu100\scripts\refactor_dnd.js
+   1:12  error    A `require()` style import is forbidden             @typescript-eslint/no-require-imports
+   2:14  error    A `require()` style import is forbidden             @typescript-eslint/no-require-imports
+  94:7   warning  'gridCellRegex' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+H:\dev_project\next_\waifu100\scripts\test-share.js
+  1:19  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+H:\dev_project\next_\waifu100\src\app\api\search\route.ts
+   35:9   warning  '_startTime' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  209:32  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+  226:54  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+  235:58  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+  237:57  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+  255:47  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+
+H:\dev_project\next_\waifu100\src\app\api\serper-images\serper-images.test.ts
+   67:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   83:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  106:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  139:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  217:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  267:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+H:\dev_project\next_\waifu100\src\app\api\share\route.ts
+  21:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  52:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+H:\dev_project\next_\waifu100\src\app\api\upload\route.ts
+  11:37  warning  'pathname' is defined but never used      @typescript-eslint/no-unused-vars
+  22:41  warning  'tokenPayload' is defined but never used  @typescript-eslint/no-unused-vars
+
+H:\dev_project\next_\waifu100\src\app\page.tsx
+    52:10  warning  '_activeId' is assigned a value but never used                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   106:10  warning  '_draggedCharacter' is assigned a value but never used                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+   108:10  warning  '_dragOverIndex' is assigned a value but never used                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   109:10  warning  '_lastDroppedIndex' is assigned a value but never used                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+   292:14  warning  'e' is defined but never used                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   419:30  warning  '_filename' is defined but never used                                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+   605:16  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   640:16  warning  'err' is defined but never used                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   652:45  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   719:32  warning  'e' is defined but never used                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+   732:19  warning  'e1' is defined but never used                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   739:25  warning  'e3' is defined but never used                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   743:23  warning  'e2' is defined but never used                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   763:19  warning  'e' is defined but never used                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+  1045:24  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  1150:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  1301:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  1504:42  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  1504:42  warning  img elements must have an alt prop, either with meaningful text, or an empty string for decorative images                                                                                                                                                                                jsx-a11y/alt-text
+  1601:20  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  1609:20  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+H:\dev_project\next_\waifu100\src\components\dnd\DragOverlayWrapper.tsx
+  14:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+✖ 45 problems (20 errors, 25 warnings)
+
+error: script "lint" exited with code 1

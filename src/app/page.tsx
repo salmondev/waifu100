@@ -1,12 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, ImageIcon, Images, Grid3X3, Lightbulb, GripVertical, HelpCircle, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2 } from "lucide-react";
-import { toPng, toBlob, toJpeg } from "html-to-image";
-import NextImage from "next/image";
-import { clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
-import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartEvent, DragEndEvent, DragOverEvent, pointerWithin } from "@dnd-kit/core";
+import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil } from "lucide-react";
+import { toBlob } from "html-to-image";
+import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartEvent, DragEndEvent, pointerWithin } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Character, GridCell, ImageResult } from "@/types";
 import { GridCell as GridComponent } from "@/components/grid/GridCell";
@@ -52,8 +49,8 @@ export default function Home() {
     })
   );
 
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeDragData, setActiveDragData] = useState<any>(null);
+  const [_activeId, setActiveId] = useState<string | null>(null);
+  const [activeDragData, setActiveDragData] = useState<{ character?: Character; index?: number | null; type?: string } | null>(null);
   // --- State: Grid ---
   const [grid, setGrid] = useState<GridCell[]>(() =>
     Array(100).fill(null).map(() => ({ character: null }))
@@ -106,10 +103,10 @@ export default function Home() {
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
   // --- State: Drag & Drop ---
-  const [draggedCharacter, setDraggedCharacter] = useState<Character | null>(null);
+  const [_draggedCharacter, setDraggedCharacter] = useState<Character | null>(null);
   const [draggedFromIndex, setDraggedFromIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [lastDroppedIndex, setLastDroppedIndex] = useState<number | null>(null);
+  const [_dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [_lastDroppedIndex, setLastDroppedIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   
   const [isExporting, setIsExporting] = useState(false);
@@ -145,8 +142,13 @@ export default function Home() {
   // --- State: URL Modal ---
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [urlInput, setUrlInput] = useState("");
+  const [urlNameInput, setUrlNameInput] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [isValidatingUrl, setIsValidatingUrl] = useState(false);
+  
+  // --- State: Name Editing ---
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameInput, setEditNameInput] = useState("");
   
   // --- State: Share Modal ---
   const [showShareModal, setShowShareModal] = useState(false);
@@ -169,8 +171,9 @@ export default function Home() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
       storageWarningShown.current = false; // Reset if save succeeds
-    } catch (e: any) {
-      if ((e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) 
+    } catch (e: unknown) {
+      const error = e as { name?: string; message?: string };
+      if ((error.name === 'QuotaExceededError' || error.message?.includes('exceeded the quota')) 
           && !storageWarningShown.current) {
          storageWarningShown.current = true;
          showNotification("Storage nearly full. Your changes are saved in memory.", 'info');
@@ -197,7 +200,7 @@ export default function Home() {
         });
         if (res.ok) {
            const data = await res.json();
-           const mapped: Character[] = (data.characters || []).map((c: any) => ({
+           const mapped: Character[] = (data.characters || []).map((c: { id: number; jikan_id?: number; name: string; images: { jpg: { image_url: string } }; source?: string }) => ({
               mal_id: c.id, 
               jikan_id: c.jikan_id,
               name: c.name,
@@ -335,7 +338,7 @@ export default function Home() {
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     setActiveId(active.id as string);
-    setActiveDragData(active.data.current);
+    setActiveDragData(active.data.current ?? null);
     // Backward compatibility for UI states that rely on these
     setDraggedCharacter(active.data.current?.character || null);
     setDraggedFromIndex(active.data.current?.index ?? null);
@@ -413,7 +416,7 @@ export default function Home() {
   // --- Export ---
   // --- Export ---
   // --- Export Helper ---
-  const getGridBlob = async (filename: string) => {
+  const getGridBlob = async (_filename: string) => {
     if (!gridRef.current) return null;
     
     // Options for high-quality export
@@ -498,10 +501,15 @@ export default function Home() {
             el.style.backgroundImage = 'none';
             el.style.backgroundColor = '#000000';
             el.setAttribute('data-export-empty', 'true');
+            
+            // Aggressively remove ghost images and clear backgrounds
             const imgs = el.querySelectorAll('img');
-            imgs.forEach(img => {
-                (img as HTMLElement).style.display = 'none';
-                (img as HTMLElement).style.visibility = 'hidden';
+            imgs.forEach(img => img.remove());
+            
+            // Clear background images on all descendants to prevent ghosting
+            const descendants = el.querySelectorAll('*');
+            descendants.forEach(d => {
+                (d as HTMLElement).style.backgroundImage = 'none';
             });
         }
     });
@@ -569,7 +577,7 @@ export default function Home() {
        // Try Modern File System Access API (Save As Dialog)
        if ('showSaveFilePicker' in window) {
           try {
-             const handle = await (window as any).showSaveFilePicker({
+             const handle = await (window as unknown as { showSaveFilePicker: (options: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
                 suggestedName: filename,
                 types: [{
                    description: 'PNG Image',
@@ -580,8 +588,9 @@ export default function Home() {
              await writable.write(blob);
              await writable.close();
              return; 
-          } catch (err: any) {
-             if (err.name === 'AbortError') return; 
+          } catch (err: unknown) {
+             const error = err as { name?: string };
+             if (error.name === 'AbortError') return; 
           }
        }
 
@@ -593,9 +602,10 @@ export default function Home() {
        link.click();
        URL.revokeObjectURL(url);
 
-    } catch(e: any) { 
+    } catch(e: unknown) { 
        console.error("Export Error:", e);
-       showNotification(`Export failed: ${e.message}`, 'error');
+       const errMsg = e instanceof Error ? e.message : String(e);
+       showNotification(`Export failed: ${errMsg}`, 'error');
     }
     finally { setIsExporting(false); }
   };
@@ -640,7 +650,7 @@ export default function Home() {
       // Try Modern File System Access API (Save As Dialog)
       if ('showSaveFilePicker' in window) {
          try {
-            const handle = await (window as any).showSaveFilePicker({
+            const handle = await (window as unknown as { showSaveFilePicker: (options: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
                suggestedName: filename,
                types: [{
                   description: 'JSON File',
@@ -651,8 +661,9 @@ export default function Home() {
             await writable.write(blob);
             await writable.close();
             return; // Success
-         } catch (err: any) {
-            if (err.name === 'AbortError') return; // User cancelled
+         } catch (err: unknown) {
+            const error = err as { name?: string };
+            if (error.name === 'AbortError') return; // User cancelled
             // Fallback to direct download on error
          }
       }
@@ -667,11 +678,13 @@ export default function Home() {
   };
 
   const handleLoadJson = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any[] = [];
       const input = jsonInput.trim();
 
       // Scavenger Function: Finds balanced {...} objects in 'soup'
       const scavenge = (str: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const found: any[] = [];
           let depth = 0;
           let start = -1;
@@ -755,8 +768,10 @@ export default function Home() {
          let loadedCount = 0;
 
          // Universal Loader (Handles Mixed Formats)
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
          data.forEach((item: any, index: number) => {
              let gridIndex = -1;
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
              let charObj: any = null;
 
              // Detect Format Type per Item
@@ -924,7 +939,7 @@ export default function Home() {
       // Success - create character
       const customChar: Character = {
         mal_id: Date.now(),
-        name: "Custom Character",
+        name: urlNameInput.trim() || "Custom Character",
         images: { jpg: { image_url: url } },
         customImageUrl: url,
         source: "URL"
@@ -933,6 +948,7 @@ export default function Home() {
       openGallery(customChar); // Open sidebar but skip search
       setShowUrlModal(false);
       setUrlInput("");
+      setUrlNameInput("");
     } catch {
       setUrlError("Could not load image. Check URL or CORS.");
     } finally {
@@ -1008,7 +1024,7 @@ export default function Home() {
                          className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-purple-400 hover:text-purple-300 text-sm font-medium flex items-center justify-center gap-2 mx-auto transition-colors"
                       >
                          <Images className="w-4 h-4"/>
-                         Search Web Images for "{searchQuery}"
+                         Search Web Images for &quot;{searchQuery}&quot;
                       </button>
                    </div>
                 ) : (
@@ -1146,7 +1162,75 @@ export default function Home() {
                   )}
                </div>
             </DraggableSidebarItem>
-               <h3 className="font-bold text-lg text-white mb-1">{selectedCharacter.name}</h3>
+               <div className="mb-1 min-h-[32px] flex items-center">
+                   {isEditingName ? (
+                       <div className="flex gap-2 w-full animate-in fade-in duration-200">
+                           <input 
+                               className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                               value={editNameInput}
+                               onChange={(e) => setEditNameInput(e.target.value)}
+                               autoFocus
+                               onKeyDown={(e) => {
+                                   if (e.key === 'Enter') {
+                                       const newName = editNameInput.trim() || selectedCharacter.name;
+                                       const updatedChar = { ...selectedCharacter, name: newName };
+                                       setSelectedCharacter(updatedChar);
+                                       setGrid(prev => prev.map(cell => {
+                                           if (cell.character && cell.character.customImageUrl === selectedCharacter.customImageUrl) {
+                                               return { ...cell, character: { ...cell.character, name: newName } };
+                                           }
+                                           return cell;
+                                       }));
+                                       setIsEditingName(false);
+                                   } else if (e.key === 'Escape') {
+                                       setIsEditingName(false);
+                                   }
+                               }}
+                           />
+                           <button 
+                               onClick={() => {
+                                   const newName = editNameInput.trim() || selectedCharacter.name;
+                                   const updatedChar = { ...selectedCharacter, name: newName };
+                                   setSelectedCharacter(updatedChar);
+                                   setGrid(prev => prev.map(cell => {
+                                       if (cell.character && cell.character.customImageUrl === selectedCharacter.customImageUrl) {
+                                           return { ...cell, character: { ...cell.character, name: newName } };
+                                       }
+                                       return cell;
+                                   }));
+                                   setIsEditingName(false);
+                               }}
+                               className="p-1.5 bg-green-900/30 text-green-400 rounded hover:bg-green-900/50"
+                           >
+                               <Check className="w-4 h-4"/>
+                           </button>
+                           <button 
+                               onClick={() => setIsEditingName(false)}
+                               className="p-1.5 bg-zinc-800 text-zinc-400 rounded hover:bg-zinc-700"
+                           >
+                               <X className="w-4 h-4"/>
+                           </button>
+                       </div>
+                   ) : (
+                       <div className="flex items-center gap-2 group w-full">
+                           <h3 className="font-bold text-lg text-white truncate flex-1" title={selectedCharacter.name}>
+                               {selectedCharacter.name}
+                           </h3>
+                           {(selectedCharacter.source === "Uploaded" || selectedCharacter.source === "URL" || selectedCharacter.source === "Custom Character" || selectedCharacter.source === "Web Search") && (
+                               <button 
+                                   onClick={() => {
+                                       setIsEditingName(true);
+                                       setEditNameInput(selectedCharacter.name);
+                                   }}
+                                   className="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-purple-400 transition-all"
+                                   title="Edit Name"
+                               >
+                                   <Pencil className="w-4 h-4"/>
+                               </button>
+                           )}
+                       </div>
+                   )}
+               </div>
                <p className="text-sm text-zinc-500 mb-4">{selectedCharacter.source || "Unknown Source"}</p>
                
                <div className="space-y-2">
@@ -1346,7 +1430,7 @@ export default function Home() {
                                  <Search className="w-3 h-3"/>
                               </div>
                            </div>
-                           <p className="text-xs text-zinc-500 mt-2 italic border-t border-zinc-800/50 pt-2">"{s.reason}"</p>
+                           <p className="text-xs text-zinc-500 mt-2 italic border-t border-zinc-800/50 pt-2">&quot;{s.reason}&quot;</p>
                         </div>
                       ))}
                    </div>
@@ -1430,7 +1514,7 @@ export default function Home() {
                         ) : (
                            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
                               <p className="text-zinc-500 text-sm font-medium mb-1">No images found.</p>
-                              <p className="text-zinc-700 text-xs">Try the "Usage Suggestions" tab to find similar characters!</p>
+                              <p className="text-zinc-700 text-xs">Try the &quot;Usage Suggestions&quot; tab to find similar characters!</p>
                            </div>
                         )}
                       </>
