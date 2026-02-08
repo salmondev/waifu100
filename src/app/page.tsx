@@ -514,10 +514,41 @@ export default function Home() {
         }
     });
 
+    // CRITICAL FIX: Swap image sources to raw URLs before capture
+    // The /_next/image proxy causes CORS issues with html-to-image
+    const images = gridRef.current.querySelectorAll('img');
+    const originalSrcs: string[] = [];
+    images.forEach((img, idx) => {
+        originalSrcs[idx] = img.src;
+        const src = img.src;
+        // Extract original URL from Next.js Image optimizer path
+        if (src.includes('/_next/image?url=')) {
+            const match = src.match(/url=([^&]+)/);
+            if (match) {
+                const decodedUrl = decodeURIComponent(match[1]);
+                img.src = decodedUrl;
+                // Add crossorigin for external URLs
+                if (!decodedUrl.startsWith('data:') && !decodedUrl.startsWith('blob:')) {
+                    img.crossOrigin = 'anonymous';
+                }
+            }
+        }
+    });
+
+    // Wait for images to reload with new sources
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     try {
         // Generate Blob
         return await toBlob(gridRef.current, options);
     } finally {
+        // Restore original image sources
+        images.forEach((img, idx) => {
+            if (originalSrcs[idx]) {
+                img.src = originalSrcs[idx];
+                img.removeAttribute('crossorigin');
+            }
+        });
         // Restore styles
         gridRef.current.style.width = '';
         gridRef.current.style.height = '';
