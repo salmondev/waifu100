@@ -128,11 +128,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
              body: JSON.stringify({ 
                 grid: cleanGridData, 
                 customTitle: customTitle.trim(), 
-                meta: {
-                    title: customTitle.trim(),
-                    createdAt: new Date().toISOString()
-                },
-                imageUrl: imageUrl // Send URL, not base64
+                imageUrl: imageUrl // Single thumbnail URL
              })
          });
 

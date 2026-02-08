@@ -46,8 +46,8 @@ IMPORTANT: Return ONLY valid JSON in this exact format, no markdown, no code blo
     // Parse the JSON response
     let suggestions;
     try {
-      // Remove any markdown code blocks if present
-      const cleanedText = text.replace(/```json\n?|\n?```/g, "").trim();
+      // Remove any markdown code blocks if present (handles ```json, ``` with whitespace variations)
+      const cleanedText = text.replace(/```(?:json)?\s*/gi, "").replace(/\s*```$/g, "").trim();
       suggestions = JSON.parse(cleanedText);
     } catch {
       console.error("Failed to parse Gemini response:", text);

@@ -58,6 +58,7 @@ export default function Home() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showRightPanel, setShowRightPanel] = useState(false); // Default closed to satisfy mobile requirement
   const [mounted, setMounted] = useState(false);
+  const [showNameHint, setShowNameHint] = useState(false);
 
   useEffect(() => {
       setMounted(true);
@@ -424,6 +425,7 @@ export default function Home() {
         quality: 0.95, 
         pixelRatio: 2, 
         backgroundColor: "#000",
+        includeQueryParams: true, // CRITICAL: Treat each Next.js optimized URL as unique
         width: 1080, 
         height: 1080,
         filter: (node: HTMLElement) => {
@@ -515,8 +517,11 @@ export default function Home() {
     });
 
     try {
-        // Generate Blob
+        // Generate Blob - wrapped in try-catch as external images may cause CORS issues
         return await toBlob(gridRef.current, options);
+    } catch (e) {
+        console.error("Grid capture failed:", e);
+        return null; // Return null on failure, share will proceed without thumbnail
     } finally {
         // Restore styles
         gridRef.current.style.width = '';
@@ -876,6 +881,8 @@ export default function Home() {
           
           setSelectedCharacter(customChar);
           openGallery(customChar); // Show in sidebar
+          // Trigger hint - persists until user edits
+          setShowNameHint(true);
        };
        img.src = ev.target?.result as string;
     };
@@ -949,6 +956,8 @@ export default function Home() {
       setShowUrlModal(false);
       setUrlInput("");
       setUrlNameInput("");
+      // Trigger hint - persists until user edits
+      setShowNameHint(true);
     } catch {
       setUrlError("Could not load image. Check URL or CORS.");
     } finally {
@@ -1162,7 +1171,17 @@ export default function Home() {
                   )}
                </div>
             </DraggableSidebarItem>
-               <div className="mb-1 min-h-[32px] flex items-center">
+               <div className="mb-1 min-h-[32px] flex items-center relative">
+                   {showNameHint && (
+                       <div className="absolute top-full left-24 mt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-300 pointer-events-none">
+                           <div className="bg-white text-zinc-900 text-[10px] font-bold px-3 py-1.5 rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex items-center gap-1.5 whitespace-nowrap border border-zinc-200 relative">
+                               <Pencil className="w-3 h-3 text-purple-600 fill-purple-600/10"/>
+                               <span>Tap to edit</span>
+                               {/* Top Arrow - shifted to match new position */}
+                               <div className="absolute -top-1 left-2 w-2.5 h-2.5 bg-white rotate-45 transform border-t border-l border-zinc-200"></div>
+                           </div>
+                       </div>
+                   )}
                    {isEditingName ? (
                        <div className="flex gap-2 w-full animate-in fade-in duration-200">
                            <input 
@@ -1213,7 +1232,22 @@ export default function Home() {
                        </div>
                    ) : (
                        <div className="flex items-center gap-2 group w-full">
-                           <h3 className="font-bold text-lg text-white truncate flex-1" title={selectedCharacter.name}>
+                           <h3 
+                               className={cn(
+                                   "font-bold text-lg text-white truncate flex-1 transition-colors",
+                                   (selectedCharacter.source === "Uploaded" || selectedCharacter.source === "URL" || selectedCharacter.source === "Custom Character" || selectedCharacter.source === "Web Search") 
+                                       ? "cursor-pointer hover:text-purple-400" 
+                                       : ""
+                               )}
+                               title={selectedCharacter.name}
+                               onClick={() => {
+                                   if (selectedCharacter.source === "Uploaded" || selectedCharacter.source === "URL" || selectedCharacter.source === "Custom Character" || selectedCharacter.source === "Web Search") {
+                                       setIsEditingName(true);
+                                       setEditNameInput(selectedCharacter.name);
+                                       setShowNameHint(false); // Hide hint on interaction
+                                   }
+                               }}
+                           >
                                {selectedCharacter.name}
                            </h3>
                            {(selectedCharacter.source === "Uploaded" || selectedCharacter.source === "URL" || selectedCharacter.source === "Custom Character" || selectedCharacter.source === "Web Search") && (
@@ -1222,7 +1256,7 @@ export default function Home() {
                                        setIsEditingName(true);
                                        setEditNameInput(selectedCharacter.name);
                                    }}
-                                   className="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-purple-400 transition-all"
+                                   className="p-1.5 bg-zinc-800/50 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-all ml-2"
                                    title="Edit Name"
                                >
                                    <Pencil className="w-4 h-4"/>
