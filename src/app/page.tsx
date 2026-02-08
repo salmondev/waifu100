@@ -424,6 +424,7 @@ export default function Home() {
         quality: 0.95, 
         pixelRatio: 2, 
         backgroundColor: "#000",
+        includeQueryParams: true, // CRITICAL: Treat each Next.js optimized URL as unique
         width: 1080, 
         height: 1080,
         filter: (node: HTMLElement) => {
