@@ -46,10 +46,9 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
          <div className="flex flex-col items-center justify-center">
              {/* Title with beautiful glow effect */}
              <h1 
-                className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400 bg-clip-text text-transparent px-4 text-center pb-1 drop-shadow-lg"
+                className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400 bg-clip-text text-transparent px-4 text-center pb-1"
                 style={{
-                    textShadow: '0 0 30px rgba(168, 85, 247, 0.5), 0 0 60px rgba(236, 72, 153, 0.3), 0 0 100px rgba(168, 85, 247, 0.2)',
-                    filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 0.4))'
+                    textShadow: '0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(168, 85, 247, 0.2)'
                 }}
              >
                  {title}
