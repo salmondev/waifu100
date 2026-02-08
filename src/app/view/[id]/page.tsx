@@ -95,7 +95,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
           card: "summary_large_image",
           title: `${title}`,
           description: `My 100 favorite characters!`,
-          images: images
+          // Note: Twitter inherits image from OpenGraph, don't specify here to avoid duplication
       }
   };
 }
