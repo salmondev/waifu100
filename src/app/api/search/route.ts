@@ -32,7 +32,7 @@ interface CharacterResult {
  * 3. Serper (Google) for anything not found in anime DBs
  */
 export async function POST(request: NextRequest) {
-  const _startTime = Date.now();
+  // const _startTime = Date.now();
   
   try {
     const { characterName } = await request.json();

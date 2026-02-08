@@ -5,12 +5,13 @@ import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLe
 import { toBlob } from "html-to-image";
 import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartEvent, DragEndEvent, pointerWithin } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
-import { Character, GridCell, ImageResult } from "@/types";
+import { Character, GridCell, ImageResult, AnalysisResult, VerdictFeedback } from "@/types";
 import { GridCell as GridComponent } from "@/components/grid/GridCell";
 import { DraggableSidebarItem } from "@/components/sidebar/DraggableSidebarItem";
 import { DragOverlayWrapper } from "@/components/dnd/DragOverlayWrapper";
 import { TrashZone } from "@/components/dnd/TrashZone";
 import { ShareModal } from "@/components/share/ShareModal";
+import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 
 // --- Types ---
 interface Notification {
@@ -154,6 +155,11 @@ export default function Home() {
   // --- State: Share Modal ---
   const [showShareModal, setShowShareModal] = useState(false);
   
+  // --- State: Analysis Modal ---
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [verdict, setVerdict] = useState<AnalysisResult | null>(null);
+  const [verdictFeedback, setVerdictFeedback] = useState<VerdictFeedback>(null);
+  
   // --- State: Replace Confirmation ---
   const [pendingReplace, setPendingReplace] = useState<{index: number, newChar: Character, oldChar: Character} | null>(null);
 
@@ -161,7 +167,16 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      try { setGrid(JSON.parse(saved)); } catch (e) { console.error(e); }
+      try { 
+         const parsed = JSON.parse(saved);
+         if (Array.isArray(parsed)) {
+            setGrid(parsed);
+         } else if (parsed.grid) {
+            setGrid(parsed.grid);
+            if (parsed.verdict) setVerdict(parsed.verdict);
+            if (parsed.verdictFeedback) setVerdictFeedback(parsed.verdictFeedback);
+         }
+      } catch (e) { console.error(e); }
     }
   }, []);
 
@@ -170,7 +185,15 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
+      // Save grid + verdict + feedback
+      // We use a wrapper object if verdict exists, otherwise fallback to array for backward compat?
+      // Actually, let's just save the wrapper object. Load logic handles migration.
+      const data = {
+         grid,
+         verdict,
+         verdictFeedback
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       storageWarningShown.current = false; // Reset if save succeeds
     } catch (e: unknown) {
       const error = e as { name?: string; message?: string };
@@ -632,7 +655,15 @@ export default function Home() {
       })
       .filter(Boolean); // Remove nulls to save space
     
-    setJsonInput(JSON.stringify(data)); 
+    // Create export object
+    const exportData = {
+        grid: data,
+        verdict,
+        verdictFeedback,
+        title: currentTitle
+    };
+
+    setJsonInput(JSON.stringify(exportData)); 
     setSaveLoadTab('save');
     setShowSaveLoadModal(true);
     setCopySuccess(false);
@@ -734,7 +765,17 @@ export default function Home() {
          // 1. Try Standard Parse
          try {
              const parsed = JSON.parse(input);
-             data = Array.isArray(parsed) ? parsed : [parsed];
+             // Handle new object format vs legacy array
+             if (!Array.isArray(parsed) && parsed.grid && Array.isArray(parsed.grid)) {
+                 data = parsed.grid;
+                 if (parsed.verdict) setVerdict(parsed.verdict);
+                 if (parsed.verdictFeedback) setVerdictFeedback(parsed.verdictFeedback);
+                 // We don't overwrite title here because step 5 handles it below if we didn't extract it here?
+                 // Actually step 5 logic re-parses input. Let's just set it here if available and rely on step 5 as fallback or redundancy.
+                 if (parsed.title) setCurrentTitle(parsed.title);
+             } else {
+                 data = Array.isArray(parsed) ? parsed : [parsed];
+             }
          } catch (e1) {
              // 2. Try Base64 Decode + Parse
              try {
@@ -1116,6 +1157,21 @@ export default function Home() {
               Save / Load Progress
            </button>
 
+           <button 
+              onClick={() => {
+                  if (verdictFeedback) {
+                      setVerdict(null); // Force re-analyze
+                      setVerdictFeedback(null); // Reset feedback
+                  }
+                  setShowAnalysisModal(true);
+              }}
+              disabled={filledCount < 2}
+              className="w-full py-2 mb-2 bg-gradient-to-r from-yellow-600/20 to-orange-600/20 text-yellow-500 border border-yellow-600/30 hover:bg-yellow-600/30 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+           >
+              <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform"/>
+              Ask AI About My Taste
+           </button>
+
            <div className="flex gap-2 mt-2">
                 <button 
                   onClick={() => setShowShareModal(true)}
@@ -1383,6 +1439,15 @@ export default function Home() {
         onCapture={getGridBlob}
         initialTitle={currentTitle}
         onTitleUpdate={setCurrentTitle}
+      />
+      <AnalysisModal 
+        isOpen={showAnalysisModal}
+        onClose={() => setShowAnalysisModal(false)}
+        grid={grid}
+        result={verdict}
+        onResult={setVerdict}
+        feedback={verdictFeedback}
+        onFeedback={setVerdictFeedback}
       />
     </main>
       {/* 3. RIGHT SIDEBAR: Suggestions & Gallery */}
