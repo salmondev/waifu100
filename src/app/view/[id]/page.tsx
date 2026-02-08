@@ -88,13 +88,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description: `Check out "${title}" featuring ${count} characters! Create your own at waifu100.`,
       openGraph: {
           title: `${title}`,
-          description: `Check out my full 10x10 grid with ${count} characters!`,
+          description: `My 100 favorite characters!`,
           images: images
       },
       twitter: {
           card: "summary_large_image",
           title: `${title}`,
-          description: `Check out my full 10x10 grid with ${count} characters!`,
+          description: `My 100 favorite characters!`,
           images: images
       }
   };
