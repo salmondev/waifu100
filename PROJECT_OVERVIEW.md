@@ -51,6 +51,18 @@ This project is built to be **robust, pixel-perfect, and user-friendly**, featur
 51: - **Custom Upload UX**:
 52:   - **Smart Hints**: iOS-style popup hints ("Tap to edit") guide users when uploading custom images.
 53:   - **Direct Editing**: Clickable names and always-visible edit icons for seamless customization.
+- **Modal Design**: The "Ask AI About My Taste" modal features a polished, engaging design with:
+  - **Verdict Title**: Gradient text with specialized padding handling for Thai descenders.
+  - **Action Buttons**: Sleek, icon-based buttons (Copy, Agree, Disagree) with interactive states.
+  - **Vibe Check**: Large, centralized emoji display with a floating badge.
+  *(User explicitly requested this design pattern be noted for future reference)*
+
+### 5. AI Verdict & Analysis ("Ask AI About My Taste")
+- **Dual-Language Analysis**: Generates witty, personality-filled verdicts in both **English** (Conversational) and **Thai** (Slang/Net Idol style).
+- **Vibe Check**: Assigns a "Soul Emoji" and tags based on character selection.
+- **Feedback Loop**: Users can Agree/Disagree with the verdict.
+  - **Smart Persistence**: Verdicts are saved to `localStorage` and JSON exports.
+  - **Re-Verdict Logic**: Asking AI again *only* triggers a new analysis if the user has previously given feedback (Agree/Disagree). Otherwise, it loads the saved verdict instantly.
 
 ---
 
