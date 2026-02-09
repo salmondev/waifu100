@@ -5,12 +5,15 @@ import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLe
 import { toBlob } from "html-to-image";
 import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartEvent, DragEndEvent, pointerWithin } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
-import { Character, GridCell, ImageResult } from "@/types";
+import { Character, GridCell, ImageResult, AnalysisResult, VerdictFeedback } from "@/types";
 import { GridCell as GridComponent } from "@/components/grid/GridCell";
 import { DraggableSidebarItem } from "@/components/sidebar/DraggableSidebarItem";
 import { DragOverlayWrapper } from "@/components/dnd/DragOverlayWrapper";
 import { TrashZone } from "@/components/dnd/TrashZone";
 import { ShareModal } from "@/components/share/ShareModal";
+
+import { AnalysisModal } from "@/components/analysis/AnalysisModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 // --- Types ---
 interface Notification {
@@ -154,6 +157,31 @@ export default function Home() {
   // --- State: Share Modal ---
   const [showShareModal, setShowShareModal] = useState(false);
   
+  // --- State: Clear Grid Confirmation ---
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  
+  // --- State: Save/Load UI ---
+  const [isDragOver, setIsDragOver] = useState(false);
+  
+  // --- State: Gallery Hint ---
+  const [showGalleryHint, setShowGalleryHint] = useState(false);
+  const [galleryUsageCount, setGalleryUsageCount] = useState(0);
+
+  // --- State: Search Hint ---
+  const [showSearchHint, setShowSearchHint] = useState(false);
+
+  useEffect(() => {
+      const count = parseInt(localStorage.getItem('waifu100-gallery-usage-count') || '0', 10);
+      setGalleryUsageCount(count);
+  }, []);
+  
+
+  
+  // --- State: Analysis Modal ---
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [verdict, setVerdict] = useState<AnalysisResult | null>(null);
+  const [verdictFeedback, setVerdictFeedback] = useState<VerdictFeedback>(null);
+  
   // --- State: Replace Confirmation ---
   const [pendingReplace, setPendingReplace] = useState<{index: number, newChar: Character, oldChar: Character} | null>(null);
 
@@ -161,7 +189,16 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      try { setGrid(JSON.parse(saved)); } catch (e) { console.error(e); }
+      try { 
+         const parsed = JSON.parse(saved);
+         if (Array.isArray(parsed)) {
+            setGrid(parsed);
+         } else if (parsed.grid) {
+            setGrid(parsed.grid);
+            if (parsed.verdict) setVerdict(parsed.verdict);
+            if (parsed.verdictFeedback) setVerdictFeedback(parsed.verdictFeedback);
+         }
+      } catch (e) { console.error(e); }
     }
   }, []);
 
@@ -170,7 +207,15 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
+      // Save grid + verdict + feedback
+      // We use a wrapper object if verdict exists, otherwise fallback to array for backward compat?
+      // Actually, let's just save the wrapper object. Load logic handles migration.
+      const data = {
+         grid,
+         verdict,
+         verdictFeedback
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       storageWarningShown.current = false; // Reset if save succeeds
     } catch (e: unknown) {
       const error = e as { name?: string; message?: string };
@@ -209,6 +254,11 @@ export default function Home() {
               source: c.source
            }));
            setCharacterResults(mapped);
+
+           // Show Search Hint if results found, no character selected, and user is new
+           if (mapped.length > 0 && !selectedCharacter && galleryUsageCount < 5) {
+               setShowSearchHint(true);
+           }
         }
       } catch (e) {
         console.error(e);
@@ -217,7 +267,7 @@ export default function Home() {
       }
     };
     doSearch();
-  }, [debouncedQuery, searchQuery]);
+  }, [debouncedQuery, searchQuery, selectedCharacter, galleryUsageCount]);
 
   // --- Gallery Logic ---
   const openGallery = useCallback(async (char: Character, customQuery?: string) => {
@@ -228,6 +278,11 @@ export default function Home() {
     
     setIsGalleryLoading(true);
     setSelectedCharacter(char);
+
+    // Increment usage count
+    const newCount = galleryUsageCount + 1;
+    setGalleryUsageCount(newCount);
+    localStorage.setItem('waifu100-gallery-usage-count', newCount.toString());
 
     // FIX: Skip search for Manual Uploads / URLs
     if (char.source === "Uploaded" || char.source === "URL" || char.source === "Web Search") {
@@ -307,6 +362,7 @@ export default function Home() {
 
   // --- Selection Logic ---
   const handleSelectCharacter = (char: Character) => {
+    setShowSearchHint(false); // Hide hint on selection
     setSelectedCharacter(char);
     openGallery(char); // Auto-find more images
     setIsMobileSidebarOpen(false); // Close search sidebar to show Gallery (Right Panel)
@@ -339,11 +395,10 @@ export default function Home() {
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     setActiveId(active.id as string);
-    setActiveDragData(active.data.current ?? null);
-    // Backward compatibility for UI states that rely on these
     setDraggedCharacter(active.data.current?.character || null);
     setDraggedFromIndex(active.data.current?.index ?? null);
     setIsDragging(true);
+    setShowSearchHint(false); // Hide hint on drag start
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -408,6 +463,16 @@ export default function Home() {
                  });
              }
          }
+         
+         // Trigger Gallery Hint if dragged from Sidebar AND usage count < 5
+         if (sourceData?.type === 'sidebar' && galleryUsageCount < 5) {
+             setShowGalleryHint(true);
+             // Auto-hide after 10 seconds if not interacted with
+             setTimeout(() => {
+                 setShowGalleryHint(false);
+             }, 10000);
+         }
+         
          setLastDroppedIndex(targetIndex);
          setTimeout(() => setLastDroppedIndex(null), 300);
     }
@@ -632,7 +697,15 @@ export default function Home() {
       })
       .filter(Boolean); // Remove nulls to save space
     
-    setJsonInput(JSON.stringify(data)); 
+    // Create export object
+    const exportData = {
+        grid: data,
+        verdict,
+        verdictFeedback,
+        title: currentTitle
+    };
+
+    setJsonInput(JSON.stringify(exportData)); 
     setSaveLoadTab('save');
     setShowSaveLoadModal(true);
     setCopySuccess(false);
@@ -649,7 +722,10 @@ export default function Home() {
   };
 
   const handleDownloadJson = async () => {
-      const filename = "waifu100-save.json";
+      const now = new Date();
+      // Format: YYYY-MM-DD_HH-mm-ss
+      const timestamp = now.toISOString().replace(/T/, '_').replace(/:/g, '-').split('.')[0];
+      const filename = `waifu100-save-${timestamp}.json`;
       const blob = new Blob([jsonInput], { type: "application/json" });
       
       // Try Modern File System Access API (Save As Dialog)
@@ -734,7 +810,17 @@ export default function Home() {
          // 1. Try Standard Parse
          try {
              const parsed = JSON.parse(input);
-             data = Array.isArray(parsed) ? parsed : [parsed];
+             // Handle new object format vs legacy array
+             if (!Array.isArray(parsed) && parsed.grid && Array.isArray(parsed.grid)) {
+                 data = parsed.grid;
+                 if (parsed.verdict) setVerdict(parsed.verdict);
+                 if (parsed.verdictFeedback) setVerdictFeedback(parsed.verdictFeedback);
+                 // We don't overwrite title here because step 5 handles it below if we didn't extract it here?
+                 // Actually step 5 logic re-parses input. Let's just set it here if available and rely on step 5 as fallback or redundancy.
+                 if (parsed.title) setCurrentTitle(parsed.title);
+             } else {
+                 data = Array.isArray(parsed) ? parsed : [parsed];
+             }
          } catch (e1) {
              // 2. Try Base64 Decode + Parse
              try {
@@ -1116,6 +1202,21 @@ export default function Home() {
               Save / Load Progress
            </button>
 
+           <button 
+              onClick={() => {
+                  if (verdictFeedback) {
+                      setVerdict(null); // Force re-analyze
+                      setVerdictFeedback(null); // Reset feedback
+                  }
+                  setShowAnalysisModal(true);
+              }}
+              disabled={filledCount < 2}
+              className="w-full py-2 mb-2 bg-gradient-to-r from-yellow-600/20 to-orange-600/20 text-yellow-500 border border-yellow-600/30 hover:bg-yellow-600/30 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+           >
+              <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform"/>
+              Ask AI About My Taste
+           </button>
+
            <div className="flex gap-2 mt-2">
                 <button 
                   onClick={() => setShowShareModal(true)}
@@ -1133,6 +1234,16 @@ export default function Home() {
              Export
            </button>
            </div>
+
+           {/* Clear Grid Button */}
+           <button 
+              onClick={() => setShowClearConfirm(true)}
+              disabled={filledCount === 0}
+              className="w-full mt-2 py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+           >
+              <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform"/>
+              Clear Grid
+           </button>
         </div>
       </aside>
 
@@ -1287,6 +1398,33 @@ export default function Home() {
          </aside>
       )}
 
+      {/* SEARCH HINT (Desktop Only) */}
+      {/* Positioned relative to the viewport or flex container, adjusting left to match sidebar width */}
+      {showSearchHint && !selectedCharacter && (
+          <div className="hidden lg:flex fixed left-80 top-24 z-50 animate-in slide-in-from-left-2 fade-in duration-300 ml-1">
+            <div className="flex items-center">
+                {/* Triangle pointer */}
+                <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[12px] border-r-pink-600"></div>
+                
+                <div className="bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg shadow-xl p-4 w-60 text-white relative">
+                  <h4 className="font-bold text-sm mb-1 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse"/>
+                      Found them!
+                  </h4>
+                  <p className="text-xs text-pink-100 leading-snug">
+                      Drag characters directly to the grid, or click them to see more images.
+                  </p>
+                  <button 
+                      onClick={() => setShowSearchHint(false)}
+                      className="absolute top-2 right-2 text-pink-200 hover:text-white"
+                  >
+                      <X className="w-3 h-3"/>
+                  </button>
+                </div>
+            </div>
+          </div>
+      )}
+
       {/* 2. MAIN GRID AREA */}
        <main className="flex-1 bg-black flex flex-col lg:flex-row lg:items-center justify-center p-1 lg:p-8 overflow-auto h-full relative">
          
@@ -1383,6 +1521,40 @@ export default function Home() {
         onCapture={getGridBlob}
         initialTitle={currentTitle}
         onTitleUpdate={setCurrentTitle}
+      />
+
+      <ConfirmModal 
+        isOpen={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={() => {
+            // Reset Grid
+            setGrid(Array(100).fill(null).map(() => ({ character: null })));
+            // Reset Meta
+            setCurrentTitle("My 100 Favorite Characters");
+            setSelectedCharacter(null);
+            // Reset AI
+            setVerdict(null);
+            setVerdictFeedback(null);
+            
+            // Reset Gallery Usage Count (User Request)
+            setGalleryUsageCount(0);
+            localStorage.setItem('waifu100-gallery-usage-count', '0');
+            
+            showNotification("Grid cleared successfully!", 'success');
+        }}
+        title="Clear Entire Grid?"
+        message="Are you sure you want to delete all characters? This action cannot be undone unless you have a save file."
+        confirmText="Clear Everything"
+        variant="danger"
+      />
+      <AnalysisModal 
+        isOpen={showAnalysisModal}
+        onClose={() => setShowAnalysisModal(false)}
+        grid={grid}
+        result={verdict}
+        onResult={setVerdict}
+        feedback={verdictFeedback}
+        onFeedback={setVerdictFeedback}
       />
     </main>
       {/* 3. RIGHT SIDEBAR: Suggestions & Gallery */}
@@ -1564,14 +1736,7 @@ export default function Home() {
     
     {/* URL Paste Modal */}
     
-          {/* Mobile Trash Zone */}
-          {isDragging && (
-             <TrashZone id="trash-mobile" className="lg:hidden fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-red-950/95 via-red-900/80 to-transparent z-50 flex flex-col items-center justify-end pb-8 border-t border-red-500/30">
-                 <div className="w-16 h-1 bg-red-500/30 rounded-full mb-4"/>
-                 <Trash2 className="w-8 h-8 text-red-400 animate-bounce"/>
-                 <p className="text-red-200 text-xs font-bold mt-2 uppercase tracking-widest">Drop to Remove</p>
-             </TrashZone>
-          )}
+
         {showUrlModal && (
        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md p-6">
@@ -1772,9 +1937,14 @@ export default function Home() {
                       />
 
                       <div 
-                         onDragOver={(e) => e.preventDefault()}
+                         onDragOver={(e) => {
+                            e.preventDefault();
+                            setIsDragOver(true);
+                         }}
+                         onDragLeave={() => setIsDragOver(false)}
                          onDrop={(e) => {
                             e.preventDefault();
+                            setIsDragOver(false);
                             const file = e.dataTransfer.files[0];
                             if (file && file.name.endsWith('.json')) {
                                const reader = new FileReader();
@@ -1782,14 +1952,24 @@ export default function Home() {
                                reader.readAsText(file);
                             }
                          }}
-                         className="relative"
+                         className={cn(
+                            "relative rounded-lg transition-all duration-300 border-2 border-dashed group h-64",
+                            isDragOver ? "border-green-500 bg-green-900/10" : "border-zinc-700 bg-zinc-950 hover:border-zinc-600"
+                         )}
                       >
                          <textarea 
                             value={jsonInput}
                             onChange={(e) => setJsonInput(e.target.value)}
-                            placeholder='Paste JSON here...'
-                            className="w-full h-64 bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs font-mono text-zinc-300 resize-none focus:ring-1 focus:ring-blue-500 outline-none appearance-none"
+                            className="absolute inset-0 w-full h-full bg-transparent p-4 text-xs font-mono text-zinc-300 resize-none focus:outline-none z-10"
+                            placeholder="Paste JSON here..."
                          />
+                         
+                         {!jsonInput && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 pointer-events-none z-0">
+                               <FileJson className={cn("w-10 h-10 mb-3 transition-colors", isDragOver ? "text-green-500" : "text-zinc-600 group-hover:text-zinc-500")} />
+                               <p className="font-medium text-sm">Paste JSON or Drag JSON file to here</p>
+                            </div>
+                         )}
                       </div>
                       <button 
                          onClick={handleLoadJson}
@@ -1820,6 +2000,34 @@ export default function Home() {
                   <span className="font-medium text-sm">{notification.message}</span>
               </div>
            </div>
+        )}
+
+        
+        {/* Gallery Hint Popup */}
+        {showGalleryHint && (
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[90] animate-in slide-in-from-bottom-5 fade-in duration-500">
+               <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
+                  <div className="relative flex items-center gap-4 px-6 py-4 bg-zinc-900 rounded-lg leading-none">
+                     <div className="p-2 bg-zinc-800 rounded-full text-pink-500 animate-bounce">
+                        <Lightbulb className="w-5 h-5" />
+                     </div>
+                     <div className="text-left">
+                        <h4 className="text-zinc-100 font-bold text-sm mb-1">Did you know?</h4>
+                        <p className="text-zinc-400 text-xs">Click any character on the grid to change their image!</p>
+                     </div>
+                     <button 
+                        onClick={() => {
+                           setShowGalleryHint(false);
+                           localStorage.setItem('waifu100-gallery-hint-dismissed', 'true');
+                        }}
+                        className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white transition-colors ml-2"
+                     >
+                        <X className="w-4 h-4" />
+                     </button>
+                  </div>
+               </div>
+            </div>
         )}
          <DragOverlayWrapper activeDragData={activeDragData} />
        </DndContext>

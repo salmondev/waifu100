@@ -48,9 +48,32 @@ This project is built to be **robust, pixel-perfect, and user-friendly**, featur
 - **Toast Notifications**: Custom animated notification system (replacing native `alert()`).
 - **Glassmorphism**: Modern dark aesthetic with gradients and blur effects.
 - **Responsive**: Adapts to screen sizes, though primarily optimized for desktop/tablet curation.
-51: - **Custom Upload UX**:
-52:   - **Smart Hints**: iOS-style popup hints ("Tap to edit") guide users when uploading custom images.
-53:   - **Direct Editing**: Clickable names and always-visible edit icons for seamless customization.
+- **Custom Upload UX**:
+  - **Smart Hints**: iOS-style popup hints ("Tap to edit") guide users when uploading custom images.
+  - **Direct Editing**: Clickable names and always-visible edit icons for seamless customization.
+
+### 6. New Features (v0.2.0)
+- **Smart Discovery Hints**:
+  - **Gallery Hint**: Suggests opening the gallery when a user drags a character (first 5 times).
+  - **Search Hint**: Guides users to drag characters or open gallery after searching (first 5 times).
+  - **Persistence**: Hints are dismissed automatically once the user learns the flow.
+- **Safety & Polish**:
+  - **Clear Grid**: Protected by a confirmation modal to prevent accidental loss.
+  - **Timestamped Saves**: JSON saves now include timestamps (`waifu100-save-YYYY-MM-DD_HH-mm-ss.json`) to prevent overwrites.
+  - **Compact UI**: Optimized hints to be non-intrusive and space-efficient.
+
+- **Modal Design**: The "Ask AI About My Taste" modal features a polished, engaging design with:
+  - **Verdict Title**: Gradient text with specialized padding handling for Thai descenders.
+  - **Action Buttons**: Sleek, icon-based buttons (Copy, Agree, Disagree) with interactive states.
+  - **Vibe Check**: Large, centralized emoji display with a floating badge.
+  *(User explicitly requested this design pattern be noted for future reference)*
+
+### 5. AI Verdict & Analysis ("Ask AI About My Taste")
+- **Dual-Language Analysis**: Generates witty, personality-filled verdicts in both **English** (Conversational) and **Thai** (Slang/Net Idol style).
+- **Vibe Check**: Assigns a "Soul Emoji" and tags based on character selection.
+- **Feedback Loop**: Users can Agree/Disagree with the verdict.
+  - **Smart Persistence**: Verdicts are saved to `localStorage` and JSON exports.
+  - **Re-Verdict Logic**: Asking AI again *only* triggers a new analysis if the user has previously given feedback (Agree/Disagree). Otherwise, it loads the saved verdict instantly.
 
 ---
 
@@ -135,5 +158,6 @@ bun start
 - **Ready for**: Production Deployment.
 
 ### Changelog
+- **v0.2.0**: Added Smart Discovery Hints, Clear Grid with confirmation, Timestamped Saves, and UI polish.
 - **v0.1.0**: Added Serper API integration for Google Image search, improved gallery with multi-source parallel fetching.
 - **v0.0.2**: Initial release with MAL/AniList search and Konachan fanart.
