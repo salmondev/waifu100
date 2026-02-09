@@ -90,7 +90,26 @@ export default function Home() {
 
   // --- State: Right Panel (Gallery & Suggestions) ---
 
-  const [activeTab, setActiveTab] = useState<'suggestions' | 'gallery'>('suggestions');
+  // --- State: Right Panel (Gallery & Suggestions) ---
+  
+  // First visit: show Community tab, otherwise Suggestions
+  const [activeTab, setActiveTab] = useState<'suggestions' | 'gallery' | 'community'>(() => {
+      if (typeof window !== 'undefined') {
+          const hasVisited = localStorage.getItem('waifu100-has-visited');
+          if (!hasVisited) {
+              localStorage.setItem('waifu100-has-visited', 'true');
+              return 'community';
+          }
+      }
+      return 'suggestions';
+  });
+
+  // AI Suggestion Hint (shown when user places 5th character)
+  const [showAISuggestionHint, setShowAISuggestionHint] = useState(false);
+  
+  // Community Feed State
+  const [communityGrids, setCommunityGrids] = useState<{id: string; title: string; imageUrl: string | null; createdAt: string}[]>([]);
+  const [isCommunityLoading, setIsCommunityLoading] = useState(false);
   
   // Gallery State
   const [galleryImages, setGalleryImages] = useState<ImageResult[]>([]);
@@ -166,9 +185,14 @@ export default function Home() {
   // --- State: Gallery Hint ---
   const [showGalleryHint, setShowGalleryHint] = useState(false);
   const [galleryUsageCount, setGalleryUsageCount] = useState(0);
+  const [hasShownGalleryHint, setHasShownGalleryHint] = useState(false); 
 
   // --- State: Search Hint ---
   const [showSearchHint, setShowSearchHint] = useState(false);
+  const [hasShownSearchHint, setHasShownSearchHint] = useState(false);
+
+  // --- State: AI Hint ---
+  const [hasShownAIHint, setHasShownAIHint] = useState(false);
 
   useEffect(() => {
       const count = parseInt(localStorage.getItem('waifu100-gallery-usage-count') || '0', 10);
@@ -228,6 +252,29 @@ export default function Home() {
     }
   }, [grid, showNotification]);
 
+  // --- Community Feed Logic (Manual Refresh Only) ---
+  const fetchCommunity = useCallback(async () => {
+      setIsCommunityLoading(true);
+      try {
+          const res = await fetch('/api/community');
+          if (res.ok) {
+              const data = await res.json();
+              setCommunityGrids(data.grids || []);
+          }
+      } catch (e) {
+          console.error("Failed to fetch community feed", e);
+      } finally {
+          setIsCommunityLoading(false);
+      }
+  }, []);
+
+  // Auto-fetch community when tab is opened (first time or cached is empty)
+  useEffect(() => {
+      if (activeTab === 'community' && communityGrids.length === 0) {
+          fetchCommunity();
+      }
+  }, [activeTab, communityGrids.length, fetchCommunity]);
+
   // --- Search Logic (Character Discovery) ---
   useEffect(() => {
     if (!debouncedQuery.trim()) {
@@ -255,9 +302,10 @@ export default function Home() {
            }));
            setCharacterResults(mapped);
 
-           // Show Search Hint if results found, no character selected, and user is new
-           if (mapped.length > 0 && !selectedCharacter && galleryUsageCount < 5) {
+           // Show Search Hint if results found, no character selected, and user hasn't seen it this session
+           if (mapped.length > 0 && !selectedCharacter && !hasShownSearchHint) {
                setShowSearchHint(true);
+               setHasShownSearchHint(true);
            }
         }
       } catch (e) {
@@ -267,7 +315,7 @@ export default function Home() {
       }
     };
     doSearch();
-  }, [debouncedQuery, searchQuery, selectedCharacter, galleryUsageCount]);
+  }, [debouncedQuery, searchQuery, selectedCharacter, hasShownSearchHint]);
 
   // --- Gallery Logic ---
   const openGallery = useCallback(async (char: Character, customQuery?: string) => {
@@ -399,6 +447,13 @@ export default function Home() {
     setDraggedFromIndex(active.data.current?.index ?? null);
     setIsDragging(true);
     setShowSearchHint(false); // Hide hint on drag start
+
+    // Set activeDragData for DragOverlay to render the dragged item
+    setActiveDragData({
+        character: active.data.current?.character,
+        index: active.data.current?.index ?? null,
+        type: active.data.current?.type
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -464,8 +519,19 @@ export default function Home() {
              }
          }
          
-         // Trigger Gallery Hint if dragged from Sidebar AND usage count < 5
-         if (sourceData?.type === 'sidebar' && galleryUsageCount < 5) {
+         // Hint Logic: AI hint takes priority over Gallery hint
+         // UPDATED: Trigger on first drag of session (removed currentCount check)
+         const shouldShowAIHint = !hasShownAIHint;
+         
+         if (shouldShowAIHint) {
+             // Trigger AI Suggestion Hint when user first drops an item (Once per session)
+             setHasShownAIHint(true);
+             setTimeout(() => {
+                 setShowAISuggestionHint(true);
+             }, 500);
+         } else if (sourceData?.type === 'sidebar' && !hasShownGalleryHint) {
+             // Trigger Gallery Hint only if NOT showing AI hint (Once per session)
+             setHasShownGalleryHint(true);
              setShowGalleryHint(true);
              // Auto-hide after 10 seconds if not interacted with
              setTimeout(() => {
@@ -1579,6 +1645,12 @@ export default function Home() {
                    >
                      Gallery
                    </button>
+                   <button 
+                     onClick={() => setActiveTab('community')} 
+                     className={cn("flex-1 text-xs py-1.5 rounded-md font-medium transition-colors", activeTab === 'community' ? "bg-indigo-900/30 text-indigo-200 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+                   >
+                     Community
+                   </button>
                 </div>
             ) : (
                 <div className="flex lg:flex-col items-center justify-center lg:justify-start w-full gap-4 pt-0 lg:pt-4 h-full lg:h-auto">
@@ -1729,6 +1801,65 @@ export default function Home() {
              )}
 
            </div>
+         )}
+         
+         {/* TAB: COMMUNITY */}
+         {activeTab === 'community' && (
+            <div className="p-4">
+               <div className="text-center mb-6 relative">
+                  <button
+                      onClick={fetchCommunity}
+                      disabled={isCommunityLoading}
+                      className="absolute right-0 top-0 p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800 rounded-lg transition-all"
+                      title="Refresh Feed"
+                  >
+                      <Loader2 className={cn("w-4 h-4", isCommunityLoading && "animate-spin")}/>
+                  </button>
+                  <Share2 className="w-8 h-8 text-indigo-500 mx-auto mb-2"/>
+                  <h3 className="font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-blue-500">Community Grids</h3>
+                  <p className="text-xs text-zinc-500">Discover what others are building</p>
+               </div>
+
+               {isCommunityLoading && communityGrids.length === 0 ? (
+                  <div className="flex items-center justify-center py-10">
+                     <Loader2 className="w-6 h-6 animate-spin text-indigo-500"/>
+                  </div>
+               ) : communityGrids.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3">
+                     {communityGrids.map((grid) => (
+                        <a 
+                           key={grid.id} 
+                           href={`/view/${grid.id}`}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden hover:border-indigo-500/50 transition-all group"
+                        >
+                           <div className="aspect-square bg-zinc-950 relative">
+                               {grid.imageUrl ? (
+                                   <img src={grid.imageUrl} alt={grid.title} className="w-full h-full object-cover"/>
+                               ) : (
+                                   <div className="w-full h-full flex items-center justify-center text-zinc-700">
+                                       <span className="text-xs">No Preview</span>
+                                   </div>
+                               )}
+                               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                   <span className="text-xs font-bold text-white bg-indigo-600 px-2 py-1 rounded-full">View</span>
+                               </div>
+                           </div>
+                           <div className="p-2">
+                               <h4 className="text-xs font-medium text-zinc-300 truncate">{grid.title || "Untitled Grid"}</h4>
+                               <p className="text-[10px] text-zinc-500">{new Date(grid.createdAt).toLocaleDateString()}</p>
+                           </div>
+                        </a>
+                     ))}
+                  </div>
+               ) : (
+                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                     <p className="text-zinc-500 text-sm font-medium mb-1">No grids yet.</p>
+                     <button onClick={fetchCommunity} className="text-indigo-400 text-xs hover:underline">Click to refresh</button>
+                  </div>
+               )}
+            </div>
          )}
       </aside>
 
@@ -2022,6 +2153,41 @@ export default function Home() {
                            localStorage.setItem('waifu100-gallery-hint-dismissed', 'true');
                         }}
                         className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white transition-colors ml-2"
+                     >
+                        <X className="w-4 h-4" />
+                     </button>
+                  </div>
+               </div>
+            </div>
+        )}
+
+        {/* AI Suggestion Hint Popup (shown after 5 characters) */}
+        {showAISuggestionHint && (
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[90] animate-in slide-in-from-bottom-5 fade-in duration-500">
+               <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
+                  <div className="relative flex items-center gap-4 px-6 py-4 bg-zinc-900 rounded-lg leading-none">
+                     <div className="p-2 bg-zinc-800 rounded-full text-purple-500 animate-pulse">
+                        <Sparkles className="w-5 h-5" />
+                     </div>
+                     <div className="text-left">
+                        <h4 className="text-zinc-100 font-bold text-sm mb-1">Looking for more characters?</h4>
+                        <p className="text-zinc-400 text-xs">Try the <span className="text-purple-400 font-medium">AI Suggestions</span> tab!</p>
+                     </div>
+                     <button 
+                        onClick={() => {
+                           setShowAISuggestionHint(false);
+                           setActiveTab('suggestions');
+                        }}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
+                     >
+                        Try it
+                     </button>
+                     <button 
+                        onClick={() => {
+                           setShowAISuggestionHint(false);
+                        }}
+                        className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white transition-colors"
                      >
                         <X className="w-4 h-4" />
                      </button>

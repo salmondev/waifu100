@@ -122,13 +122,17 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
 
          // 3. Send Lightweight Payload
          setLoadingState("Saving...");
+         
+         const userId = localStorage.getItem('waifu100-user-id'); // Retrieve anonymous ID
+
          const res = await fetch("/api/share", {
              method: "POST",
              headers: { "Content-Type": "application/json" },
              body: JSON.stringify({ 
                 grid: cleanGridData, 
                 customTitle: customTitle.trim(), 
-                imageUrl: imageUrl // Single thumbnail URL
+                imageUrl: imageUrl, // Single thumbnail URL
+                userId // Send ID for versioning
              })
          });
 
