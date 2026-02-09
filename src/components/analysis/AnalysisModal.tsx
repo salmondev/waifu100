@@ -216,7 +216,7 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
                                         try {
                                             const blob = await toBlob(node, { 
                                                 backgroundColor: '#09090b', 
-                                                style: { padding: '20px' },
+                                                style: { padding: '20px', overflow: 'hidden' },
                                                 filter: (node) => node.id !== 'verdict-actions' 
                                             });
                                             if (blob) {
@@ -236,7 +236,7 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
                                         try {
                                             const blob = await toBlob(node, { 
                                                 backgroundColor: '#09090b', 
-                                                style: { padding: '20px' },
+                                                style: { padding: '20px', overflow: 'hidden' },
                                                 filter: (node) => node.id !== 'verdict-actions'
                                             });
                                             if (blob) {
