@@ -158,6 +158,7 @@ bun start
 - **Ready for**: Production Deployment.
 
 ### Changelog
+- **v0.2.1**: **Refined AI Verdict Logic**: Adjusted Thai language prompt for a more natural, casual tone, removing forced slang. Ensured consistent and high-quality AI feedback.
 - **v0.2.0**: Added Smart Discovery Hints, Clear Grid with confirmation, Timestamped Saves, and UI polish.
 - **v0.1.0**: Added Serper API integration for Google Image search, improved gallery with multi-source parallel fetching.
 - **v0.0.2**: Initial release with MAL/AniList search and Konachan fanart.
