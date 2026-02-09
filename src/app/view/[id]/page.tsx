@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { redis } from '@/lib/redis';
 import { GridCell } from "@/types";
 
-interface PageProps {
+import { AnalysisResult, VerdictFeedback } from "@/types";
+
+interface ServerPageProps {
   params: Promise<{ id: string }>;
 }
 
@@ -12,7 +14,9 @@ interface ShareData {
     grid: GridCell[];
     title: string;
     hasImage?: boolean;
-    imageUrl?: string; 
+    imageUrl?: string;
+    verdict?: AnalysisResult | null; 
+    verdictFeedback?: VerdictFeedback;
 }
 
 async function getShareData(id: string): Promise<ShareData | null> {
@@ -25,13 +29,13 @@ async function getShareData(id: string): Promise<ShareData | null> {
         // Redis returns string, parse it
         const raw = JSON.parse(rawString);
         
-        // ... (rest of parsing logic is identical)
-        
         // Handle Migration/Structure
         let dataArray = [];
         let title = "Waifu100 Grid";
         let imageUrl = undefined;
         let hasImage = false;
+        let verdict = null;
+        let verdictFeedback: VerdictFeedback = null;
 
         if (Array.isArray(raw)) {
             dataArray = raw;
@@ -43,9 +47,12 @@ async function getShareData(id: string): Promise<ShareData | null> {
                 imageUrl = raw.meta.imageUrl;
                 hasImage = true;
             } else if (raw.meta?.hasImage) {
-                 // Fallback for old local data (won't likely work on Vercel but keeps type safe)
                  hasImage = true; 
             }
+            
+            // Extract verdict if available
+            if (raw.verdict) verdict = raw.verdict;
+            if (raw.verdictFeedback) verdictFeedback = raw.verdictFeedback;
         }
 
         // Reconstruct Grid
@@ -59,14 +66,14 @@ async function getShareData(id: string): Promise<ShareData | null> {
             }
         });
 
-        return { grid: newGrid, title, hasImage, imageUrl };
+        return { grid: newGrid, title, hasImage, imageUrl, verdict, verdictFeedback };
     } catch (e) {
         console.error("Read Share Error:", e);
         return null;
     }
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: ServerPageProps): Promise<Metadata> {
   const { id } = await params;
   const data = await getShareData(id);
 
@@ -100,7 +107,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function ViewSharePage({ params }: PageProps) {
+export default async function ViewSharePage({ params }: ServerPageProps) {
   const { id } = await params;
   const data = await getShareData(id);
 
@@ -108,5 +115,10 @@ export default async function ViewSharePage({ params }: PageProps) {
      redirect("/");
   }
 
-  return <ViewGrid grid={data.grid} title={data.title} />;
+  return <ViewGrid 
+    grid={data.grid} 
+    title={data.title} 
+    verdict={data.verdict || null}
+    verdictFeedback={data.verdictFeedback || null}
+  />;
 }

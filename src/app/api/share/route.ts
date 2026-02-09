@@ -5,7 +5,7 @@ import { redis } from '@/lib/redis';
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { grid, customTitle, imageUrl } = body;
+        const { grid, customTitle, imageUrl, verdict, verdictFeedback } = body;
 
         // ... validation logic ...
         if (!grid || !Array.isArray(grid)) {
@@ -57,7 +57,9 @@ export async function POST(req: NextRequest) {
                 imageUrl: imageUrl,
                 userId: userId || undefined // Store userId in metadata if useful for debugging/future
             },
-            grid: cleanGrid
+            grid: cleanGrid,
+            verdict,
+            verdictFeedback
         };
 
         // 4. Save to Redis (ioredis)

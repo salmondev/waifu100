@@ -1711,6 +1711,18 @@ export default function Home() {
         onCapture={getGridBlob}
         initialTitle={currentTitle}
         onTitleUpdate={setCurrentTitle}
+        verdict={verdict}
+        verdictFeedback={verdictFeedback}
+        onVerdictGenerate={(v) => {
+            setVerdict(v);
+            // Also save to localStorage immediately to persist the auto-generated verdict
+            const data = {
+                grid,
+                verdict: v,
+                verdictFeedback
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }}
       />
 
       <ConfirmModal 

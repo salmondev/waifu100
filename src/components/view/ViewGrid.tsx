@@ -1,25 +1,29 @@
 "use client";
 
-import { GridCell } from "@/types";
+import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
-import { Copy, ArrowLeft, Check } from "lucide-react";
+import { Copy, ArrowLeft, Check, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 
 interface ViewGridProps {
   grid: GridCell[];
   title?: string;
+  verdict?: AnalysisResult | null;
+  verdictFeedback?: VerdictFeedback;
 }
 
 // Column labels A-J
 const COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
-export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
+export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedback }: ViewGridProps) {
   // We can add "Click to view details" modal here later if needed
   // For now, it's a static high-fidelity render
   
   const [copied, setCopied] = useState(false);
+  const [showVerdict, setShowVerdict] = useState(false);
 
   const handleCopyLink = () => {
     if (typeof window !== "undefined") {
@@ -43,8 +47,8 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
              </Link>
          </div>
          
-         <div className="flex flex-col items-center justify-center">
-             {/* Title with beautiful glow effect */}
+         {/* Center Title */}
+         <div className="flex items-center justify-center">
              <h1 
                 className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400 bg-clip-text text-transparent px-4 text-center pb-1"
                 style={{
@@ -55,7 +59,7 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
              </h1>
          </div>
 
-         <div className="flex items-center justify-end">
+         <div className="flex flex-col items-end justify-center gap-2">
              <button
                 onClick={handleCopyLink}
                 className={cn(
@@ -68,6 +72,16 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
                  {copied ? <Check size={18} /> : <Copy size={18} />}
                  <span>{copied ? "Copied!" : "Share Linked"}</span>
              </button>
+
+             {verdict && (
+                 <button
+                    onClick={() => setShowVerdict(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 border border-yellow-500/20 transition-all duration-200 font-medium min-w-[140px] justify-center"
+                 >
+                     <Sparkles size={18} />
+                     <span>AI Verdict</span>
+                 </button>
+             )}
          </div>
       </div>
 
@@ -136,6 +150,17 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
       <div className="mt-8 text-zinc-500 text-sm">
          Made with <Link href="/" className="text-purple-400 hover:underline">Waifu100</Link>
       </div>
+
+      <AnalysisModal 
+         isOpen={showVerdict}
+         onClose={() => setShowVerdict(false)}
+         grid={grid}
+         result={verdict ?? null}
+         onResult={() => {}} 
+         feedback={verdictFeedback ?? null}
+         onFeedback={() => {}}
+         readonly={true}
+      />
     </div>
   );
 }
