@@ -7,11 +7,15 @@ interface GridCellProps {
   idx: number;
   cell: GridCellType;
   isSelected: boolean;
+  isMultiSelected?: boolean;
   onClick: () => void;
+  onMouseDown?: (e: React.MouseEvent) => void;
+  onMouseEnter?: (e: React.MouseEvent) => void;
+  disableDrag?: boolean;
   children?: React.ReactNode;
 }
 
-export const GridCell = memo(function GridCell({ idx, cell, isSelected, onClick, children }: GridCellProps) {
+export const GridCell = memo(function GridCell({ idx, cell, isSelected, isMultiSelected, onClick, onMouseDown, onMouseEnter, disableDrag, children }: GridCellProps) {
     const {setNodeRef: setDropRef, isOver } = useDroppable({
         id: `cell-${idx}`,
         data: { index: idx, type: 'cell' }
@@ -20,17 +24,20 @@ export const GridCell = memo(function GridCell({ idx, cell, isSelected, onClick,
     const {attributes, listeners, setNodeRef: setDragRef, isDragging} = useDraggable({
         id: `grid-char-${idx}`,
         data: { index: idx, character: cell.character, type: 'grid' },
-        disabled: !cell.character
+        disabled: !cell.character || disableDrag
     });
 
     return (
         <div 
             ref={setDropRef}
             onClick={onClick}
+            onMouseDown={onMouseDown}
+            onMouseEnter={onMouseEnter}
             className={cn(
                 "aspect-square bg-zinc-950 relative group cursor-pointer border border-zinc-800/50 transition-all duration-200",
                 isOver && "border-purple-500 bg-purple-500/20 scale-110", 
                 isSelected && !cell.character && "animate-pulse ring-1 ring-purple-500/50",
+                isMultiSelected && "ring-2 ring-red-500 z-10",
                 isDragging && "opacity-50"
             )}
         >

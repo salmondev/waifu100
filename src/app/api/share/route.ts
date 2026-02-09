@@ -5,7 +5,7 @@ import { redis } from '@/lib/redis';
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { grid, customTitle, imageUrl } = body;
+        const { grid, customTitle, imageUrl, verdict, verdictFeedback } = body;
 
         // ... validation logic ...
         if (!grid || !Array.isArray(grid)) {
@@ -33,20 +33,46 @@ export async function POST(req: NextRequest) {
             };
         }).filter(Boolean);
 
-        // 3. Construct Payload
+        // 3. Versioning Logic (If userId is present)
+        let finalTitle = customTitle || "Waifu100 Grid";
+        const { userId } = body;
+
+        if (userId && customTitle) {
+            const userTitleKey = `waifu100:user:${userId}:titles`;
+            // Increment usage count for this specific title
+            // HINCRBY returns the new value after incrementing
+            const count = await redis.hincrby(userTitleKey, customTitle, 1);
+            
+            if (count > 1) {
+                finalTitle = `${customTitle} V.${count}`;
+            }
+        }
+
+        // 4. Construct Payload
         const fileData = {
             meta: {
-                title: customTitle || "Waifu100 Grid",
+                title: finalTitle,
                 createdAt: new Date().toISOString(),
                 hasImage: !!imageUrl,
-                imageUrl: imageUrl 
+                imageUrl: imageUrl,
+                userId: userId || undefined // Store userId in metadata if useful for debugging/future
             },
-            grid: cleanGrid
+            grid: cleanGrid,
+            verdict,
+            verdictFeedback
         };
 
         // 4. Save to Redis (ioredis)
         // Store as stringified JSON
         await redis.set(`waifu100:share:${id}`, JSON.stringify(fileData));
+        
+        // 5. Add to Community Feed (Sorted Set: Score = Timestamp)
+        // We only store the ID in the feed to keep it lightweight. 
+        // The community API will hydrate data.
+        await redis.zadd('waifu100:feed', Date.now(), id);
+        
+        // Trim feed to keep only last 1000 items (optional maintenance)
+        // await redis.zremrangebyrank('waifu100:feed', 0, -1001);
 
         return NextResponse.json({ id, url: `/view/${id}` });
 

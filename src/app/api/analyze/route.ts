@@ -33,9 +33,11 @@ export async function POST(request: NextRequest) {
     1.  **Analyze**: Look for patterns (e.g., "Wholesome Slice-of-Life", "Shonen Powerhouses", "Strategy & Mind Games", "Nostalgic Classics").
     3.  **Generate a Verdict**:
         - **English**: A short, punchy title, a 3-4 sentence fun/insightful analysis, and 3-4 short hashtags. **Use simple, conversational English.**
-        - **Thai**: **DO NOT TRANSLATE FROM ENGLISH.** Write a completely new, natural Thai analysis that fits the context. Use **Internet Slang ("Phasa Wibat" / "Sapol")**, specific anime terminology, and a fun, expressive tone.
-            - Examples of good tone: "ตึงเปรี๊ยะ", "งานดีย์", "สุดจัดปลัดบอก", "เบียวได้ใจ", "หวานเจี๊ยบ", "ตัวแม่จะแคร์เพื่อ", "โฮกปิ๊บ".
-            - Avoid formal or robotic Thai. Make it sound like a close friend teasing you.
+        - **Thai**: **DO NOT TRANSLATE FROM ENGLISH.** Write a completely new, natural Thai analysis that fits the context. Use **Natural / Casual Thai**, specific anime terminology where appropriate, but keep it grounded.
+            - **Tone**: Fun, friendly, and teasing (like a close friend), but NOT "try-hard" or overly slang-heavy.
+            - **Avoid**: "Phasa Wibat" (intentional misspellings), forced trendy slang (e.g., "ตัวแม่จะแคร์เพื่อ", "โฮกปิ๊บ"), or sounding like a bot trying too hard to be cool.
+            - Examples of good tone: "งานดี", "สุดจัด", "เบียวได้ใจ", "หวานเจี๊ยบ", "ตึงๆ".
+            - Focus on the *insight* and *humor* of the analysis rather than just using slang words.
         - **Tone**: Playful, hyperbolic, and appreciative. **ABSOLUTELY NO meaningful insults, mean-spirited sarcasm, or medical/health metaphors.** 
         - **NEGATIVE CONSTRAINTS**: Do NOT use words like "diabetes", "insulin", "heart attack", "stroke", "addiction", "overdose", or "filling a void". Instead use phrases like "levels of sweetness", "heart-melting", "pure joy", "maximum comfiness".
     4.  **Vibe Check**: 

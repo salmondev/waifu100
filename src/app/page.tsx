@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil } from "lucide-react";
+import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil, CheckSquare, MousePointer2, ArrowRight } from "lucide-react";
 import { toBlob } from "html-to-image";
 import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartEvent, DragEndEvent, pointerWithin } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,9 @@ import { DraggableSidebarItem } from "@/components/sidebar/DraggableSidebarItem"
 import { DragOverlayWrapper } from "@/components/dnd/DragOverlayWrapper";
 import { TrashZone } from "@/components/dnd/TrashZone";
 import { ShareModal } from "@/components/share/ShareModal";
+
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 // --- Types ---
 interface Notification {
@@ -88,7 +90,26 @@ export default function Home() {
 
   // --- State: Right Panel (Gallery & Suggestions) ---
 
-  const [activeTab, setActiveTab] = useState<'suggestions' | 'gallery'>('suggestions');
+  // --- State: Right Panel (Gallery & Suggestions) ---
+  
+  // First visit: show Community tab, otherwise Suggestions
+  const [activeTab, setActiveTab] = useState<'suggestions' | 'gallery' | 'community'>(() => {
+      if (typeof window !== 'undefined') {
+          const hasVisited = localStorage.getItem('waifu100-has-visited');
+          if (!hasVisited) {
+              localStorage.setItem('waifu100-has-visited', 'true');
+              return 'community';
+          }
+      }
+      return 'suggestions';
+  });
+
+  // AI Suggestion Hint (shown when user places 5th character)
+  const [showAISuggestionHint, setShowAISuggestionHint] = useState(false);
+  
+  // Community Feed State
+  const [communityGrids, setCommunityGrids] = useState<{id: string; title: string; imageUrl: string | null; createdAt: string}[]>([]);
+  const [isCommunityLoading, setIsCommunityLoading] = useState(false);
   
   // Gallery State
   const [galleryImages, setGalleryImages] = useState<ImageResult[]>([]);
@@ -155,13 +176,115 @@ export default function Home() {
   // --- State: Share Modal ---
   const [showShareModal, setShowShareModal] = useState(false);
   
+  // --- State: Clear Grid Confirmation ---
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  
+  // --- State: Save/Load UI ---
+  const [isDragOver, setIsDragOver] = useState(false);
+  
+  // --- State: Gallery Hint ---
+  const [showGalleryHint, setShowGalleryHint] = useState(false);
+  const [galleryUsageCount, setGalleryUsageCount] = useState(0);
+  const [hasShownGalleryHint, setHasShownGalleryHint] = useState(false); 
+
+  // --- State: Search Hint ---
+  const [showSearchHint, setShowSearchHint] = useState(false);
+  const [hasShownSearchHint, setHasShownSearchHint] = useState(false);
+
+  // --- State: AI Hint ---
+  const [hasShownAIHint, setHasShownAIHint] = useState(false);
+
+  useEffect(() => {
+      const count = parseInt(localStorage.getItem('waifu100-gallery-usage-count') || '0', 10);
+      setGalleryUsageCount(count);
+  }, []);
+  
+
+  
   // --- State: Analysis Modal ---
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [verdict, setVerdict] = useState<AnalysisResult | null>(null);
   const [verdictFeedback, setVerdictFeedback] = useState<VerdictFeedback>(null);
   
+  // --- State: Multi-Select ---
+  const [selectionMode, setSelectionMode] = useState<'none' | 'grid'>('none');
+  const [selectedGridIndices, setSelectedGridIndices] = useState<Set<number>>(new Set());
+  
+  // --- State: Drag-to-Select ---
+  const isSelectionDragging = useRef(false);
+  const selectionDragAction = useRef<'add' | 'remove'>('add');
+
   // --- State: Replace Confirmation ---
   const [pendingReplace, setPendingReplace] = useState<{index: number, newChar: Character, oldChar: Character} | null>(null);
+
+  // --- Handlers: Multi-Select ---
+  const toggleGridSelection = (index: number) => {
+      const next = new Set(selectedGridIndices);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      setSelectedGridIndices(next);
+  };
+  
+  // Drag Select Handlers
+  const handleGridMouseDown = (index: number) => {
+      if (selectionMode !== 'grid') return;
+      
+      isSelectionDragging.current = true;
+      const isSelected = selectedGridIndices.has(index);
+      selectionDragAction.current = isSelected ? 'remove' : 'add';
+      
+      // Apply immediate action
+      const next = new Set(selectedGridIndices);
+      if (selectionDragAction.current === 'add') next.add(index);
+      else next.delete(index);
+      setSelectedGridIndices(next);
+  };
+
+  const handleGridMouseEnter = (index: number) => {
+      if (selectionMode !== 'grid' || !isSelectionDragging.current) return;
+      
+      const next = new Set(selectedGridIndices);
+      if (selectionDragAction.current === 'add') next.add(index);
+      else next.delete(index);
+      setSelectedGridIndices(next);
+  };
+  
+  const handleGlobalMouseUp = () => {
+      isSelectionDragging.current = false;
+  };
+
+  // Effect to handle global mouse up
+  useEffect(() => {
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, []);
+
+  const handleBulkDelete = () => {
+      setGrid(prev => prev.map((cell, i) => 
+          selectedGridIndices.has(i) ? { character: null } : cell
+      ));
+      showNotification(`Deleted ${selectedGridIndices.size} items`, 'success');
+      setSelectedGridIndices(new Set());
+      setSelectionMode('none');
+  };
+
+  const handleBulkFill = () => {
+      if (!selectedCharacter) {
+          showNotification("Select a character from the sidebar (Gallery/Suggestions) first!", "error");
+          return;
+      }
+      
+      setGrid(prev => prev.map((cell, i) => 
+          selectedGridIndices.has(i) ? { character: selectedCharacter } : cell
+      ));
+      
+      showNotification(`Filled ${selectedGridIndices.size} items with ${selectedCharacter.name}`, 'success');
+      setSelectedGridIndices(new Set());
+      setSelectionMode('none');
+      setSelectedCharacter(null); // Optional: clear selection after fill? Maybe keep it for repeated use? 
+      // User likely wants to clear to see result fully, or keep to fill more? 
+      // Let's clear for now to match "done" state.
+  };
 
   // --- Persistence ---
   useEffect(() => {
@@ -206,6 +329,29 @@ export default function Home() {
     }
   }, [grid, showNotification]);
 
+  // --- Community Feed Logic (Manual Refresh Only) ---
+  const fetchCommunity = useCallback(async () => {
+      setIsCommunityLoading(true);
+      try {
+          const res = await fetch('/api/community');
+          if (res.ok) {
+              const data = await res.json();
+              setCommunityGrids(data.grids || []);
+          }
+      } catch (e) {
+          console.error("Failed to fetch community feed", e);
+      } finally {
+          setIsCommunityLoading(false);
+      }
+  }, []);
+
+  // Auto-fetch community when tab is opened (first time or cached is empty)
+  useEffect(() => {
+      if (activeTab === 'community' && communityGrids.length === 0) {
+          fetchCommunity();
+      }
+  }, [activeTab, communityGrids.length, fetchCommunity]);
+
   // --- Search Logic (Character Discovery) ---
   useEffect(() => {
     if (!debouncedQuery.trim()) {
@@ -232,6 +378,12 @@ export default function Home() {
               source: c.source
            }));
            setCharacterResults(mapped);
+
+           // Show Search Hint if results found, no character selected, and user hasn't seen it this session
+           if (mapped.length > 0 && !selectedCharacter && !hasShownSearchHint) {
+               setShowSearchHint(true);
+               setHasShownSearchHint(true);
+           }
         }
       } catch (e) {
         console.error(e);
@@ -240,7 +392,7 @@ export default function Home() {
       }
     };
     doSearch();
-  }, [debouncedQuery, searchQuery]);
+  }, [debouncedQuery, searchQuery, selectedCharacter, hasShownSearchHint]);
 
   // --- Gallery Logic ---
   const openGallery = useCallback(async (char: Character, customQuery?: string) => {
@@ -251,6 +403,11 @@ export default function Home() {
     
     setIsGalleryLoading(true);
     setSelectedCharacter(char);
+
+    // Increment usage count
+    const newCount = galleryUsageCount + 1;
+    setGalleryUsageCount(newCount);
+    localStorage.setItem('waifu100-gallery-usage-count', newCount.toString());
 
     // FIX: Skip search for Manual Uploads / URLs
     if (char.source === "Uploaded" || char.source === "URL" || char.source === "Web Search") {
@@ -330,6 +487,10 @@ export default function Home() {
 
   // --- Selection Logic ---
   const handleSelectCharacter = (char: Character) => {
+    setShowSearchHint(false); // Hide hint on selection
+    // Fix: Always hide name hint when switching characters
+    setShowNameHint(false);
+    
     setSelectedCharacter(char);
     openGallery(char); // Auto-find more images
     setIsMobileSidebarOpen(false); // Close search sidebar to show Gallery (Right Panel)
@@ -362,11 +523,17 @@ export default function Home() {
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     setActiveId(active.id as string);
-    setActiveDragData(active.data.current ?? null);
-    // Backward compatibility for UI states that rely on these
     setDraggedCharacter(active.data.current?.character || null);
     setDraggedFromIndex(active.data.current?.index ?? null);
     setIsDragging(true);
+    setShowSearchHint(false); // Hide hint on drag start
+
+    // Set activeDragData for DragOverlay to render the dragged item
+    setActiveDragData({
+        character: active.data.current?.character,
+        index: active.data.current?.index ?? null,
+        type: active.data.current?.type
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -431,6 +598,27 @@ export default function Home() {
                  });
              }
          }
+         
+         // Hint Logic: AI hint takes priority over Gallery hint
+         // UPDATED: Trigger on first drag of session (removed currentCount check)
+         const shouldShowAIHint = !hasShownAIHint;
+         
+         if (shouldShowAIHint) {
+             // Trigger AI Suggestion Hint when user first drops an item (Once per session)
+             setHasShownAIHint(true);
+             setTimeout(() => {
+                 setShowAISuggestionHint(true);
+             }, 500);
+         } else if (sourceData?.type === 'sidebar' && !hasShownGalleryHint) {
+             // Trigger Gallery Hint only if NOT showing AI hint (Once per session)
+             setHasShownGalleryHint(true);
+             setShowGalleryHint(true);
+             // Auto-hide after 10 seconds if not interacted with
+             setTimeout(() => {
+                 setShowGalleryHint(false);
+             }, 10000);
+         }
+         
          setLastDroppedIndex(targetIndex);
          setTimeout(() => setLastDroppedIndex(null), 300);
     }
@@ -680,7 +868,10 @@ export default function Home() {
   };
 
   const handleDownloadJson = async () => {
-      const filename = "waifu100-save.json";
+      const now = new Date();
+      // Format: YYYY-MM-DD_HH-mm-ss
+      const timestamp = now.toISOString().replace(/T/, '_').replace(/:/g, '-').split('.')[0];
+      const filename = `waifu100-save-${timestamp}.json`;
       const blob = new Blob([jsonInput], { type: "application/json" });
       
       // Try Modern File System Access API (Save As Dialog)
@@ -1189,6 +1380,16 @@ export default function Home() {
              Export
            </button>
            </div>
+
+           {/* Clear Grid Button */}
+           <button 
+              onClick={() => setShowClearConfirm(true)}
+              disabled={filledCount === 0}
+              className="w-full mt-2 py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+           >
+              <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform"/>
+              Clear Grid
+           </button>
         </div>
       </aside>
 
@@ -1228,7 +1429,8 @@ export default function Home() {
                </div>
             </DraggableSidebarItem>
                <div className="mb-1 min-h-[32px] flex items-center relative">
-                   {showNameHint && (
+                   {showNameHint && 
+                    (selectedCharacter.source === "Uploaded" || selectedCharacter.source === "URL") && (
                        <div className="absolute top-full left-24 mt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-300 pointer-events-none">
                            <div className="bg-white text-zinc-900 text-[10px] font-bold px-3 py-1.5 rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex items-center gap-1.5 whitespace-nowrap border border-zinc-200 relative">
                                <Pencil className="w-3 h-3 text-purple-600 fill-purple-600/10"/>
@@ -1343,6 +1545,33 @@ export default function Home() {
          </aside>
       )}
 
+      {/* SEARCH HINT (Desktop Only) */}
+      {/* Positioned relative to the viewport or flex container, adjusting left to match sidebar width */}
+      {showSearchHint && !selectedCharacter && (
+          <div className="hidden lg:flex fixed left-80 top-24 z-50 animate-in slide-in-from-left-2 fade-in duration-300 ml-1">
+            <div className="flex items-center">
+                {/* Triangle pointer */}
+                <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[12px] border-r-pink-600"></div>
+                
+                <div className="bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg shadow-xl p-4 w-60 text-white relative">
+                  <h4 className="font-bold text-sm mb-1 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse"/>
+                      Found them!
+                  </h4>
+                  <p className="text-xs text-pink-100 leading-snug">
+                      Drag characters directly to the grid, or click them to see more images.
+                  </p>
+                  <button 
+                      onClick={() => setShowSearchHint(false)}
+                      className="absolute top-2 right-2 text-pink-200 hover:text-white"
+                  >
+                      <X className="w-3 h-3"/>
+                  </button>
+                </div>
+            </div>
+          </div>
+      )}
+
       {/* 2. MAIN GRID AREA */}
        <main className="flex-1 bg-black flex flex-col lg:flex-row lg:items-center justify-center p-1 lg:p-8 overflow-auto h-full relative">
          
@@ -1361,7 +1590,29 @@ export default function Home() {
          )}
          
           <div ref={gridRef} className="bg-black p-1 lg:p-3 shadow-2xl w-full lg:max-w-[calc(100vh-12rem)] mx-auto transition-all pt-12 pb-40 lg:pt-3 lg:pb-3">
-             <h2 className="text-xl font-bold text-center mb-3 tracking-widest uppercase text-zinc-300">#CHALLENGEอายุน้อยร้อยเมน</h2>
+             <div className="flex items-center justify-between mb-3 px-2">
+                 <h2 className="text-xl font-bold tracking-widest uppercase text-zinc-300">#CHALLENGEอายุน้อยร้อยเมน</h2>
+                 <button
+                    onClick={() => {
+                        if (selectionMode === 'grid') {
+                            setSelectionMode('none');
+                            setSelectedGridIndices(new Set());
+                        } else {
+                            setSelectionMode('grid');
+                             // Clear other modes if any (now only grid mode exists, so just set it)
+                        }
+                    }}
+                    className={cn(
+                        "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                        selectionMode === 'grid' 
+                            ? "bg-red-900/30 text-red-400 border-red-500/50" 
+                            : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
+                    )}
+                 >
+                    {selectionMode === 'grid' ? <X size={14} /> : <CheckSquare size={14} />}
+                    {selectionMode === 'grid' ? "Cancel" : "Select"}
+                 </button>
+             </div>
              
              {/* Onboarding Hint */}
              <div className="mb-2 p-2 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg text-center export-exclude">
@@ -1372,21 +1623,42 @@ export default function Home() {
                 <p className="text-[10px] text-zinc-500">Search characters on the left, then drag them here. Drag to reorder or drop on red zones to delete.</p>
              </div>
              
-             <div className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full">
+             <div className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full"
+                  onMouseLeave={() => { isSelectionDragging.current = false; }}
+             >
                 {grid.map((cell, idx) => (
                    <GridComponent
                      key={idx}
                      idx={idx}
                      cell={cell}
                      isSelected={selectedCharacter?.customImageUrl === cell.character?.customImageUrl}
+                     isMultiSelected={selectedGridIndices.has(idx)}
+                     disableDrag={selectionMode === 'grid'}
+                     onMouseDown={(e) => {
+                         // Stop propagation to prevent drag-drop interference if needed?
+                         // Actually dnd-kit might grab it. We might need to handle event bubbling.
+                         // But for now let's just trigger our logic.
+                         if (selectionMode === 'grid') {
+                            handleGridMouseDown(idx);
+                         }
+                     }}
+                     onMouseEnter={() => {
+                         if (selectionMode === 'grid') {
+                            handleGridMouseEnter(idx);
+                         }
+                     }}
                      onClick={() => { 
-                         if (selectedCharacter) {
+                         if (selectionMode === 'grid') {
+                             // Handled by MouseDown mostly, but click can trigger if not dragging.
+                             // toggleGridSelection(idx); 
+                         } else if (selectedCharacter) {
                              handleCellClick(idx);
                          } else if(cell.character) { 
                              openGallery(cell.character); 
                          }
                      }}
                    >
+
                      {cell.character ? (
                         <>
                             <img 
@@ -1439,6 +1711,43 @@ export default function Home() {
         onCapture={getGridBlob}
         initialTitle={currentTitle}
         onTitleUpdate={setCurrentTitle}
+        verdict={verdict}
+        verdictFeedback={verdictFeedback}
+        onVerdictGenerate={(v) => {
+            setVerdict(v);
+            // Also save to localStorage immediately to persist the auto-generated verdict
+            const data = {
+                grid,
+                verdict: v,
+                verdictFeedback
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }}
+      />
+
+      <ConfirmModal 
+        isOpen={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={() => {
+            // Reset Grid
+            setGrid(Array(100).fill(null).map(() => ({ character: null })));
+            // Reset Meta
+            setCurrentTitle("My 100 Favorite Characters");
+            setSelectedCharacter(null);
+            // Reset AI
+            setVerdict(null);
+            setVerdictFeedback(null);
+            
+            // Reset Gallery Usage Count (User Request)
+            setGalleryUsageCount(0);
+            localStorage.setItem('waifu100-gallery-usage-count', '0');
+            
+            showNotification("Grid cleared successfully!", 'success');
+        }}
+        title="Clear Entire Grid?"
+        message="Are you sure you want to delete all characters? This action cannot be undone unless you have a save file."
+        confirmText="Clear Everything"
+        variant="danger"
       />
       <AnalysisModal 
         isOpen={showAnalysisModal}
@@ -1458,7 +1767,8 @@ export default function Home() {
          
          {/* Toggle / Header */}
          <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-2 bg-zinc-900/50">
-            {showRightPanel ? (
+             {showRightPanel ? (
+                <>
                 <div className="flex gap-2 p-1 bg-zinc-900 rounded-lg flex-1 mr-2">
                    <button 
                      onClick={() => setActiveTab('suggestions')} 
@@ -1472,7 +1782,16 @@ export default function Home() {
                    >
                      Gallery
                    </button>
+                   <button 
+                     onClick={() => setActiveTab('community')} 
+                     className={cn("flex-1 text-xs py-1.5 rounded-md font-medium transition-colors", activeTab === 'community' ? "bg-indigo-900/30 text-indigo-200 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+                   >
+                     Community
+                   </button>
                 </div>
+
+
+                </>
             ) : (
                 <div className="flex lg:flex-col items-center justify-center lg:justify-start w-full gap-4 pt-0 lg:pt-4 h-full lg:h-auto">
                    <button onClick={() => setShowRightPanel(true)} title="Expand">
@@ -1513,26 +1832,26 @@ export default function Home() {
                     
                     {suggestionsError && <div className="p-2 bg-red-900/20 text-red-300 text-xs rounded mb-4">{suggestionsError}</div>}
                     
-                    <div className="space-y-3">
-                       {suggestions.map((s, i) => (
-                         <div 
-                           key={i} 
-                           onClick={() => handleApplySuggestion(s)}
-                           className="p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg hover:border-pink-500/50 transition-colors cursor-pointer"
-                         >
-                           <div className="flex justify-between items-start">
-                              <div>
-                                 <p className="font-bold text-sm text-zinc-200">{s.name}</p>
-                                 <p className="text-xs text-zinc-500">{s.from}</p>
-                              </div>
-                              <div className="p-1.5 bg-zinc-800 rounded text-purple-400">
-                                 <Search className="w-3 h-3"/>
-                              </div>
-                           </div>
-                           <p className="text-xs text-zinc-500 mt-2 italic border-t border-zinc-800/50 pt-2">&quot;{s.reason}&quot;</p>
-                        </div>
-                      ))}
-                   </div>
+                     <div className="space-y-3">
+                        {suggestions.map((s, i) => (
+                          <div 
+                            key={i} 
+                            onClick={() => handleApplySuggestion(s)}
+                            className="p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg hover:border-pink-500/50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex justify-between items-start">
+                               <div>
+                                  <p className="font-bold text-sm text-zinc-200">{s.name}</p>
+                                  <p className="text-xs text-zinc-500">{s.from}</p>
+                               </div>
+                               <div className="p-1.5 bg-zinc-800 rounded text-purple-400">
+                                  <Search className="w-3 h-3"/>
+                               </div>
+                            </div>
+                            <p className="text-xs text-zinc-500 mt-2 italic border-t border-zinc-800/50 pt-2">&quot;{s.reason}&quot;</p>
+                         </div>
+                       ))}
+                    </div>
                    
                    {suggestions.length === 0 && !isSuggestionsLoading && (
                       <p className="text-center text-zinc-700 text-xs">Fill the grid with at least 2 characters to unlock AI powers.</p>
@@ -1581,13 +1900,18 @@ export default function Home() {
                         ) : galleryImages.length > 0 ? (
                            <div className="grid grid-cols-2 gap-2">
                               {galleryImages.map((img, i) => {
-                                  const char = {
-                                     mal_id: 990000 + i,
+                                  // Stable ID generation for gallery items if possible, or use index combined with query
+                                  // Using index + timestamp is risky if list changes, but for static list it's ok.
+                                  // Better: use img.url as unique key.
+                                  const tempId = 990000 + i; 
+                                  const char: Character = {
+                                     mal_id: tempId,
                                      name: galleryTargetName || "Character",
                                      images: { jpg: { image_url: img.thumbnail || img.url } },
                                      customImageUrl: img.thumbnail || img.url,
                                      source: img.source
                                   };
+                                  
                                   return (
                                      <DraggableSidebarItem
                                         key={i}
@@ -1621,6 +1945,66 @@ export default function Home() {
                 </div>
              )}
 
+
+         
+             {/* TAB: COMMUNITY */}
+             {activeTab === 'community' && (
+                <div className="p-4">
+                   <div className="text-center mb-6 relative">
+                      <button
+                          onClick={fetchCommunity}
+                          disabled={isCommunityLoading}
+                          className="absolute right-0 top-0 p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800 rounded-lg transition-all"
+                          title="Refresh Feed"
+                      >
+                          <Loader2 className={cn("w-4 h-4", isCommunityLoading && "animate-spin")}/>
+                      </button>
+                      <Share2 className="w-8 h-8 text-indigo-500 mx-auto mb-2"/>
+                      <h3 className="font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-blue-500">Community Grids</h3>
+                      <p className="text-xs text-zinc-500">Discover what others are building</p>
+                   </div>
+
+                   {isCommunityLoading && communityGrids.length === 0 ? (
+                      <div className="flex items-center justify-center py-10">
+                         <Loader2 className="w-6 h-6 animate-spin text-indigo-500"/>
+                      </div>
+                   ) : communityGrids.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                         {communityGrids.map((grid) => (
+                            <a 
+                               key={grid.id} 
+                               href={`/view/${grid.id}`}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden hover:border-indigo-500/50 transition-all group"
+                            >
+                               <div className="aspect-square bg-zinc-950 relative">
+                                   {grid.imageUrl ? (
+                                       <img src={grid.imageUrl} alt={grid.title} className="w-full h-full object-cover"/>
+                                   ) : (
+                                       <div className="w-full h-full flex items-center justify-center text-zinc-700">
+                                           <span className="text-xs">No Preview</span>
+                                       </div>
+                                   )}
+                                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                       <span className="text-xs font-bold text-white bg-indigo-600 px-2 py-1 rounded-full">View</span>
+                                   </div>
+                               </div>
+                               <div className="p-2">
+                                   <h4 className="text-xs font-medium text-zinc-300 truncate">{grid.title || "Untitled Grid"}</h4>
+                                   <p className="text-[10px] text-zinc-500">{new Date(grid.createdAt).toLocaleDateString()}</p>
+                               </div>
+                            </a>
+                         ))}
+                      </div>
+                   ) : (
+                      <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                         <p className="text-zinc-500 text-sm font-medium mb-1">No grids yet.</p>
+                         <button onClick={fetchCommunity} className="text-indigo-400 text-xs hover:underline">Click to refresh</button>
+                      </div>
+                   )}
+                </div>
+             )}
            </div>
          )}
       </aside>
@@ -1629,14 +2013,7 @@ export default function Home() {
     
     {/* URL Paste Modal */}
     
-          {/* Mobile Trash Zone */}
-          {isDragging && (
-             <TrashZone id="trash-mobile" className="lg:hidden fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-red-950/95 via-red-900/80 to-transparent z-50 flex flex-col items-center justify-end pb-8 border-t border-red-500/30">
-                 <div className="w-16 h-1 bg-red-500/30 rounded-full mb-4"/>
-                 <Trash2 className="w-8 h-8 text-red-400 animate-bounce"/>
-                 <p className="text-red-200 text-xs font-bold mt-2 uppercase tracking-widest">Drop to Remove</p>
-             </TrashZone>
-          )}
+
         {showUrlModal && (
        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-md p-6">
@@ -1837,9 +2214,14 @@ export default function Home() {
                       />
 
                       <div 
-                         onDragOver={(e) => e.preventDefault()}
+                         onDragOver={(e) => {
+                            e.preventDefault();
+                            setIsDragOver(true);
+                         }}
+                         onDragLeave={() => setIsDragOver(false)}
                          onDrop={(e) => {
                             e.preventDefault();
+                            setIsDragOver(false);
                             const file = e.dataTransfer.files[0];
                             if (file && file.name.endsWith('.json')) {
                                const reader = new FileReader();
@@ -1847,14 +2229,24 @@ export default function Home() {
                                reader.readAsText(file);
                             }
                          }}
-                         className="relative"
+                         className={cn(
+                            "relative rounded-lg transition-all duration-300 border-2 border-dashed group h-64",
+                            isDragOver ? "border-green-500 bg-green-900/10" : "border-zinc-700 bg-zinc-950 hover:border-zinc-600"
+                         )}
                       >
                          <textarea 
                             value={jsonInput}
                             onChange={(e) => setJsonInput(e.target.value)}
-                            placeholder='Paste JSON here...'
-                            className="w-full h-64 bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs font-mono text-zinc-300 resize-none focus:ring-1 focus:ring-blue-500 outline-none appearance-none"
+                            className="absolute inset-0 w-full h-full bg-transparent p-4 text-xs font-mono text-zinc-300 resize-none focus:outline-none z-10"
+                            placeholder="Paste JSON here..."
                          />
+                         
+                         {!jsonInput && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 pointer-events-none z-0">
+                               <FileJson className={cn("w-10 h-10 mb-3 transition-colors", isDragOver ? "text-green-500" : "text-zinc-600 group-hover:text-zinc-500")} />
+                               <p className="font-medium text-sm">Paste JSON or Drag JSON file to here</p>
+                            </div>
+                         )}
                       </div>
                       <button 
                          onClick={handleLoadJson}
@@ -1886,6 +2278,108 @@ export default function Home() {
               </div>
            </div>
         )}
+
+        
+        {/* Gallery Hint Popup */}
+        {showGalleryHint && (
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[90] animate-in slide-in-from-bottom-5 fade-in duration-500">
+               <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
+                  <div className="relative flex items-center gap-4 px-6 py-4 bg-zinc-900 rounded-lg leading-none">
+                     <div className="p-2 bg-zinc-800 rounded-full text-pink-500 animate-bounce">
+                        <Lightbulb className="w-5 h-5" />
+                     </div>
+                     <div className="text-left">
+                        <h4 className="text-zinc-100 font-bold text-sm mb-1">Did you know?</h4>
+                        <p className="text-zinc-400 text-xs">Click any character on the grid to change their image!</p>
+                     </div>
+                     <button 
+                        onClick={() => {
+                           setShowGalleryHint(false);
+                           localStorage.setItem('waifu100-gallery-hint-dismissed', 'true');
+                        }}
+                        className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white transition-colors ml-2"
+                     >
+                        <X className="w-4 h-4" />
+                     </button>
+                  </div>
+               </div>
+            </div>
+        )}
+
+        {/* AI Suggestion Hint Popup (shown after 5 characters) */}
+        {showAISuggestionHint && (
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[90] animate-in slide-in-from-bottom-5 fade-in duration-500">
+               <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
+                  <div className="relative flex items-center gap-4 px-6 py-4 bg-zinc-900 rounded-lg leading-none">
+                     <div className="p-2 bg-zinc-800 rounded-full text-purple-500 animate-pulse">
+                        <Sparkles className="w-5 h-5" />
+                     </div>
+                     <div className="text-left">
+                        <h4 className="text-zinc-100 font-bold text-sm mb-1">Looking for more characters?</h4>
+                        <p className="text-zinc-400 text-xs">Try the <span className="text-purple-400 font-medium">AI Suggestions</span> tab!</p>
+                     </div>
+                     <button 
+                        onClick={() => {
+                           setShowAISuggestionHint(false);
+                           setActiveTab('suggestions');
+                        }}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
+                     >
+                        Try it
+                     </button>
+                     <button 
+                        onClick={() => {
+                           setShowAISuggestionHint(false);
+                        }}
+                        className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white transition-colors"
+                     >
+                        <X className="w-4 h-4" />
+                     </button>
+                  </div>
+               </div>
+            </div>
+        )}
+         {/* Multi-Select Floating Bar (Grid) */}
+         {selectionMode === 'grid' && (
+             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5 fade-in duration-300">
+                <div className="flex items-center gap-3 px-6 py-3 bg-zinc-900/90 backdrop-blur-md border border-zinc-700 rounded-full shadow-2xl">
+                    <span className="text-sm font-bold text-white px-2 border-r border-zinc-700">
+                        {selectedGridIndices.size} Selected
+                    </span>
+                    <button 
+                        onClick={handleBulkFill}
+                        disabled={selectedGridIndices.size === 0 || !selectedCharacter}
+                        className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-full text-xs font-bold transition-colors text-white"
+                        title={!selectedCharacter ? "Select a character first" : `Fill with ${selectedCharacter.name}`}
+                    >
+                        <ArrowRight size={14} />
+                        Fill {selectedCharacter ? "Selected" : "(Select Char)"}
+                    </button>
+                    <button 
+                        onClick={handleBulkDelete}
+                        disabled={selectedGridIndices.size === 0}
+                        className="flex items-center gap-2 px-4 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-full text-xs font-bold transition-colors text-white"
+                    >
+                        <Trash2 size={14} />
+                        Delete
+                    </button>
+                    <button 
+                        onClick={() => {
+                            setSelectionMode('none');
+                            setSelectedGridIndices(new Set());
+                        }}
+                        className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white transition-colors"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+             </div>
+         )}
+
+
+
          <DragOverlayWrapper activeDragData={activeDragData} />
        </DndContext>
   );
