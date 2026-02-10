@@ -5,8 +5,9 @@ process.env.SERPER_API_KEY = "test-api-key";
 process.env.GEMINI_API_KEY = "test-gemini-key";
 
 // Mock fetch
+// Mock fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.stubGlobal('fetch', mockFetch);
 
 // Mock Google Generative AI
 vi.mock("@google/generative-ai", () => ({
@@ -28,6 +29,7 @@ describe("Serper Images API", () => {
 
   afterEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("should return images from Serper API", async () => {

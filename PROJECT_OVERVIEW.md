@@ -153,9 +153,10 @@ bun start
 
 ---
 
-## 🧪 Status (v0.1.0)
-- **Build**: Passing
-- **Tests**: Unit tests with Vitest (`bun run test`)
+## 🧪 Status (v0.2.3)
+- **Build**: Passing (Turbopack + Next.js 16)
+- **Tests**: Passed (Happy Path + Unit Tests)
+- **Validation**: Strict `pre-deploy.sh` pipeline (Lint + Types + Build + Test)
 - **Ready for**: Production Deployment.
 
 ### Changelog

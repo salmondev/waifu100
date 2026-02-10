@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 
 # Step counter
 STEP=0
-TOTAL=5
+TOTAL=7
 
 check_step() {
     STEP=$((STEP + 1))
@@ -85,6 +85,23 @@ if bun run build; then
     success "Build successful"
 else
     fail "Build failed"
+fi
+
+
+# Step 6: Run Tests
+check_step "Running tests..."
+if bun run test; then
+    success "Tests passed"
+else
+    fail "Tests failed"
+fi
+
+# Step 7: Update Documentation
+check_step "Checking/Updating documentation..."
+if node scripts/update-docs.js; then
+    success "Documentation up to date"
+else
+    fail "Documentation check failed"
 fi
 
 # Summary
