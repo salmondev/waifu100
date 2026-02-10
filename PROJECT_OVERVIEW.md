@@ -74,6 +74,7 @@ This project is built to be **robust, pixel-perfect, and user-friendly**, featur
 - **Feedback Loop**: Users can Agree/Disagree with the verdict.
   - **Smart Persistence**: Verdicts are saved to `localStorage` and JSON exports.
   - **Re-Verdict Logic**: Asking AI again *only* triggers a new analysis if the user has previously given feedback (Agree/Disagree). Otherwise, it loads the saved verdict instantly.
+- **View Page Verdict**: Shared grids without a verdict show a "Generate AI Verdict" button. One click generates and persists the verdict to Redis.
 
 ---
 
@@ -158,6 +159,10 @@ bun start
 - **Ready for**: Production Deployment.
 
 ### Changelog
+- **v0.2.3**: View Page Fixes & AI Verdict:
+    - Fixed broken images on embed/view page (route through `/_next/image` proxy).
+    - Added AI Verdict generation on view page for legacy grids (pre-verdict era).
+    - New `PATCH /api/share/verdict` endpoint for persisting generated verdicts.
 - **v0.2.2**: UI Polish & Fixes:
     - Fixed "Tap to edit" hint showing for non-editable characters.
     - Added "Copy Image" and "Save Image" to AI Verdict modal.

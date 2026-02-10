@@ -120,5 +120,6 @@ export default async function ViewSharePage({ params }: ServerPageProps) {
     title={data.title} 
     verdict={data.verdict || null}
     verdictFeedback={data.verdictFeedback || null}
+    shareId={id}
   />;
 }
