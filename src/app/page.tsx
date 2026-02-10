@@ -1277,13 +1277,12 @@ export default function Home() {
           ) : (
              <div className="space-y-2">
                {characterResults.map((char, idx) => (
-                  <DraggableSidebarItem
+                  <div
                     key={`${char.mal_id}-${idx}`}
-                    char={char}
                     onClick={() => handleSelectCharacter(char)}
                   >
                      <div className={cn(
-                       "group flex items-center gap-3 p-2 rounded-lg cursor-grab active:cursor-grabbing border transition-all w-full",
+                       "group flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-all w-full",
                        selectedCharacter?.mal_id === char.mal_id ? "bg-purple-900/20 border-purple-500" : "bg-zinc-900/50 border-transparent hover:bg-zinc-800"
                      )}>
                        <img src={char.images.jpg.image_url} alt={char.name} className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
@@ -1299,7 +1298,7 @@ export default function Home() {
                          <ImageIcon className="w-4 h-4"/>
                        </button>
                      </div>
-                  </DraggableSidebarItem>
+                  </div>
                 ))}
              </div>
           )}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { DragOverlay } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { Character } from '@/types';
 
 interface DragOverlayWrapperProps {
@@ -8,7 +9,7 @@ interface DragOverlayWrapperProps {
 
 export function DragOverlayWrapper({ activeDragData }: DragOverlayWrapperProps) {
     return (
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
             {activeDragData?.character && (
             <div className="w-24 h-32 rounded-lg overflow-hidden border-2 border-purple-500 shadow-2xl bg-zinc-900 pointer-events-none cursor-grabbing opacity-70 scale-110 rotate-3">
                 <img 
