@@ -785,7 +785,9 @@ export default function Home() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-       const filename = 'waifu100-challenge.png';
+       const now = new Date();
+       const timestamp = now.toISOString().replace(/T/, '_').replace(/:/g, '-').split('.')[0];
+       const filename = `waifu100-challenge-${timestamp}.png`;
        const blob = await getGridBlob(filename);
        
        if (!blob) throw new Error("Blob generation failed");
@@ -1366,7 +1368,7 @@ export default function Home() {
            <div className="flex gap-2 mt-2">
                 <button 
                   onClick={() => setShowShareModal(true)}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded-lg transition-colors border border-sky-500/30 text-sm font-medium flex-1"
+                  className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded-lg transition-colors border border-sky-500/30 text-sm font-medium flex-1"
                 >
                     <Share2 size={16} />
                     <span>Share</span>
@@ -1375,9 +1377,9 @@ export default function Home() {
                 <button 
                   onClick={handleExport}
                   disabled={isExporting}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg transition-colors border border-purple-600/30 text-sm font-medium flex-1"
+                  className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg transition-colors border border-purple-600/30 text-sm font-medium flex-1"
                 >           {isExporting ? <Loader2 className="animate-spin w-4 h-4"/> : <Download className="w-4 h-4"/>}
-             Export
+             Save as .png
            </button>
            </div>
 
@@ -1590,7 +1592,7 @@ export default function Home() {
          )}
          
           <div ref={gridRef} className="bg-black p-1 lg:p-3 shadow-2xl w-full lg:max-w-[calc(100vh-12rem)] mx-auto transition-all pt-12 pb-40 lg:pt-3 lg:pb-3">
-             <div className="flex items-center justify-between mb-3 px-2">
+             <div className="relative flex items-center justify-center mb-3 px-2">
                  <h2 className="text-xl font-bold tracking-widest uppercase text-zinc-300">#CHALLENGEอายุน้อยร้อยเมน</h2>
                  <button
                     onClick={() => {
@@ -1603,7 +1605,7 @@ export default function Home() {
                         }
                     }}
                     className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                        "export-exclude absolute right-2 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
                         selectionMode === 'grid' 
                             ? "bg-red-900/30 text-red-400 border-red-500/50" 
                             : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
