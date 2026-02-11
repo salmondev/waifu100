@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil, CheckSquare, MousePointer2, ArrowRight } from "lucide-react";
+import NextLink from "next/link";
+import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil, CheckSquare, MousePointer2, ArrowRight, Users } from "lucide-react";
 import { toBlob } from "html-to-image";
 import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartEvent, DragEndEvent, pointerWithin } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
@@ -1076,6 +1077,24 @@ export default function Home() {
 
     const reader = new FileReader();
     reader.onload = (ev) => {
+       const result = ev.target?.result as string;
+       
+       // Special handling for GIFs: Skip compression to preserve animation
+       if (file.type === 'image/gif') {
+           const customChar: Character = {
+              mal_id: Date.now(),
+              name: file.name.replace(/\.[^/.]+$/, "") || "Custom Character",
+              images: { jpg: { image_url: result } },
+              customImageUrl: result,
+              source: "Uploaded (GIF)"
+           };
+           
+           setSelectedCharacter(customChar);
+           openGallery(customChar);
+           setShowNameHint(true);
+           return;
+       }
+
        const img = new Image();
        img.onload = () => {
           // Compress logic
@@ -1118,7 +1137,7 @@ export default function Home() {
           // Trigger hint - persists until user edits
           setShowNameHint(true);
        };
-       img.src = ev.target?.result as string;
+       img.src = result;
     };
     reader.readAsDataURL(file);
     // Reset input
@@ -1322,6 +1341,17 @@ export default function Home() {
               onChange={handleManualUpload}
               className="hidden"
            />
+           
+           {/* Community Showcase Link */}
+           <NextLink 
+              href="/community"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2 mb-2 bg-gradient-to-r from-indigo-900/40 to-purple-900/40 hover:from-indigo-900/60 hover:to-purple-900/60 border border-indigo-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all group"
+           >
+              <Users className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform"/>
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-300">Community Showcase</span>
+           </NextLink>
            
            {/* Paste URL Button */}
            <button 
@@ -1665,7 +1695,7 @@ export default function Home() {
                             <img 
                               src={(() => {
                                   const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
-                                  if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+                                  if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif') || url.includes('vercel-storage.com')) return url;
                                   return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
                               })()} 
                               alt={cell.character.name}
