@@ -8,11 +8,6 @@ export const dynamic = 'force-dynamic'; // Skip prerendering to avoid build fail
 export const alt = 'Waifu100 Community Showcase';
 export default async function Image() {
   try {
-      // Load font with simple fetch
-      const fontData = await fetch(
-        'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYMZs.woff'
-      ).then((res) => res.arrayBuffer()).catch(() => null);
-
       // Fetch latest 3 grids
       let grids: { id: string; imageUrl: string }[] = [];
       
@@ -58,7 +53,7 @@ export default async function Image() {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              fontFamily: fontData ? 'Inter' : 'sans-serif',
+              fontFamily: 'sans-serif',
               position: 'relative',
               overflow: 'hidden',
             }}
@@ -123,14 +118,6 @@ export default async function Image() {
         ),
         {
           ...size,
-          fonts: fontData ? [
-            {
-              name: 'Inter',
-              data: fontData,
-              style: 'normal',
-              weight: 600,
-            },
-          ] : undefined,
         }
       );
   } catch (err: any) {
