@@ -84,6 +84,8 @@ export default function CommunityPage() {
               <Link 
                 key={grid.id} 
                 href={`/view/${grid.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="group relative bg-zinc-900/40 border border-zinc-800/50 rounded-2xl overflow-hidden hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-900/20 transition-all duration-300 hover:-translate-y-1 block h-fit"
               >
                 {/* Image Container */}

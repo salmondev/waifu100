@@ -1345,6 +1345,8 @@ export default function Home() {
            {/* Community Showcase Link */}
            <NextLink 
               href="/community"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full py-2 mb-2 bg-gradient-to-r from-indigo-900/40 to-purple-900/40 hover:from-indigo-900/60 hover:to-purple-900/60 border border-indigo-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all group"
            >
               <Users className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform"/>
