@@ -1,164 +1,96 @@
 /* eslint-disable @next/next/no-img-element */
 import { ImageResponse } from 'next/og';
-import { redis } from '@/lib/redis';
 
 // Route segment config
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic'; // Skip prerendering to avoid build failures
+export const runtime = 'edge';
 export const alt = 'Waifu100 Community Showcase';
+export const contentType = 'image/png';
+
 export default async function Image() {
-  try {
-      // Load font with simple fetch
-      const fontData = await fetch(
-        'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYMZs.woff'
-      ).then((res) => res.arrayBuffer()).catch(() => null);
+  const size = {
+    width: 1200,
+    height: 630,
+  };
 
-      // Fetch latest 3 grids
-      let grids: { id: string; imageUrl: string }[] = [];
-      
-      try {
-        const ids = await redis.zrevrange('waifu100:feed', 0, 2);
-        if (ids && ids.length > 0) {
-          const pipeline = redis.pipeline();
-          ids.forEach((id) => pipeline.get(`waifu100:share:${id}`));
-          const results = await pipeline.exec();
-          
-          grids = results?.map((result, index) => {
-             const [err, data] = result;
-             if (err || !data) return null;
-             try {
-                 const parsed = JSON.parse(data as string);
-                 const img = parsed.meta?.imageUrl;
-                 // Verify it has an image and it's absolute or data uri (satori requirement)
-                 if (!img || (!img.startsWith('http') && !img.startsWith('data:'))) return null;
-                 return {
-                     id: ids[index],
-                     imageUrl: img
-                 };
-             } catch { return null; }
-          }).filter((g): g is { id: string; imageUrl: string } => g !== null) || [];
-        }
-      } catch (e) {
-        console.error("OG Image Fetch Error:", e);
-      }
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          background: 'linear-gradient(to bottom right, #09090b, #18181b)',
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: 'sans-serif',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Background Accents */}
+        <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'rgba(139, 92, 246, 0.2)', filter: 'blur(100px)' }} />
+        <div style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'rgba(236, 72, 153, 0.2)', filter: 'blur(100px)' }} />
 
-      const size = {
-        width: 1200,
-        height: 630,
-      };
-
-      return new ImageResponse(
-        (
-          <div
-            style={{
-              background: 'linear-gradient(to bottom right, #09090b, #18181b)',
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: fontData ? 'Inter' : 'sans-serif',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Background Accents */}
-            <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'rgba(139, 92, 246, 0.2)', filter: 'blur(100px)' }} />
-            <div style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'rgba(236, 72, 153, 0.2)', filter: 'blur(100px)' }} />
-
-            {/* Content Container */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10, gap: 20 }}>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: 6, background: '#a855f7' }} />
-                    <div style={{
-                        fontSize: 60,
-                        fontWeight: 800,
-                        letterSpacing: '-0.02em',
-                        backgroundImage: 'linear-gradient(to right, #a78bfa, #f472b6)',
-                        backgroundClip: 'text',
-                        color: 'transparent',
-                    } as any}>
-                        Waifu100
-                    </div>
-                    <div style={{ fontSize: 60, fontWeight: 300, color: '#a1a1aa' }}>
-                        Community
-                    </div>
-                </div>
-
-                {/* Grid Preview */}
-                <div style={{ display: 'flex', gap: 20, marginTop: 20 }}>
-                    {grids.length > 0 ? (
-                        grids.slice(0, 3).map((grid, i) => (
-                            <div key={grid.id} style={{
-                                display: 'flex',
-                                width: 250,
-                                height: 250,
-                                borderRadius: 24,
-                                overflow: 'hidden',
-                                border: '2px solid rgba(255,255,255,0.1)',
-                                boxShadow: '0 20px 50px -10px rgba(0,0,0,0.5)',
-                                transform: i === 1 ? 'translateY(-20px) scale(1.1)' : 'none',
-                                zIndex: i === 1 ? 20 : 10,
-                            }}>
-                                <img 
-                                    src={grid.imageUrl} 
-                                    alt=""
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                />
-                            </div>
-                        ))
-                    ) : (
-                       <div style={{ fontSize: 24, color: '#71717a' }}>Join the challenge to be featured!</div>
-                    )}
-                </div>
-                
-                <div style={{ marginTop: 40, fontSize: 24, color: '#a1a1aa', fontWeight: 500 }}>
-                    Discover • Share • Challenge
-                </div>
-
+        {/* Content Container */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10, gap: 10 }}>
+            
+            {/* Logo/Icon placeholder */}
+            <div style={{ 
+                width: 80, 
+                height: 80, 
+                borderRadius: 40, 
+                background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 10px 30px -10px rgba(168, 85, 247, 0.5)',
+                marginBottom: 20
+            }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
             </div>
-          </div>
-        ),
-        {
-          ...size,
-          fonts: fontData ? [
-            {
-              name: 'Inter',
-              data: fontData,
-              style: 'normal',
-              weight: 600,
-            },
-          ] : undefined,
-        }
-      );
-  } catch (err: any) {
-      console.error("OG Image generation failed:", err);
-      const size = {
-        width: 1200,
-        height: 630,
-      };
-        return new ImageResponse(
-            (
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div style={{
-                    width: '100%',
-                    height: '100%',
-                    background: '#09090b',
-                    display: 'flex',
-                    flexDirection: 'column', // align items vertically
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontFamily: 'sans-serif',
-                }}>
-                   <div style={{ fontSize: 48, fontWeight: 'bold', marginBottom: 20 }}>Waifu100 Community</div>
-                   <div style={{ fontSize: 24, color: '#a1a1aa' }}>Discover community grids</div>
-                   {/* Render error for debugging if needed, or hide it in prod */}
-                   {/* <div style={{ fontSize: 16, color: 'red', marginTop: 20 }}>{err.message}</div> */}
+                    fontSize: 80,
+                    fontWeight: 800,
+                    letterSpacing: '-0.02em',
+                    backgroundImage: 'linear-gradient(to right, #a78bfa, #f472b6)',
+                    backgroundClip: 'text',
+                    color: 'transparent',
+                    lineHeight: 1,
+                    marginBottom: 10
+                } as any}>
+                    Waifu100
                 </div>
-            ),
-            { ...size }
-        );
-  }
+                <div style={{ fontSize: 50, fontWeight: 300, color: '#e4e4e7', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    Community
+                </div>
+            </div>
+
+            <div style={{ 
+                marginTop: 40, 
+                padding: '15px 40px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 100,
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#a1a1aa',
+                fontSize: 24,
+                fontWeight: 500 
+            }}>
+                Discover • Share • Challenge
+            </div>
+
+        </div>
+      </div>
+    ),
+    {
+      ...size,
+    }
+  );
 }
