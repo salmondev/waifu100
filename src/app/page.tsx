@@ -1683,7 +1683,7 @@ export default function Home() {
                             <img 
                               src={(() => {
                                   const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
-                                  if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif')) return url;
+                                  if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif') || url.includes('vercel-storage.com')) return url;
                                   return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
                               })()} 
                               alt={cell.character.name}
