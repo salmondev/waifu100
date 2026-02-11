@@ -29,9 +29,15 @@ export async function GET(req: NextRequest) {
             try {
                 // We stored it as stringified JSON
                  const parsed = JSON.parse(data as string);
+                 const title = parsed.meta?.title || "Untitled Grid";
+                 
+                 // FIX: Filter out grids that were saved with "Loading" title (likely due to a bug or race condition)
+                 // Broadened filter to catch "Loading...", "generating", etc.
+                 if (/loading|generating|captioning/i.test(title)) return null;
+
                  return {
                      id: ids[index],
-                     title: parsed.meta?.title || "Untitled Grid",
+                     title: title,
                      imageUrl: parsed.meta?.imageUrl || null, // Create thumbnail availability
                      createdAt: parsed.meta?.createdAt,
                      // We don't send the full grid to list, just meta

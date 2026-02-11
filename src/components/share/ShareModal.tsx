@@ -1,6 +1,8 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2 } from "lucide-react";
-import { GridCell } from "@/types";
+import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn } from "@/lib/utils";
 import { upload } from '@vercel/blob/client';
 
@@ -11,9 +13,12 @@ interface ShareModalProps {
   onCapture: (filename: string) => Promise<Blob | null>;
   initialTitle?: string;
   onTitleUpdate?: (title: string) => void;
+  verdict: AnalysisResult | null;
+  verdictFeedback: VerdictFeedback;
+  onVerdictGenerate: (verdict: AnalysisResult) => void;
 }
 
-export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate, verdict, verdictFeedback, onVerdictGenerate }: ShareModalProps) {
   const [step, setStep] = useState<'customize' | 'result'>('customize');
   const [customTitle, setCustomTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -65,6 +70,36 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                  } catch (e) {
                     console.error("Thumbnail upload failed", e);
                  }
+             }
+         }
+         setLoadingState("Checking AI Verdict...");
+
+         // 1.5. Force Generate Verdict if missing
+         let finalVerdict = verdict;
+         
+         if (!finalVerdict) {
+             try {
+                 const characters = grid
+                    .filter((cell) => cell.character)
+                    .map((cell) => cell.character!.name);
+
+                 if (characters.length > 0) {
+                     const res = await fetch("/api/analyze", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ characterNames: characters }),
+                     });
+                     
+                     if (res.ok) {
+                         finalVerdict = await res.json();
+                         if (finalVerdict) {
+                            onVerdictGenerate(finalVerdict);
+                         }
+                     }
+                 }
+             } catch (e) {
+                 console.error("Auto-verdict failed", e);
+                 // We continue without verdict if it fails, not blocking share
              }
          }
 
@@ -132,7 +167,9 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                 grid: cleanGridData, 
                 customTitle: customTitle.trim(), 
                 imageUrl: imageUrl, // Single thumbnail URL
-                userId // Send ID for versioning
+                userId, // Send ID for versioning
+                verdict: finalVerdict,
+                verdictFeedback
              })
          });
 

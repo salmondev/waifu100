@@ -1,31 +1,80 @@
 "use client";
 
-import { GridCell } from "@/types";
+import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn } from "@/lib/utils";
-import Image from "next/image";
+
 import Link from "next/link";
-import { Copy, ArrowLeft, Check } from "lucide-react";
+import { Copy, ArrowLeft, Check, Sparkles, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 
 interface ViewGridProps {
   grid: GridCell[];
   title?: string;
+  verdict?: AnalysisResult | null;
+  verdictFeedback?: VerdictFeedback;
+  shareId?: string;
 }
 
 // Column labels A-J
 const COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
-export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
-  // We can add "Click to view details" modal here later if needed
-  // For now, it's a static high-fidelity render
-  
+export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId }: ViewGridProps) {
   const [copied, setCopied] = useState(false);
+  const [showVerdict, setShowVerdict] = useState(false);
+  const [localVerdict, setLocalVerdict] = useState<AnalysisResult | null>(verdict ?? null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleCopyLink = () => {
     if (typeof window !== "undefined") {
         navigator.clipboard.writeText(window.location.href);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleVerdictClick = async () => {
+    // If verdict already exists, just show it
+    if (localVerdict) {
+      setShowVerdict(true);
+      return;
+    }
+
+    // Generate a new verdict for legacy grids
+    const characters = grid
+      .filter((cell) => cell.character)
+      .map((cell) => cell.character!.name);
+
+    if (characters.length === 0) return;
+
+    setIsGenerating(true);
+    try {
+      // 1. Call the same analyze API
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterNames: characters }),
+      });
+
+      if (!res.ok) throw new Error("Failed to analyze");
+      const data = await res.json();
+
+      // 2. Save verdict back to Redis
+      if (shareId) {
+        await fetch("/api/share/verdict", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shareId, verdict: data }),
+        });
+      }
+
+      // 3. Update local state and show modal
+      setLocalVerdict(data);
+      setShowVerdict(true);
+    } catch (e) {
+      console.error("Failed to generate verdict:", e);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -43,8 +92,8 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
              </Link>
          </div>
          
-         <div className="flex flex-col items-center justify-center">
-             {/* Title with beautiful glow effect */}
+         {/* Center Title */}
+         <div className="flex items-center justify-center">
              <h1 
                 className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400 bg-clip-text text-transparent px-4 text-center pb-1"
                 style={{
@@ -55,7 +104,7 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
              </h1>
          </div>
 
-         <div className="flex items-center justify-end">
+         <div className="flex flex-col items-end justify-center gap-2">
              <button
                 onClick={handleCopyLink}
                 className={cn(
@@ -67,6 +116,21 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
              >
                  {copied ? <Check size={18} /> : <Copy size={18} />}
                  <span>{copied ? "Copied!" : "Share Linked"}</span>
+             </button>
+
+             <button
+                onClick={handleVerdictClick}
+                disabled={isGenerating}
+                className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 font-medium min-w-[140px] justify-center",
+                    localVerdict
+                        ? "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 border-yellow-500/20"
+                        : "bg-gradient-to-r from-yellow-600/20 to-orange-600/20 text-yellow-500 border-yellow-600/30 hover:from-yellow-600/30 hover:to-orange-600/30",
+                    isGenerating && "opacity-70 cursor-wait"
+                )}
+             >
+                 {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                 <span>{isGenerating ? "Generating..." : localVerdict ? "AI Verdict" : "✨ Generate AI Verdict"}</span>
              </button>
          </div>
       </div>
@@ -109,12 +173,14 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
             >
               {cell.character ? (
                  <>
-                   <Image
-                      src={cell.character.images.jpg.image_url}
+                   <img
+                      src={(() => {
+                              const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
+                              if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif') || url.includes('vercel-storage.com')) return url;
+                              return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
+                      })()}
                       alt={cell.character.name}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-110"
-                      unoptimized // Allow external URLs
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                    />
                    {/* Tooltip-like overlay on hover */}
                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
@@ -136,6 +202,17 @@ export function ViewGrid({ grid, title = "Waifu100 Grid" }: ViewGridProps) {
       <div className="mt-8 text-zinc-500 text-sm">
          Made with <Link href="/" className="text-purple-400 hover:underline">Waifu100</Link>
       </div>
+
+      <AnalysisModal 
+         isOpen={showVerdict}
+         onClose={() => setShowVerdict(false)}
+         grid={grid}
+         result={localVerdict}
+         onResult={() => {}} 
+         feedback={verdictFeedback ?? null}
+         onFeedback={() => {}}
+         readonly={true}
+      />
     </div>
   );
 }

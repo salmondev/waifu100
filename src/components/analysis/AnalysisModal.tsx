@@ -1,7 +1,10 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { X, Sparkles, AlertCircle, Quote, Languages, Copy, ThumbsUp, ThumbsDown, Check } from "lucide-react";
+import { X, Sparkles, AlertCircle, Quote, Languages, Copy, ThumbsUp, ThumbsDown, Check, Image as ImageIcon, Download } from "lucide-react";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn } from "@/lib/utils";
+import { toBlob } from "html-to-image";
 
 interface AnalysisModalProps {
   isOpen: boolean;
@@ -11,9 +14,10 @@ interface AnalysisModalProps {
   onResult: (result: AnalysisResult | null) => void;
   feedback: VerdictFeedback;
   onFeedback: (feedback: VerdictFeedback) => void;
+  readonly?: boolean;
 }
 
-export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedback, onFeedback }: AnalysisModalProps) {
+export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedback, onFeedback, readonly = false }: AnalysisModalProps) {
   const [loading, setLoading] = useState(false);
   // Remove local result state
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +110,7 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
             )}
 
             {result && !loading && (
-                <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-700 ease-out">
+                <div id="ai-verdict-card" className="space-y-6 animate-in slide-in-from-bottom-4 duration-700 ease-out p-4 bg-zinc-900 rounded-xl max-h-[80vh] overflow-y-auto">
                     {/* Header Badge & Lang Toggle */}
                     <div className="flex items-center justify-center gap-4">
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-500/10 text-yellow-500 rounded-full text-xs font-bold uppercase tracking-wider border border-yellow-500/20 shadow-sm shadow-yellow-500/10">
@@ -174,34 +178,81 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-wrap justify-center items-center gap-3 mt-8 pb-2">
-                        <ActionButton 
-                            icon={ThumbsUp} 
-                            label="Agree" 
-                            onClick={() => onFeedback(feedback === 'agree' ? null : 'agree')}
-                            hoverColor="hover:text-green-400 hover:border-green-500/30 hover:bg-green-900/20"
-                            forceActive={feedback === 'agree'}
-                            activeColor="text-green-400 border-green-500/30 bg-green-900/20"
-                        />
-                        <ActionButton 
-                            icon={ThumbsDown} 
-                            label="Disagree" 
-                            onClick={() => onFeedback(feedback === 'disagree' ? null : 'disagree')}
-                            hoverColor="hover:text-red-400 hover:border-red-500/30 hover:bg-red-900/20"
-                            forceActive={feedback === 'disagree'}
-                            activeColor="text-red-400 border-red-500/30 bg-red-900/20"
-                        />
-                        <div className="w-px h-6 bg-zinc-800 mx-1 hidden sm:block"></div>
-                        <ActionButton 
-                            icon={Copy} 
-                            label="Copy" 
-                            onClick={() => {
-                                const text = `AI Verdict: "${lang === 'en' ? result.en.title : result.th.title}"\n\n${lang === 'en' ? result.en.content : result.th.content}\n\nVibe: ${result.emoji}\nTags: ${lang === 'en' ? result.en.tags.join(' ') : result.th.tags.join(' ')}`;
-                                navigator.clipboard.writeText(text);
-                            }}
-                            successIcon={Check}
-                        />
-                    </div>
+                    {!readonly && (
+                        <div id="verdict-actions" className="flex flex-wrap justify-center items-center gap-3 mt-8 pb-2">
+                            <ActionButton 
+                                icon={ThumbsUp} 
+                                label="Agree" 
+                                onClick={() => onFeedback(feedback === 'agree' ? null : 'agree')}
+                                hoverColor="hover:text-green-400 hover:border-green-500/30 hover:bg-green-900/20"
+                                forceActive={feedback === 'agree'}
+                                activeColor="text-green-400 border-green-500/30 bg-green-900/20"
+                            />
+                            <ActionButton 
+                                icon={ThumbsDown} 
+                                label="Disagree" 
+                                onClick={() => onFeedback(feedback === 'disagree' ? null : 'disagree')}
+                                hoverColor="hover:text-red-400 hover:border-red-500/30 hover:bg-red-900/20"
+                                forceActive={feedback === 'disagree'}
+                                activeColor="text-red-400 border-red-500/30 bg-red-900/20"
+                            />
+                            <div className="w-px h-6 bg-zinc-800 mx-1 hidden sm:block"></div>
+                            
+                            <ActionButton 
+                                icon={Copy} 
+                                label="Copy Text" 
+                                onClick={() => {
+                                    const text = `AI Verdict: "${lang === 'en' ? result.en.title : result.th.title}"\n\n${lang === 'en' ? result.en.content : result.th.content}\n\nVibe: ${result.emoji}\nTags: ${lang === 'en' ? result.en.tags.join(' ') : result.th.tags.join(' ')}`;
+                                    navigator.clipboard.writeText(text);
+                                }}
+                                successIcon={Check}
+                            />
+                             <ActionButton 
+                                icon={ImageIcon} 
+                                label="Copy Image" 
+                                onClick={async () => {
+                                    const node = document.getElementById('ai-verdict-card');
+                                    if (node) {
+                                        try {
+                                            const blob = await toBlob(node, { 
+                                                backgroundColor: '#09090b', 
+                                                style: { padding: '20px', overflow: 'hidden' },
+                                                filter: (node) => node.id !== 'verdict-actions' 
+                                            });
+                                            if (blob) {
+                                                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                                            }
+                                        } catch (e) { console.error(e); }
+                                    }
+                                }}
+                                successIcon={Check}
+                            />
+                            <ActionButton 
+                                icon={Download} 
+                                label="Save Image"
+                                onClick={async () => {
+                                    const node = document.getElementById('ai-verdict-card');
+                                    if (node) {
+                                        try {
+                                            const blob = await toBlob(node, { 
+                                                backgroundColor: '#09090b', 
+                                                style: { padding: '20px', overflow: 'hidden' },
+                                                filter: (node) => node.id !== 'verdict-actions'
+                                            });
+                                            if (blob) {
+                                                const url = URL.createObjectURL(blob);
+                                                const link = document.createElement('a');
+                                                link.download = `waifu100-verdict-${Date.now()}.png`;
+                                                link.href = url;
+                                                link.click();
+                                                URL.revokeObjectURL(url);
+                                            }
+                                        } catch (e) { console.error(e); }
+                                    }
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
         </div>

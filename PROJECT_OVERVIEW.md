@@ -74,6 +74,7 @@ This project is built to be **robust, pixel-perfect, and user-friendly**, featur
 - **Feedback Loop**: Users can Agree/Disagree with the verdict.
   - **Smart Persistence**: Verdicts are saved to `localStorage` and JSON exports.
   - **Re-Verdict Logic**: Asking AI again *only* triggers a new analysis if the user has previously given feedback (Agree/Disagree). Otherwise, it loads the saved verdict instantly.
+- **View Page Verdict**: Shared grids without a verdict show a "Generate AI Verdict" button. One click generates and persists the verdict to Redis.
 
 ---
 
@@ -152,12 +153,21 @@ bun start
 
 ---
 
-## 🧪 Status (v0.1.0)
-- **Build**: Passing
-- **Tests**: Unit tests with Vitest (`bun run test`)
+## 🧪 Status (v0.2.3)
+- **Build**: Passing (Turbopack + Next.js 16)
+- **Tests**: Passed (Happy Path + Unit Tests)
+- **Validation**: Strict `pre-deploy.sh` pipeline (Lint + Types + Build + Test)
 - **Ready for**: Production Deployment.
 
 ### Changelog
+- **v0.2.3**: View Page Fixes & AI Verdict:
+    - Fixed broken images on embed/view page (route through `/_next/image` proxy).
+    - Added AI Verdict generation on view page for legacy grids (pre-verdict era).
+    - New `PATCH /api/share/verdict` endpoint for persisting generated verdicts.
+- **v0.2.2**: UI Polish & Fixes:
+    - Fixed "Tap to edit" hint showing for non-editable characters.
+    - Added "Copy Image" and "Save Image" to AI Verdict modal.
+    - Fixed Community Feed displaying "Loading" placeholders.
 - **v0.2.1**: **Refined AI Verdict Logic**: Adjusted Thai language prompt for a more natural, casual tone, removing forced slang. Ensured consistent and high-quality AI feedback.
 - **v0.2.0**: Added Smart Discovery Hints, Clear Grid with confirmation, Timestamped Saves, and UI polish.
 - **v0.1.0**: Added Serper API integration for Google Image search, improved gallery with multi-source parallel fetching.
