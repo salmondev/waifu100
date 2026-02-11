@@ -135,7 +135,8 @@ export default function CommunityPage() {
                        <span>
                        {new Date(grid.createdAt).toLocaleDateString(undefined, {
                           month: 'short',
-                          day: 'numeric'
+                          day: 'numeric',
+                          year: 'numeric'
                        })}
                        </span>
                     </div>
