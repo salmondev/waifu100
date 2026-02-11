@@ -175,9 +175,9 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
                  <>
                    <img
                       src={(() => {
-                          const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
-                          if (url.startsWith('data:') || url.startsWith('blob:')) return url;
-                          return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
+                              const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
+                              if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif')) return url;
+                              return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
                       })()}
                       alt={cell.character.name}
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"

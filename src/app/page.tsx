@@ -1076,6 +1076,24 @@ export default function Home() {
 
     const reader = new FileReader();
     reader.onload = (ev) => {
+       const result = ev.target?.result as string;
+       
+       // Special handling for GIFs: Skip compression to preserve animation
+       if (file.type === 'image/gif') {
+           const customChar: Character = {
+              mal_id: Date.now(),
+              name: file.name.replace(/\.[^/.]+$/, "") || "Custom Character",
+              images: { jpg: { image_url: result } },
+              customImageUrl: result,
+              source: "Uploaded (GIF)"
+           };
+           
+           setSelectedCharacter(customChar);
+           openGallery(customChar);
+           setShowNameHint(true);
+           return;
+       }
+
        const img = new Image();
        img.onload = () => {
           // Compress logic
@@ -1118,7 +1136,7 @@ export default function Home() {
           // Trigger hint - persists until user edits
           setShowNameHint(true);
        };
-       img.src = ev.target?.result as string;
+       img.src = result;
     };
     reader.readAsDataURL(file);
     // Reset input
@@ -1665,7 +1683,7 @@ export default function Home() {
                             <img 
                               src={(() => {
                                   const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
-                                  if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+                                  if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif')) return url;
                                   return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
                               })()} 
                               alt={cell.character.name}
