@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis';
 
 // Route segment config
 export const runtime = 'nodejs';
-export const revalidate = 60; // Revalidate every minute
+export const dynamic = 'force-dynamic'; // Skip prerendering to avoid build failures
 export const alt = 'Waifu100 Community Showcase';
 export const size = {
   width: 1200,
@@ -13,8 +13,13 @@ export const size = {
 export const contentType = 'image/png';
 
 export default async function Image() {
+  // Load font
+  const fontData = await fetch(
+    new URL('https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYMZs.woff', import.meta.url)
+  ).then((res) => res.arrayBuffer()).catch(() => null);
+
   // Fetch latest 3 grids
-  let grids: { id: string; imageUrl: string | null }[] = [];
+  let grids: { id: string; imageUrl: string }[] = [];
   
   try {
     const ids = await redis.zrevrange('waifu100:feed', 0, 2);
@@ -28,11 +33,12 @@ export default async function Image() {
          if (err || !data) return null;
          try {
              const parsed = JSON.parse(data as string);
-             // Verify it has an image
-             if (!parsed.meta?.imageUrl) return null;
+             const img = parsed.meta?.imageUrl;
+             // Verify it has an image and it's absolute or data uri (satori requirement)
+             if (!img || (!img.startsWith('http') && !img.startsWith('data:'))) return null;
              return {
                  id: ids[index],
-                 imageUrl: parsed.meta.imageUrl
+                 imageUrl: img
              };
          } catch { return null; }
       }).filter((g): g is { id: string; imageUrl: string } => g !== null) || [];
@@ -52,7 +58,7 @@ export default async function Image() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          fontFamily: 'sans-serif',
+          fontFamily: 'Inter',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -66,7 +72,14 @@ export default async function Image() {
             
             <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
                 <div style={{ width: 12, height: 12, borderRadius: 6, background: '#a855f7' }} />
-                <div style={{ fontSize: 60, fontWeight: 800, color: 'white', letterSpacing: '-0.02em', backgroundImage: 'linear-gradient(to right, #a78bfa, #f472b6)', backgroundClip: 'text', color: 'transparent' }}>
+                <div style={{
+                    fontSize: 60,
+                    fontWeight: 800,
+                    letterSpacing: '-0.02em',
+                    backgroundImage: 'linear-gradient(to right, #a78bfa, #f472b6)',
+                    backgroundClip: 'text',
+                    color: 'transparent',
+                } as any}>
                     Waifu100
                 </div>
                 <div style={{ fontSize: 60, fontWeight: 300, color: '#a1a1aa' }}>
@@ -110,6 +123,14 @@ export default async function Image() {
     ),
     {
       ...size,
+      fonts: fontData ? [
+        {
+          name: 'Inter',
+          data: fontData,
+          style: 'normal',
+          weight: 600,
+        },
+      ] : undefined,
     }
   );
 }
