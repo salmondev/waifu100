@@ -16,7 +16,8 @@ export default async function Image() {
     (
       <div
         style={{
-          background: 'linear-gradient(to bottom right, #09090b, #18181b)',
+          background: '#09090b',
+          backgroundImage: 'radial-gradient(circle at 50% 50%, #2e1065 0%, #09090b 70%)',
           width: '100%',
           height: '100%',
           display: 'flex',
@@ -28,9 +29,9 @@ export default async function Image() {
           overflow: 'hidden',
         }}
       >
-        {/* Background Accents */}
-        <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'rgba(139, 92, 246, 0.2)', filter: 'blur(100px)' }} />
-        <div style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '600px', height: '600px', borderRadius: '50%', background: 'rgba(236, 72, 153, 0.2)', filter: 'blur(100px)' }} />
+        {/* Background Accents - Smoother blending */}
+        <div style={{ position: 'absolute', top: '-20%', left: '-20%', width: '800px', height: '800px', borderRadius: '50%', background: 'rgba(147, 51, 234, 0.15)', filter: 'blur(120px)' }} />
+        <div style={{ position: 'absolute', bottom: '-20%', right: '-20%', width: '800px', height: '800px', borderRadius: '50%', background: 'rgba(236, 72, 153, 0.15)', filter: 'blur(120px)' }} />
 
         {/* Content Container */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10, gap: 10 }}>
@@ -44,7 +45,7 @@ export default async function Image() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 10px 30px -10px rgba(168, 85, 247, 0.5)',
+                boxShadow: '0 0 40px -5px rgba(168, 85, 247, 0.6)',
                 marginBottom: 20
             }}>
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -79,11 +80,18 @@ export default async function Image() {
                 background: 'rgba(255,255,255,0.05)',
                 borderRadius: 100,
                 border: '1px solid rgba(255,255,255,0.1)',
-                color: '#a1a1aa',
+                color: '#d4d4d8',
                 fontSize: 24,
-                fontWeight: 500 
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 15
             }}>
-                Discover • Share • Challenge
+                <span>Discover</span>
+                <span style={{ width: 4, height: 4, borderRadius: 2, background: '#71717a' }} />
+                <span>Build</span>
+                <span style={{ width: 4, height: 4, borderRadius: 2, background: '#71717a' }} />
+                <span>Share</span>
             </div>
 
         </div>
