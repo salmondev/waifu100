@@ -42,6 +42,19 @@ function useDebounce<T>(value: T, delay: number): T {
 
 const STORAGE_KEY = "waifu100-grid";
 
+// --- Helper: Search Validation ---
+const isInvalidSearchName = (name: string) => {
+    if (!name || name.length < 3) return true;
+    // High digit density check (e.g. timestamps or IDs)
+    const digits = (name.match(/\d/g) || []).length;
+    if (digits > 4 && digits / name.length > 0.4) return true;
+    
+    // Common filename patterns (IMG_, DSC_, Screenshot, etc)
+    if (/^(img|dsc|screen|screenshot|pic|photo|video)[\-_]?\d+/i.test(name)) return true;
+    
+    return false;
+};
+
 export default function Home() {
   // --- Sensors ---
   const sensors = useSensors(
@@ -117,6 +130,7 @@ export default function Home() {
   const [isGalleryLoading, setIsGalleryLoading] = useState(false);
   const [galleryTargetName, setGalleryTargetName] = useState<string>("");
   const [gallerySearchQuery, setGallerySearchQuery] = useState<string>(""); // Custom search keywords
+  const [isGifMode, setIsGifMode] = useState(false); // GIF Toggle state
   
   // --- State: Meta ---
   const [currentTitle, setCurrentTitle] = useState("My 100 Favorite Characters");
@@ -395,6 +409,14 @@ export default function Home() {
     doSearch();
   }, [debouncedQuery, searchQuery, selectedCharacter, hasShownSearchHint]);
 
+  useEffect(() => {
+    // If GIF mode changes while a character is selected and we are in gallery mode, refresh the gallery
+    if (activeTab === 'gallery' && selectedCharacter && !isGalleryLoading) {
+        // Debounce slightly or just call it? calling directly is fine for a toggle click
+        openGallery(selectedCharacter, gallerySearchQuery);
+    }
+  }, [isGifMode]);
+
   // --- Gallery Logic ---
   const openGallery = useCallback(async (char: Character, customQuery?: string) => {
     setShowRightPanel(true);
@@ -410,26 +432,37 @@ export default function Home() {
     setGalleryUsageCount(newCount);
     localStorage.setItem('waifu100-gallery-usage-count', newCount.toString());
 
-    // FIX: Skip search for Manual Uploads / URLs
-    if (char.source === "Uploaded" || char.source === "URL" || char.source === "Web Search") {
+    // Allow search for Manual Uploads / URLs but clean up the source
+    let sourceToSend = char.source;
+    if (["Uploaded", "URL", "Web Search", "Custom Character"].includes(char.source || "")) {
+        sourceToSend = ""; // Don't use these as keywords
+    }
+    
+    // SMART VALIDATION: Checked via isInvalidSearchName helper
+
+    // Combine character name with custom query if provided
+    const searchName = customQuery 
+      ? `${char.name} ${customQuery}`.trim()
+      : char.name;
+
+    if (isInvalidSearchName(searchName)) {
         setGalleryImages([]);
         setIsGalleryLoading(false);
         return;
     }
 
     try {
-      // Combine character name with custom query if provided
-      const searchName = customQuery 
-        ? `${char.name} ${customQuery}`.trim()
-        : char.name;
-        
       const res = await fetch("/api/gallery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
             characterName: searchName, 
-            animeSource: char.source,
-            malId: char.jikan_id 
+            animeSource: sourceToSend,
+            malId: char.jikan_id,
+            isGif: isGifMode // Use state directly here, but careful with closure if this wasn't updated. 
+            // Better to pass it in or rely on the effect reference? 
+            // Since openGallery is a dependency for the effect, we should probably pass it as arg or let the component state be used?
+            // Actually, `isGifMode` is in scope. But `useCallback` dependency needs to include it.
         })
       });
       if (res.ok) {
@@ -441,7 +474,7 @@ export default function Home() {
     } finally {
       setIsGalleryLoading(false);
     }
-  }, []);
+  }, [galleryUsageCount, isGifMode]); // Added isGifMode dependency
 
   // Search gallery with custom keywords
   const searchGalleryWithQuery = useCallback(() => {
@@ -1261,7 +1294,7 @@ export default function Home() {
             <X className="w-6 h-6"/>
           </button>
         </div>
-        <div className="px-4 pb-2 relative">
+        <div className="px-4 pb-2 pt-4 relative">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"/>
             <input 
@@ -1356,7 +1389,7 @@ export default function Home() {
            {/* Paste URL Button */}
            <button 
               onClick={() => setShowUrlModal(true)}
-              className="w-full py-2 mb-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-colors"
+              className="w-full py-2 mb-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-colors cursor-pointer"
            >
               <Link className="w-4 h-4 text-pink-400"/>
               Paste URL
@@ -1365,7 +1398,7 @@ export default function Home() {
            {/* Upload Custom Image Button */}
            <button 
               onClick={() => uploadRef.current?.click()}
-              className="w-full py-2 mb-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-colors"
+              className="w-full py-2 mb-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-colors cursor-pointer"
            >
               <Upload className="w-4 h-4 text-purple-400"/>
               Upload Image
@@ -1373,7 +1406,7 @@ export default function Home() {
            
            <button 
               onClick={handleOpenSaveLoad}
-              className="w-full py-2 mb-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-colors text-zinc-300"
+              className="w-full py-2 mb-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-colors text-zinc-300 cursor-pointer"
            >
               <Save className="w-4 h-4 text-green-400"/>
               Save / Load Progress
@@ -1388,7 +1421,7 @@ export default function Home() {
                   setShowAnalysisModal(true);
               }}
               disabled={filledCount < 2}
-              className="w-full py-2 mb-2 bg-gradient-to-r from-yellow-600/20 to-orange-600/20 text-yellow-500 border border-yellow-600/30 hover:bg-yellow-600/30 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              className="w-full py-2 mb-2 bg-gradient-to-r from-yellow-600/20 to-orange-600/20 text-yellow-500 border border-yellow-600/30 hover:bg-yellow-600/30 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group"
            >
               <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform"/>
               Ask AI About My Taste
@@ -1397,7 +1430,7 @@ export default function Home() {
            <div className="flex gap-2 mt-2">
                 <button 
                   onClick={() => setShowShareModal(true)}
-                  className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded-lg transition-colors border border-sky-500/30 text-sm font-medium flex-1"
+                  className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded-lg transition-colors border border-sky-500/30 text-sm font-medium flex-1 cursor-pointer"
                 >
                     <Share2 size={16} />
                     <span>Share</span>
@@ -1406,7 +1439,7 @@ export default function Home() {
                 <button 
                   onClick={handleExport}
                   disabled={isExporting}
-                  className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg transition-colors border border-purple-600/30 text-sm font-medium flex-1"
+                  className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg transition-colors border border-purple-600/30 text-sm font-medium flex-1 cursor-pointer"
                 >           {isExporting ? <Loader2 className="animate-spin w-4 h-4"/> : <Download className="w-4 h-4"/>}
              Save as .png
            </button>
@@ -1416,7 +1449,7 @@ export default function Home() {
            <button 
               onClick={() => setShowClearConfirm(true)}
               disabled={filledCount === 0}
-              className="w-full mt-2 py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+              className="w-full mt-2 py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group"
            >
               <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform"/>
               Clear Grid
@@ -1490,6 +1523,10 @@ export default function Home() {
                                            return cell;
                                        }));
                                        setIsEditingName(false);
+                                       // Auto-search gallery for the new name
+                                       setActiveTab('gallery');
+                                       if (!showRightPanel) setShowRightPanel(true);
+                                       openGallery(updatedChar);
                                    } else if (e.key === 'Escape') {
                                        setIsEditingName(false);
                                    }
@@ -1507,6 +1544,10 @@ export default function Home() {
                                        return cell;
                                    }));
                                    setIsEditingName(false);
+                                   // Auto-search gallery for the new name
+                                   setActiveTab('gallery');
+                                   if (!showRightPanel) setShowRightPanel(true);
+                                   openGallery(updatedChar);
                                }}
                                className="p-1.5 bg-green-900/30 text-green-400 rounded hover:bg-green-900/50"
                            >
@@ -1590,7 +1631,7 @@ export default function Home() {
                       Found them!
                   </h4>
                   <p className="text-xs text-pink-100 leading-snug">
-                      Drag characters directly to the grid, or click them to see more images.
+                      Click them to see more images.
                   </p>
                   <button 
                       onClick={() => setShowSearchHint(false)}
@@ -1803,19 +1844,19 @@ export default function Home() {
                 <div className="flex gap-2 p-1 bg-zinc-900 rounded-lg flex-1 mr-2">
                    <button 
                      onClick={() => setActiveTab('suggestions')} 
-                     className={cn("flex-1 text-xs py-1.5 rounded-md font-medium transition-colors", activeTab === 'suggestions' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+                     className={cn("flex-1 text-xs py-1.5 rounded-md font-medium transition-colors cursor-pointer", activeTab === 'suggestions' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
                    >
                      Suggestions
                    </button>
                    <button 
                      onClick={() => setActiveTab('gallery')} 
-                     className={cn("flex-1 text-xs py-1.5 rounded-md font-medium transition-colors", activeTab === 'gallery' ? "bg-pink-900/30 text-pink-200 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+                     className={cn("flex-1 text-xs py-1.5 rounded-md font-medium transition-colors cursor-pointer", activeTab === 'gallery' ? "bg-pink-900/30 text-pink-200 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
                    >
                      Gallery
                    </button>
                    <button 
                      onClick={() => setActiveTab('community')} 
-                     className={cn("flex-1 text-xs py-1.5 rounded-md font-medium transition-colors", activeTab === 'community' ? "bg-indigo-900/30 text-indigo-200 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+                     className={cn("flex-1 text-xs py-1.5 rounded-md font-medium transition-colors cursor-pointer", activeTab === 'community' ? "bg-indigo-900/30 text-indigo-200 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
                    >
                      Community
                    </button>
@@ -1855,7 +1896,7 @@ export default function Home() {
                     <button 
                       onClick={handleGetSuggestions}
                       disabled={isSuggestionsLoading || filledCount < 2}
-                      className="w-full py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 mb-6 flex items-center justify-center gap-2 transition-opacity"
+                      className="w-full py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 mb-6 flex items-center justify-center gap-2 transition-opacity cursor-pointer disabled:cursor-not-allowed"
                     >
                       {isSuggestionsLoading ? <Loader2 className="animate-spin w-4 h-4"/> : <Lightbulb className="w-4 h-4"/>}
                       Generate Ideas
@@ -1905,25 +1946,32 @@ export default function Home() {
                            {galleryTargetName}
                         </h3>
                         {/* Custom search input */}
-                        <div className="px-2 mb-3">
-                           <div className="relative flex gap-1">
-                              <input 
-                                 className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg py-1.5 px-3 text-xs focus:ring-2 focus:ring-pink-500 outline-none placeholder-zinc-500"
-                                 placeholder="Add keywords (e.g., wallpaper, fanart)"
-                                 value={gallerySearchQuery}
-                                 onChange={e => setGallerySearchQuery(e.target.value)}
-                                 onKeyDown={e => e.key === 'Enter' && searchGalleryWithQuery()}
-                              />
+                        {/* GIF Toggle - Full Width (Replaces Search) */}
+                           <div className="px-2 mb-3">
                               <button
-                                 onClick={searchGalleryWithQuery}
-                                 disabled={isGalleryLoading}
-                                 className="px-3 py-1.5 bg-pink-600 hover:bg-pink-500 disabled:opacity-50 rounded-lg text-xs font-medium transition-colors"
+                                 disabled={isInvalidSearchName(galleryTargetName || "")}
+                                 onClick={() => !isInvalidSearchName(galleryTargetName || "") && setIsGifMode(!isGifMode)}
+                                 className={cn(
+                                   "w-full py-3 rounded-xl text-sm font-black tracking-widest transition-all duration-300 border shadow-lg flex items-center justify-center gap-3 overflow-hidden relative group",
+                                   isInvalidSearchName(galleryTargetName || "") ? "bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed shadow-none grayscale opacity-50" : "cursor-pointer",
+                                   !isInvalidSearchName(galleryTargetName || "") && isGifMode 
+                                       ? "bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white border-transparent shadow-[0_0_20px_rgba(236,72,153,0.5)] scale-[1.02]" 
+                                       : !isInvalidSearchName(galleryTargetName || "") && "bg-zinc-800 border-zinc-600 text-zinc-300 shadow-[0_0_25px_rgba(255,255,255,0.2)] hover:bg-zinc-800 hover:border-zinc-500 hover:text-zinc-200"
+                                 )}
+                                 title={isInvalidSearchName(galleryTargetName || "") ? "Rename character to enable GIF search" : "Toggle GIF Mode"}
                               >
-                                 <Search className="w-3 h-3"/>
+                                 {isGifMode && !isInvalidSearchName(galleryTargetName || "") && <div className="absolute inset-0 bg-white/10 animate-pulse-slow pointer-events-none"/>}
+                                 
+                                 <div className={cn(
+                                     "w-2.5 h-2.5 rounded-full transition-all shadow-[0_0_8px_currentColor]", 
+                                     !isInvalidSearchName(galleryTargetName || "") && isGifMode ? "bg-white animate-pulse" : "bg-zinc-500 shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+                                 )}/>
+                                 
+                                 <span>{isGifMode && !isInvalidSearchName(galleryTargetName || "") ? "GIF MODE ACTIVE" : "GIF MODE"}</span>
                               </button>
-                           </div>
-                           <p className="text-[10px] text-zinc-600 mt-1 px-1">
-                              Searching: {galleryTargetName} {gallerySearchQuery && `+ "${gallerySearchQuery}"`}
+                           
+                           <p className="text-[10px] text-zinc-600 mt-2 px-1 text-center">
+                              Searching: <span className="text-zinc-500 font-medium">{galleryTargetName}</span>
                            </p>
                         </div>
                         {isGalleryLoading ? (
@@ -1935,11 +1983,16 @@ export default function Home() {
                                   // Using index + timestamp is risky if list changes, but for static list it's ok.
                                   // Better: use img.url as unique key.
                                   const tempId = 990000 + i; 
+                                  // Use full URL for GIFs to ensure animation plays
+                                  // Google thumbnails are static, so we must use the direct link for GIFs
+                                  const useFullUrl = isGifMode || img.url.toLowerCase().includes('.gif');
+                                  const displayUrl = useFullUrl ? img.url : (img.thumbnail || img.url);
+
                                   const char: Character = {
                                      mal_id: tempId,
                                      name: galleryTargetName || "Character",
-                                     images: { jpg: { image_url: img.thumbnail || img.url } },
-                                     customImageUrl: img.thumbnail || img.url,
+                                     images: { jpg: { image_url: displayUrl } },
+                                     customImageUrl: displayUrl,
                                      source: img.source
                                   };
                                   
@@ -1956,7 +2009,7 @@ export default function Home() {
                                          "aspect-square relative group rounded-lg overflow-hidden border border-zinc-800 cursor-pointer hover:border-pink-500 transition-all bg-zinc-900 w-full",
                                          selectedCharacter?.customImageUrl === img.url && "ring-2 ring-pink-500 border-transparent"
                                       )}>
-                                         <img src={img.thumbnail} className="w-full h-full object-cover pointer-events-none select-none"/>
+                                         <img src={char.customImageUrl} className="w-full h-full object-cover pointer-events-none select-none"/>
                                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                                             <span className="text-[9px] text-white bg-black/50 px-1 rounded">{img.source}</span>
                                          </div>
