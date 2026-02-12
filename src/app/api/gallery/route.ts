@@ -26,7 +26,7 @@ interface SerperImage {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { characterName, animeSource, malId } = await request.json();
+    const { characterName, animeSource, malId, isGif } = await request.json();
 
     if (!characterName) {
       return NextResponse.json({ error: "Name required" }, { status: 400 });
@@ -42,7 +42,16 @@ export async function POST(request: NextRequest) {
 
         try {
           // Fast heuristic query without Gemini
-          const serperQuery = `${characterName} ${animeSource || ""} anime character official art`.trim();
+          let serperQuery = `${characterName} ${animeSource || ""} anime character official art`.trim();
+          
+          if (isGif) {
+              serperQuery = `${characterName} ${animeSource || ""} anime gif`.trim(); // Optimized for GIFs
+              // Note: We also add explicit request param or just rely on query? 
+              // Serper doesn't have a specific "fileType" param in the body usually, unless using advanced Google params.
+              // Actually Serper supports "advanced" google operators in "q".
+              serperQuery += " fileType:gif";
+          }
+
           // console.log(`[Gallery] Serper: Searching "${serperQuery}"`);
           
           const res = await fetch("https://google.serper.dev/images", {
@@ -53,7 +62,7 @@ export async function POST(request: NextRequest) {
             },
             body: JSON.stringify({
               q: serperQuery,
-              num: 15,
+              num: isGif ? 50 : 15, // Increase limit for GIF mode to account for filtering
               gl: "us",
               hl: "en",
             }),
@@ -62,12 +71,19 @@ export async function POST(request: NextRequest) {
           if (!res.ok) return [];
 
           const data = await res.json();
-          const results = (data.images || []).map((img: SerperImage) => ({
+          let results = (data.images || []).map((img: SerperImage) => ({
             url: img.imageUrl,
             thumbnail: img.thumbnailUrl || img.imageUrl,
             title: img.title || "Google Images",
             source: `Google (${img.domain || "Serper"})`,
           }));
+
+          // Strict GIF Post-Filtering
+          if (isGif) {
+              results = results.filter((img: ImageResult) => 
+                  img.url.toLowerCase().includes('.gif')
+              );
+          }
 
           // console.log(`[Gallery] Serper: Found ${results.length} images`);
           return results;
@@ -79,6 +95,8 @@ export async function POST(request: NextRequest) {
 
       // 2. JIKAN (Official Art) - Fast via ID lookup
       (async (): Promise<ImageResult[]> => {
+        if (isGif) return []; // Jikan only has static JPG/WEBP
+
         try {
           let targetId = malId;
 
@@ -120,8 +138,14 @@ export async function POST(request: NextRequest) {
           // Heuristic tag generation: "name_(series)" or just "name"
           // Konachan uses underscores for spaces
           const cleanName = characterName.toLowerCase().replace(/\s+/g, "_");
-          const tags = `${cleanName} rating:safe`;
+          let tags = `${cleanName} rating:safe`;
           
+          if (isGif) {
+              // Konachan specific tag for animations? often just "gif" or "animated"?
+              // Let's try adding "gif" to tags, though Konachan might have few results.
+              tags += " gif";
+          }
+
           const url = `https://konachan.net/post.json?limit=15&tags=${encodeURIComponent(tags)}`;
           // console.log(`[Gallery] Konachan: Fetching ${cleanName}`);
 
@@ -141,7 +165,7 @@ export async function POST(request: NextRequest) {
           }
           
           // Retry with broader query if strict failed
-          if (animeSource) {
+          if (animeSource && !isGif) { // Skip broad retry for GIF to keep relevance high
              const cleanSource = animeSource.toLowerCase().replace(/\s+/g, "_");
              // Try "series_name" tag if character tag failed
              const broadUrl = `https://konachan.net/post.json?limit=10&tags=${encodeURIComponent(cleanSource + " rating:safe")}`;
