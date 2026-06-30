@@ -1,7 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import { getFlashModel } from "@/lib/gemini";
 
 // Simple in-memory cache (resets on server restart)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -200,7 +198,7 @@ export async function POST(request: NextRequest) {
           // If Gemini is available, use it to extract character names
           if (process.env.GEMINI_API_KEY) {
             try {
-              const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+              const model = getFlashModel();
               
               // Generic prompt - works for ANY franchise
               // eslint-disable-next-line @typescript-eslint/no-explicit-any

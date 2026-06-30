@@ -1,7 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import { getFlashModel } from "@/lib/gemini";
 
 interface ImageResult {
   url: string;
@@ -35,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Use Gemini to generate a precise search query
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getFlashModel();
 
     const prompt = `You are helping find the correct anime/game character image. Given this character name and optional source, generate the best Google Image search query to find accurate official character art or fan art.
 
