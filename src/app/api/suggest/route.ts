@@ -1,7 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import { getFlashModel } from "@/lib/gemini";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getFlashModel();
 
     const prompt = `You are an expert in Anime, Manga, VTubers, and Video Games (Gacha, JRPG, Visual Novels). Based on the following list of characters that a user has selected as their favorites, suggest 15 similar characters they might also like.
 

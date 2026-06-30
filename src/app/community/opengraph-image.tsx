@@ -66,7 +66,7 @@ export default async function Image() {
                     color: 'transparent',
                     lineHeight: 1,
                     marginBottom: 10
-                } as any}>
+                }}>
                     Waifu100
                 </div>
                 <div style={{ fontSize: 50, fontWeight: 300, color: '#e4e4e7', letterSpacing: '0.1em', textTransform: 'uppercase' }}>

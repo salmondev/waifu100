@@ -1,7 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import { getFlashModel } from "@/lib/gemini";
 
 interface SerperImage {
   title: string;
@@ -62,7 +60,7 @@ export async function POST(request: NextRequest) {
     // Use Gemini to optimize the search query for better image results
     if (!directQuery && process.env.GEMINI_API_KEY) {
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = getFlashModel();
 
         const prompt = `Generate the optimal Google Image search query to find accurate anime/game character images.
 

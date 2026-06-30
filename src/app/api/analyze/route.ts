@@ -1,7 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import { getFlashModel } from "@/lib/gemini";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getFlashModel();
 
     const prompt = `You are a fun, observant, and enthusiastic expert in Anime, Manga, Games, and VTubers. 
     You are judging a user's "10x10 Favorite Characters Grid".
