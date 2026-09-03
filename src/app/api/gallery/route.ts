@@ -14,6 +14,30 @@ interface SerperImage {
   domain: string;
 }
 
+/** True when the URL points at an actual .gif file (query strings ignored). */
+function isGifUrl(url: string): boolean {
+  try {
+    return new URL(url).pathname.toLowerCase().endsWith(".gif");
+  } catch {
+    return url.toLowerCase().split("?")[0].endsWith(".gif");
+  }
+}
+
+/**
+ * Animation-first hosts. They serve GIFs through .webp/.mp4 derivatives, so the
+ * URL never ends in .gif even though the image really is animated.
+ */
+function isAnimatedHost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return ["tenor.com", "giphy.com", "gfycat.com", "redgifs.com"].some(
+      (h) => host === h || host.endsWith(`.${h}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Gallery API - Multi-source Image Search
  * 
@@ -40,53 +64,68 @@ export async function POST(request: NextRequest) {
       (async (): Promise<ImageResult[]> => {
         if (!process.env.SERPER_API_KEY) return [];
 
-        try {
-          // Fast heuristic query without Gemini
-          let serperQuery = `${characterName} ${animeSource || ""} anime character official art`.trim();
-          
-          if (isGif) {
-              serperQuery = `${characterName} ${animeSource || ""} anime gif`.trim(); // Optimized for GIFs
-              // Note: We also add explicit request param or just rely on query? 
-              // Serper doesn't have a specific "fileType" param in the body usually, unless using advanced Google params.
-              // Actually Serper supports "advanced" google operators in "q".
-              serperQuery += " fileType:gif";
-          }
+        const baseQuery = `${characterName} ${animeSource || ""}`.trim();
 
-          // console.log(`[Gallery] Serper: Searching "${serperQuery}"`);
-          
+        const searchSerper = async (q: string, tbs?: string): Promise<ImageResult[]> => {
           const res = await fetch("https://google.serper.dev/images", {
             method: "POST",
             headers: {
-              "X-API-KEY": process.env.SERPER_API_KEY,
+              "X-API-KEY": process.env.SERPER_API_KEY as string,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              q: serperQuery,
-              num: isGif ? 50 : 15, // Increase limit for GIF mode to account for filtering
+              q,
+              num: isGif ? 50 : 15, // GIF mode filters most results out, so ask for more
               gl: "us",
               hl: "en",
+              ...(tbs ? { tbs } : {}),
             }),
           });
 
-          if (!res.ok) return [];
+          if (!res.ok) {
+            console.error("[Gallery] Serper API error:", res.status, await res.text());
+            return [];
+          }
 
           const data = await res.json();
-          let results = (data.images || []).map((img: SerperImage) => ({
+          return (data.images || []).map((img: SerperImage) => ({
             url: img.imageUrl,
             thumbnail: img.thumbnailUrl || img.imageUrl,
             title: img.title || "Google Images",
             source: `Google (${img.domain || "Serper"})`,
           }));
+        };
 
-          // Strict GIF Post-Filtering
-          if (isGif) {
-              results = results.filter((img: ImageResult) => 
-                  img.url.toLowerCase().includes('.gif')
-              );
+        try {
+          if (!isGif) {
+            return await searchSerper(`${baseQuery} anime character official art`.trim());
           }
 
-          // console.log(`[Gallery] Serper: Found ${results.length} images`);
-          return results;
+          // GIF mode: the old query pasted "fileType:gif" into q, where Google
+          // Images treats it as a literal keyword instead of a filter - which is
+          // why every GIF search came back empty. Filtering happens through tbs
+          // (itp:animated = animated images, ift:gif = GIF file type). Each
+          // attempt is only paid for if the previous one found nothing, and the
+          // last one drops tbs entirely in case Serper ignores the parameter.
+          const attempts: [string, string | undefined][] = [
+            [`${baseQuery} anime`.trim(), "itp:animated"],
+            [`${baseQuery} anime gif`.trim(), "ift:gif"],
+            [`${baseQuery} anime gif`.trim(), undefined],
+          ];
+
+          for (const [q, tbs] of attempts) {
+            const results = await searchSerper(q, tbs);
+
+            const gifs = results.filter((img: ImageResult) => isGifUrl(img.url));
+            if (gifs.length > 0) return gifs;
+
+            // Nothing ends in .gif - keep results from animation-only hosts rather
+            // than handing back an empty gallery.
+            const animated = results.filter((img: ImageResult) => isAnimatedHost(img.url));
+            if (animated.length > 0) return animated;
+          }
+
+          return [];
         } catch (e) {
           console.error("[Gallery] Serper error:", e);
           return [];
@@ -138,13 +177,12 @@ export async function POST(request: NextRequest) {
           // Heuristic tag generation: "name_(series)" or just "name"
           // Konachan uses underscores for spaces
           const cleanName = characterName.toLowerCase().replace(/\s+/g, "_");
-          let tags = `${cleanName} rating:safe`;
-          
-          if (isGif) {
-              // Konachan specific tag for animations? often just "gif" or "animated"?
-              // Let's try adding "gif" to tags, though Konachan might have few results.
-              tags += " gif";
-          }
+          // Konachan tags animations as `animated`. The old `gif` tag technically
+          // exists but is nearly unused (a single safe post site-wide), so it
+          // guaranteed an empty result.
+          const tags = isGif
+            ? `${cleanName} animated rating:safe`
+            : `${cleanName} rating:safe`;
 
           const url = `https://konachan.net/post.json?limit=15&tags=${encodeURIComponent(tags)}`;
           // console.log(`[Gallery] Konachan: Fetching ${cleanName}`);
@@ -155,12 +193,17 @@ export async function POST(request: NextRequest) {
           if (res.ok) {
             const json = await res.json();
             if (Array.isArray(json) && json.length > 0) {
-              return json.map((p: { file_url: string; preview_url?: string }) => ({
-                url: p.file_url,
-                thumbnail: p.preview_url || p.file_url,
-                title: "Fanart",
-                source: "Konachan",
-              }));
+              const posts = isGif
+                ? json.filter((p: { file_url: string }) => isGifUrl(p.file_url))
+                : json;
+              if (posts.length > 0) {
+                return posts.map((p: { file_url: string; preview_url?: string }) => ({
+                  url: p.file_url,
+                  thumbnail: p.preview_url || p.file_url,
+                  title: "Fanart",
+                  source: "Konachan",
+                }));
+              }
             }
           }
           
@@ -214,7 +257,19 @@ export async function POST(request: NextRequest) {
 
     // console.log(`[Gallery] Total: ${uniqueImages.length} unique images`);
 
-    return NextResponse.json({ images: uniqueImages });
+    // Per-source counts. An empty gallery otherwise gives no clue whether a source
+    // returned nothing, threw, or (for Serper) has no API key configured at all.
+    const count = (r: PromiseSettledResult<ImageResult[]>) =>
+      r.status === "fulfilled" ? r.value.length : "error";
+
+    return NextResponse.json({
+      images: uniqueImages,
+      sources: {
+        serper: process.env.SERPER_API_KEY ? count(serperResult) : "no-api-key",
+        official: count(officialResult),
+        fanart: count(fanartResult),
+      },
+    });
   } catch (error) {
     console.error("[Gallery] Failed:", error);
     return NextResponse.json({ error: "Gallery failed" }, { status: 500 });
