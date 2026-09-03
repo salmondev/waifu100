@@ -52,18 +52,15 @@ export async function GET(
                 null;
         });
 
-        // The card pulls cells through this deployment's own image optimizer.
-        const origin = new URL(req.url).origin;
-
         // ?debug=1 reports how each cell resolved instead of drawing the card -
         // a blank cell otherwise gives no clue whether the link is dead, the
         // optimizer refused it, or the fetch timed out.
         if (new URL(req.url).searchParams.get('debug') === 'cells') {
-            const { stats } = await resolveCells(images, origin);
+            const { stats } = await resolveCells(images);
             return Response.json({ id, title, count, stats });
         }
 
-        const rendered = await renderShareOg({ title, images, count, origin });
+        const rendered = await renderShareOg({ title, images, count });
 
         // Draining the body here keeps render failures inside this try: a
         // streamed ImageResponse would otherwise blow up past the handler and

@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { ImageResponse } from 'next/og';
+import sharp from 'sharp';
 
 /**
  * Renders the social-card image for a shared grid.
@@ -31,8 +32,6 @@ function truncate(text: string, max: number) {
 
 export interface ShareOgInput {
     title: string;
-    /** Origin of this deployment, used to reach its own image optimizer. */
-    origin: string;
     /** Cell image URLs, index 0-99. Missing entries render as empty cells. */
     images: (string | null | undefined)[];
     count: number;
@@ -73,69 +72,59 @@ async function loadFont(): Promise<ArrayBuffer | null> {
 // --- Images -----------------------------------------------------------------
 
 const IMAGE_TIMEOUT_MS = 8000;
-const CONCURRENCY = 12;
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const CONCURRENCY = 6;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const SOURCE_PX = CELL * 2; // 2x the cell, so the card stays crisp
 const UA = 'waifu100-og/1.0 (+https://waifu100.vercel.app)';
 
-async function fetchImage(url: string, accept: string): Promise<string | null> {
+/**
+ * Fetches one image and shrinks it to cell size.
+ *
+ * Shrinking here is not an optimisation, it is what keeps the function alive.
+ * Handing originals to the card renderer killed it outright: the process died
+ * with a bare platform 500 - no catchable error - because a single grid can
+ * carry 83MB of source images, animated GIFs among them at up to 10MB each,
+ * and every one of those gets base64'd and then decoded in full for a 48px
+ * tile. A few KB per cell instead.
+ */
+async function fetchCell(url: string): Promise<string | null> {
     const res = await fetch(url, {
         signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
-        headers: { 'User-Agent': UA, Accept: accept },
+        headers: { 'User-Agent': UA, Accept: 'image/*' },
     });
     if (!res.ok) return null;
 
-    const type = res.headers.get('content-type') || 'image/jpeg';
+    const type = res.headers.get('content-type') || '';
     if (!type.startsWith('image/')) return null;
 
     const buffer = await res.arrayBuffer();
     if (buffer.byteLength > MAX_IMAGE_BYTES) return null;
 
-    return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
+    // sharp arrives with Next (it powers the image optimizer), so this needs no
+    // extra dependency. `animated` stays off on purpose: one frame is all a
+    // static card can show, and decoding every frame of a long GIF is exactly
+    // the memory the crash was made of.
+    const jpeg = await sharp(Buffer.from(buffer), { limitInputPixels: 50_000_000 })
+        .resize(SOURCE_PX, SOURCE_PX, { fit: 'cover' })
+        .jpeg({ quality: 72 })
+        .toBuffer();
+
+    return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
 }
 
-/**
- * Inlines one cell image, at cell size.
- *
- * Two reasons not to hand the original URL to the renderer:
- *  - one dead link would otherwise cost the whole card instead of one cell;
- *  - originals are big. One real grid measured 83MB across its 100 cells, with
- *    single images up to 10MB - far too much to hold in memory, and pointless
- *    for a 48px cell.
- *
- * So each cell goes through this app's own image optimizer, which returns a
- * few KB apiece. `q` must be 75: Next only allows the qualities configured for
- * it, and anything else comes back 400. Asking for JPEG keeps the bytes in a
- * format the card renderer can decode. Anything the optimizer refuses
- * (animated GIFs pass through, some hosts block it) falls back to the source.
- */
+/** Resolves one cell. A dead link costs that cell, never the whole card. */
 async function toDataUrl(
     url: string | null | undefined,
-    origin: string,
     stats: CellStats
 ): Promise<string | null> {
     if (!url) return null;
-    if (url.startsWith('data:')) {
-        stats.inline++;
-        return url;
-    }
     if (!/^https?:\/\//.test(url)) return null;
 
     try {
-        const optimized = `${origin}/_next/image?url=${encodeURIComponent(url)}&w=96&q=75`;
-        const small = await fetchImage(optimized, 'image/jpeg');
-        if (small) {
-            stats.optimized++;
-            return small;
-        }
-    } catch {
-        // fall through to the source
-    }
-
-    try {
-        const direct = await fetchImage(url, 'image/*');
-        if (direct) {
-            stats.source++;
-            return direct;
+        const cell = await fetchCell(url);
+        if (cell) {
+            stats.loaded++;
+            return cell;
         }
     } catch {
         // fall through to a blank cell
@@ -146,9 +135,7 @@ async function toDataUrl(
 }
 
 export interface CellStats {
-    inline: number;
-    optimized: number;
-    source: number;
+    loaded: number;
     failed: number;
     ms: number;
 }
@@ -156,16 +143,14 @@ export interface CellStats {
 /**
  * Resolves every cell to an inline image.
  *
- * Concurrency is capped: firing 100 requests at once (each of which makes the
- * optimizer fetch a source image of its own) times most of them out, which is
- * what left a production card two thirds empty.
+ * Concurrency is capped: firing all 100 at once timed most of them out and left
+ * a production card two thirds empty.
  */
 export async function resolveCells(
-    images: (string | null | undefined)[],
-    origin: string
+    images: (string | null | undefined)[]
 ): Promise<{ cells: (string | null)[]; stats: CellStats }> {
     const started = Date.now();
-    const stats: CellStats = { inline: 0, optimized: 0, source: 0, failed: 0, ms: 0 };
+    const stats: CellStats = { loaded: 0, failed: 0, ms: 0 };
 
     const total = COLUMNS * COLUMNS;
     const cells: (string | null)[] = Array(total).fill(null);
@@ -174,7 +159,7 @@ export async function resolveCells(
     const worker = async () => {
         while (next < total) {
             const i = next++;
-            cells[i] = await toDataUrl(images[i], origin, stats);
+            cells[i] = await toDataUrl(images[i], stats);
         }
     };
 
@@ -186,8 +171,8 @@ export async function resolveCells(
 
 // --- Card -------------------------------------------------------------------
 
-export async function renderShareOg({ title, images, count, origin }: ShareOgInput) {
-    const [font, resolved] = await Promise.all([loadFont(), resolveCells(images, origin)]);
+export async function renderShareOg({ title, images, count }: ShareOgInput) {
+    const [font, resolved] = await Promise.all([loadFont(), resolveCells(images)]);
     const cells = resolved.cells;
 
     return new ImageResponse(
