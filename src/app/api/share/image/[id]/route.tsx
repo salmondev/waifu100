@@ -4,6 +4,9 @@ import { renderShareOg, resolveCells } from '@/lib/share-og';
 
 // ioredis speaks TCP, so this cannot run on the edge runtime.
 export const runtime = 'nodejs';
+// A cold render fetches and resizes 100 images; measured at ~8s in production.
+// Capped by the plan's own limit, whichever is lower.
+export const maxDuration = 30;
 
 interface StoredCell {
     i?: number;
