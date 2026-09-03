@@ -671,6 +671,10 @@ export default function Home() {
         pixelRatio: 2, 
         backgroundColor: "#000",
         includeQueryParams: true, // CRITICAL: Treat each Next.js optimized URL as unique
+        // Safety net: one unreachable image must never cost the entire capture.
+        // 1x1 transparent PNG.
+        imagePlaceholder:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
         width: 1080, 
         height: 1080,
         filter: (node: HTMLElement) => {
@@ -761,6 +765,67 @@ export default function Home() {
         }
     });
 
+    // Freeze animated/cross-origin images into a static frame before capturing.
+    //
+    // GIF cells deliberately skip /_next/image so they keep animating, which
+    // leaves them cross-origin: html-to-image cannot inline them, and one CORS
+    // failure rejects the WHOLE capture. Feeding the animated GIF through the
+    // same-origin proxy instead makes the capture hang indefinitely. So each one
+    // is loaded through the proxy, drawn to a canvas, and swapped for that single
+    // PNG frame - small, inline, and static. Everything else already goes through
+    // /_next/image and is left untouched.
+    //
+    // Without this, any grid containing a GIF produced no thumbnail at all, hence
+    // no showcase preview and no link embed.
+    const swappedSrcs: { el: HTMLImageElement; src: string }[] = [];
+
+    const toStaticFrame = (remoteSrc: string) =>
+        new Promise<string | null>((resolve) => {
+            const probe = new Image();
+            // Same-origin, so drawing it leaves the canvas untainted.
+            const proxied = `/_next/image?url=${encodeURIComponent(remoteSrc)}&w=384&q=75`;
+            const timer = setTimeout(() => resolve(null), 5000);
+            const finish = (value: string | null) => { clearTimeout(timer); resolve(value); };
+
+            probe.onerror = () => finish(null);
+            probe.onload = () => {
+                try {
+                    // Grid cells render at 95px; 256 is plenty and keeps the data
+                    // URL small enough for a grid full of GIFs.
+                    const max = 256;
+                    const w = probe.naturalWidth || max;
+                    const h = probe.naturalHeight || max;
+                    const scale = Math.min(1, max / Math.max(w, h));
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(w * scale));
+                    canvas.height = Math.max(1, Math.round(h * scale));
+
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return finish(null);
+                    ctx.drawImage(probe, 0, 0, canvas.width, canvas.height);
+                    finish(canvas.toDataURL('image/png'));
+                } catch {
+                    finish(null);
+                }
+            };
+            probe.src = proxied;
+        });
+
+    await Promise.all(
+        Array.from(gridRef.current.querySelectorAll('img')).map(async (img) => {
+            const src = img.getAttribute('src') || '';
+            // Already same-origin or inline - nothing to do.
+            if (!src || src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('/')) return;
+
+            const frame = await toStaticFrame(src);
+            if (!frame) return; // imagePlaceholder covers whatever could not be frozen
+
+            swappedSrcs.push({ el: img, src });
+            img.src = frame;
+        })
+    );
+
     try {
         // Generate Blob - wrapped in try-catch as external images may cause CORS issues
         return await toBlob(gridRef.current, options);
@@ -768,6 +833,9 @@ export default function Home() {
         console.error("Grid capture failed:", e);
         return null; // Return null on failure, share will proceed without thumbnail
     } finally {
+        // Put the animating GIF sources back
+        swappedSrcs.forEach(({ el, src }) => { el.src = src; });
+
         // Restore styles
         gridRef.current.style.width = '';
         gridRef.current.style.height = '';
