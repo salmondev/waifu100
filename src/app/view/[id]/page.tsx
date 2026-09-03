@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
-import { redis } from '@/lib/redis';
+import { withRedis } from '@/lib/redis';
 import { GridCell } from "@/types";
 
 import { AnalysisResult, VerdictFeedback } from "@/types";
@@ -22,7 +22,7 @@ interface ShareData {
 async function getShareData(id: string): Promise<ShareData | null> {
     try {
         // Read from Redis (ioredis)
-        const rawString = await redis.get(`waifu100:share:${id}`);
+        const rawString = await withRedis((redis) => redis.get(`waifu100:share:${id}`));
         
         if (!rawString) return null;
 

@@ -10,9 +10,10 @@
  * This will add the specified share IDs to the community feed.
  */
 
-import { redis } from '../src/lib/redis';
+import { getRedis } from '../src/lib/redis';
 
 async function addToFeed(shareIds: string[]) {
+    const redis = await getRedis();
     console.log(`\n🔄 Adding ${shareIds.length} share(s) to community feed...\n`);
     
     let added = 0;
