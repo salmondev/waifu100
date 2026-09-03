@@ -25,7 +25,7 @@ interface StoredCell {
  * filesystem - a path that never existed on Vercel.)
  */
 export async function GET(
-    _req: NextRequest,
+    req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
@@ -52,7 +52,10 @@ export async function GET(
                 null;
         });
 
-        return await renderShareOg({ title, images, count });
+        // The card pulls cells through this deployment's own image optimizer.
+        const origin = new URL(req.url).origin;
+
+        return await renderShareOg({ title, images, count, origin });
     } catch (e) {
         console.error("Share OG Image Error:", e);
         return new Response("Failed to render image", { status: 500 });
