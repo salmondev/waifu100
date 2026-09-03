@@ -7,9 +7,10 @@
  * Lists all existing shared grids in Redis with their IDs and titles.
  */
 
-import { redis } from '../src/lib/redis';
+import { getRedis } from '../src/lib/redis';
 
 async function listShares() {
+    const redis = await getRedis();
     console.log(`\n🔍 Scanning for existing shares...\n`);
     
     // Get all share keys

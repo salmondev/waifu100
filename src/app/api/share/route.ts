@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from 'nanoid';
-import { redis } from '@/lib/redis';
+import { withRedis } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
     try {
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
             const userTitleKey = `waifu100:user:${userId}:titles`;
             // Increment usage count for this specific title
             // HINCRBY returns the new value after incrementing
-            const count = await redis.hincrby(userTitleKey, customTitle, 1);
+            const count = await withRedis((redis) => redis.hincrby(userTitleKey, customTitle, 1));
             
             if (count > 1) {
                 finalTitle = `${customTitle} V.${count}`;
@@ -62,14 +62,21 @@ export async function POST(req: NextRequest) {
             verdictFeedback
         };
 
-        // 4. Save to Redis (ioredis)
-        // Store as stringified JSON
-        await redis.set(`waifu100:share:${id}`, JSON.stringify(fileData));
-        
-        // 5. Add to Community Feed (Sorted Set: Score = Timestamp)
-        // We only store the ID in the feed to keep it lightweight. 
-        // The community API will hydrate data.
-        await redis.zadd('waifu100:feed', Date.now(), id);
+        // 4. Save to Redis + register in the Community Feed (Sorted Set:
+        // Score = Timestamp) in a single round trip. Only the ID goes into the
+        // feed to keep it lightweight; the community API hydrates the data.
+        const txResults = await withRedis((redis) =>
+            redis
+                .multi()
+                .set(`waifu100:share:${id}`, JSON.stringify(fileData))
+                .zadd('waifu100:feed', Date.now(), id)
+                .exec()
+        );
+
+        // MULTI reports per-command failures inside the result array instead of
+        // rejecting, so surface them rather than returning a broken share id.
+        const txError = txResults?.find(([err]) => err)?.[0];
+        if (txError) throw txError;
         
         // Trim feed to keep only last 1000 items (optional maintenance)
         // await redis.zremrangebyrank('waifu100:feed', 0, -1001);

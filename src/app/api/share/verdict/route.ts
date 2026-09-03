@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from '@/lib/redis';
+import { withRedis } from '@/lib/redis';
 
 // PATCH: Update an existing share's verdict in Redis
 export async function PATCH(req: NextRequest) {
@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest) {
         }
 
         // Read existing share data
-        const rawString = await redis.get(`waifu100:share:${shareId}`);
+        const rawString = await withRedis((redis) => redis.get(`waifu100:share:${shareId}`));
         if (!rawString) {
             return NextResponse.json(
                 { error: "Share not found" },
@@ -28,7 +28,7 @@ export async function PATCH(req: NextRequest) {
         data.verdict = verdict;
 
         // Write back to Redis
-        await redis.set(`waifu100:share:${shareId}`, JSON.stringify(data));
+        await withRedis((redis) => redis.set(`waifu100:share:${shareId}`, JSON.stringify(data)));
 
         return NextResponse.json({ success: true });
     } catch (e: unknown) {

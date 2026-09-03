@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from '@/lib/redis';
+import { withRedis } from '@/lib/redis';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 
@@ -7,19 +7,20 @@ export async function GET(req: NextRequest) {
     try {
         // 1. Fetch latest 50 IDs from feed (Sorted Set, Reverse Order by Time)
         // range: 0 to 49
-        const ids = await redis.zrevrange('waifu100:feed', 0, 49);
+        const ids = await withRedis((redis) => redis.zrevrange('waifu100:feed', 0, 49));
 
         if (!ids || ids.length === 0) {
             return NextResponse.json({ grids: [] });
         }
 
         // 2. Fetch Grid Metadata (Pipeline for efficiency)
-        const pipeline = redis.pipeline();
-        ids.forEach((id) => {
-            pipeline.get(`waifu100:share:${id}`);
+        const results = await withRedis((redis) => {
+            const pipeline = redis.pipeline();
+            ids.forEach((id) => {
+                pipeline.get(`waifu100:share:${id}`);
+            });
+            return pipeline.exec();
         });
-
-        const results = await pipeline.exec();
 
         // 3. Process Results
         const grids = results?.map((result, index) => {
