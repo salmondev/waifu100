@@ -14,6 +14,11 @@ interface SerperImage {
   domain: string;
 }
 
+interface KonachanPost {
+  file_url: string;
+  preview_url?: string;
+}
+
 /** True when the URL points at an actual .gif file (query strings ignored). */
 function isGifUrl(url: string): boolean {
   try {
@@ -58,6 +63,11 @@ export async function POST(request: NextRequest) {
 
     const images: ImageResult[] = [];
 
+    // Last non-OK HTTP status per source, reported back so an empty gallery can be
+    // told apart from an upstream rejection (bad key, out of credits, rate limit).
+    let serperStatus: string | null = null;
+    let konachanStatus: string | null = null;
+
     // PARALLEL EXECUTION: All 3 sources at once
     const [serperResult, officialResult, fanartResult] = await Promise.allSettled([
       // 1. SERPER (Primary) - Google Images
@@ -83,6 +93,7 @@ export async function POST(request: NextRequest) {
           });
 
           if (!res.ok) {
+            serperStatus = `http-${res.status}`;
             console.error("[Gallery] Serper API error:", res.status, await res.text());
             return [];
           }
@@ -173,57 +184,51 @@ export async function POST(request: NextRequest) {
 
       // 3. KONACHAN (Fanart) - Fast tags without Gemini
       (async (): Promise<ImageResult[]> => {
+        const browserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+
+        // Konachan rate-limits shared cloud IPs, and a rejected request used to be
+        // indistinguishable from "this tag has no posts". Retry once before
+        // treating the tag as empty, and remember the status for diagnostics.
+        const fetchPosts = async (tags: string, limit: number): Promise<KonachanPost[]> => {
+          const url = `https://konachan.net/post.json?limit=${limit}&tags=${encodeURIComponent(tags)}`;
+
+          for (let attempt = 0; attempt < 2; attempt++) {
+            const res = await fetch(url, { headers: { "User-Agent": browserUA } });
+            if (res.ok) {
+              const json = await res.json();
+              return Array.isArray(json) ? json : [];
+            }
+            konachanStatus = `http-${res.status}`;
+            console.error("[Gallery] Konachan API error:", res.status, tags);
+            if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+          }
+          return [];
+        };
+
+        const toResults = (posts: KonachanPost[]): ImageResult[] =>
+          (isGif ? posts.filter((p) => isGifUrl(p.file_url)) : posts).map((p) => ({
+            url: p.file_url,
+            thumbnail: p.preview_url || p.file_url,
+            title: "Fanart",
+            source: "Konachan",
+          }));
+
         try {
-          // Heuristic tag generation: "name_(series)" or just "name"
           // Konachan uses underscores for spaces
           const cleanName = characterName.toLowerCase().replace(/\s+/g, "_");
-          // Konachan tags animations as `animated`. The old `gif` tag technically
-          // exists but is nearly unused (a single safe post site-wide), so it
-          // guaranteed an empty result.
-          const tags = isGif
-            ? `${cleanName} animated rating:safe`
-            : `${cleanName} rating:safe`;
+          const cleanSource = (animeSource || "").toLowerCase().replace(/\s+/g, "_");
+          // Konachan tags animations as `animated`. The `gif` tag the old code used
+          // has a single safe post site-wide, so GIF mode was guaranteed to be empty.
+          const suffix = isGif ? " animated rating:safe" : " rating:safe";
 
-          const url = `https://konachan.net/post.json?limit=15&tags=${encodeURIComponent(tags)}`;
-          // console.log(`[Gallery] Konachan: Fetching ${cleanName}`);
+          const strict = toResults(await fetchPosts(cleanName + suffix, 15));
+          if (strict.length > 0) return strict;
 
-          const browserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
-          const res = await fetch(url, { headers: { "User-Agent": browserUA } });
-          
-          if (res.ok) {
-            const json = await res.json();
-            if (Array.isArray(json) && json.length > 0) {
-              const posts = isGif
-                ? json.filter((p: { file_url: string }) => isGifUrl(p.file_url))
-                : json;
-              if (posts.length > 0) {
-                return posts.map((p: { file_url: string; preview_url?: string }) => ({
-                  url: p.file_url,
-                  thumbnail: p.preview_url || p.file_url,
-                  title: "Fanart",
-                  source: "Konachan",
-                }));
-              }
-            }
-          }
-          
-          // Retry with broader query if strict failed
-          if (animeSource && !isGif) { // Skip broad retry for GIF to keep relevance high
-             const cleanSource = animeSource.toLowerCase().replace(/\s+/g, "_");
-             // Try "series_name" tag if character tag failed
-             const broadUrl = `https://konachan.net/post.json?limit=10&tags=${encodeURIComponent(cleanSource + " rating:safe")}`;
-             const broadRes = await fetch(broadUrl, { headers: { "User-Agent": browserUA } });
-             if (broadRes.ok) {
-               const json = await broadRes.json();
-               if (Array.isArray(json) && json.length > 0) {
-                 return json.map((p: { file_url: string; preview_url?: string }) => ({
-                   url: p.file_url,
-                   thumbnail: p.preview_url || p.file_url,
-                   title: "Fanart",
-                   source: "Konachan",
-                 }));
-               }
-             }
+          // Fall back to the series tag when the character tag has nothing. GIF mode
+          // used to skip this fallback entirely, which left it with a single shot at
+          // a tag most characters do not have.
+          if (cleanSource) {
+            return toResults(await fetchPosts(cleanSource + suffix, 10));
           }
         } catch (e) {
           console.error("[Gallery] Konachan error:", e);
@@ -262,12 +267,21 @@ export async function POST(request: NextRequest) {
     const count = (r: PromiseSettledResult<ImageResult[]>) =>
       r.status === "fulfilled" ? r.value.length : "error";
 
+    // An HTTP status only explains an empty source - a retry may well have
+    // succeeded after the first attempt was rejected.
+    const report = (r: PromiseSettledResult<ImageResult[]>, status: string | null) => {
+      const c = count(r);
+      return c === 0 && status ? status : c;
+    };
+
     return NextResponse.json({
       images: uniqueImages,
       sources: {
-        serper: process.env.SERPER_API_KEY ? count(serperResult) : "no-api-key",
+        serper: !process.env.SERPER_API_KEY
+          ? "no-api-key"
+          : report(serperResult, serperStatus),
         official: count(officialResult),
-        fanart: count(fanartResult),
+        fanart: report(fanartResult, konachanStatus),
       },
     });
   } catch (error) {
