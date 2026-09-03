@@ -58,14 +58,24 @@ export async function GET(
         // ?debug=1 reports how each cell resolved instead of drawing the card -
         // a blank cell otherwise gives no clue whether the link is dead, the
         // optimizer refused it, or the fetch timed out.
-        if (new URL(req.url).searchParams.get('debug')) {
+        if (new URL(req.url).searchParams.get('debug') === 'cells') {
             const { stats } = await resolveCells(images, origin);
             return Response.json({ id, title, count, stats });
         }
 
-        return await renderShareOg({ title, images, count, origin });
+        const rendered = await renderShareOg({ title, images, count, origin });
+
+        // Draining the body here keeps render failures inside this try: a
+        // streamed ImageResponse would otherwise blow up past the handler and
+        // surface as a bare framework 500 with nothing to go on.
+        const png = await rendered.arrayBuffer();
+        return new Response(png, { headers: rendered.headers });
     } catch (e) {
         console.error("Share OG Image Error:", e);
-        return new Response("Failed to render image", { status: 500 });
+        const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+        return new Response(
+            new URL(req.url).searchParams.get('debug') ? detail : "Failed to render image",
+            { status: 500 }
+        );
     }
 }
