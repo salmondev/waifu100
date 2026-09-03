@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { withRedis } from '@/lib/redis';
 import { GridCell } from "@/types";
 
@@ -86,9 +87,14 @@ export async function generateMetadata({ params }: ServerPageProps): Promise<Met
 
   const { grid, title, imageUrl } = data;
   const count = grid.filter(c => c.character).length;
-  
-  // Use the Blob URL directly if available
-  const images = imageUrl ? [imageUrl] : []; 
+
+  // Prefer the captured thumbnail, but never ship an embed with no image at
+  // all: shares whose upload failed (or that predate it) fall back to a card
+  // rendered server-side from the grid data itself.
+  const h = await headers();
+  const host = h.get("host") || "waifu100.vercel.app";
+  const origin = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
+  const images = [imageUrl || `${origin}/api/share/image/${id}`];
 
   return {
       title: `${title} | Waifu100`,

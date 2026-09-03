@@ -88,28 +88,28 @@ export default function CommunityFeed() {
                 className="group relative bg-zinc-900/40 border border-zinc-800/50 rounded-2xl overflow-hidden hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-900/20 transition-all duration-300 hover:-translate-y-1 block h-fit"
               >
                 {/* Image Container */}
+                {/* A share whose thumbnail upload failed has no imageUrl; the OG
+                    route draws one from the grid data so the card is never blank. */}
                 <div className="aspect-square relative overflow-hidden bg-zinc-950">
-                    {grid.imageUrl ? (
+                    {(() => {
+                      const preview = grid.imageUrl || `/api/share/image/${grid.id}`;
+                      return (
                         <>
                            {/* Blur Backlayer */}
-                           <img 
-                                src={grid.imageUrl} 
-                                alt="" 
-                                className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110" 
+                           <img
+                                src={preview}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110"
                            />
                            {/* Main Image */}
-                           <img 
-                                src={grid.imageUrl} 
-                                alt={grid.title} 
-                                className="relative w-full h-full object-contain z-10 transition-transform duration-500 group-hover:scale-105" 
+                           <img
+                                src={preview}
+                                alt={grid.title}
+                                className="relative w-full h-full object-contain z-10 transition-transform duration-500 group-hover:scale-105"
                            />
                         </>
-                    ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-zinc-700 bg-zinc-900/50">
-                            <span className="text-4xl mb-2 opacity-20">?</span>
-                            <span className="text-xs font-medium uppercase tracking-wider opacity-50">No Preview</span>
-                        </div>
-                    )}
+                      );
+                    })()}
                     
                     {/* Overlay Gradient */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-60 group-hover:opacity-40 transition-opacity z-20" />
