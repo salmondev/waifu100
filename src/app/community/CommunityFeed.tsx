@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Calendar, User, ExternalLink } from "lucide-react";
+import { shareCardPath } from "@/lib/share-card";
 
 interface CommunityGrid {
   id: string;
@@ -92,7 +93,7 @@ export default function CommunityFeed() {
                     route draws one from the grid data so the card is never blank. */}
                 <div className="aspect-square relative overflow-hidden bg-zinc-950">
                     {(() => {
-                      const preview = grid.imageUrl || `/api/share/image/${grid.id}`;
+                      const preview = grid.imageUrl || shareCardPath(grid.id);
                       return (
                         <>
                            {/* Blur Backlayer */}

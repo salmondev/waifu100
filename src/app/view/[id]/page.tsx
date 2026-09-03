@@ -3,6 +3,7 @@ import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { withRedis } from '@/lib/redis';
+import { shareCardPath } from '@/lib/share-card';
 import { GridCell } from "@/types";
 
 import { AnalysisResult, VerdictFeedback } from "@/types";
@@ -94,7 +95,7 @@ export async function generateMetadata({ params }: ServerPageProps): Promise<Met
   const h = await headers();
   const host = h.get("host") || "waifu100.vercel.app";
   const origin = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
-  const images = [imageUrl || `${origin}/api/share/image/${id}`];
+  const images = [imageUrl || `${origin}${shareCardPath(id)}`];
 
   return {
       title: `${title} | Waifu100`,

@@ -13,13 +13,15 @@ import sharp from 'sharp';
  * wrong once.
  */
 
-export const OG_WIDTH = 1200;
-export const OG_HEIGHT = 630;
+// Square, like the thumbnails captured in the browser. A landscape card sat
+// letterboxed in the showcase's square tiles, visibly unlike every other card.
+export const OG_WIDTH = 1000;
+export const OG_HEIGHT = 1000;
 
 const COLUMNS = 10;
-const CELL = 48;
+const CELL = 80;
 const GRID_SIZE = COLUMNS * CELL;
-const TITLE_HEIGHT = 56;
+const TITLE_HEIGHT = 64;
 
 /**
  * CSS ellipsis is unreliable in the renderer, and an over-long title pushes the
@@ -197,7 +199,7 @@ export async function renderShareOg({ title, images, count }: ShareOgInput) {
                         justifyContent: 'center',
                         width: '100%',
                         height: TITLE_HEIGHT,
-                        fontSize: 34,
+                        fontSize: 40,
                         fontWeight: 700,
                         color: '#ffffff',
                         overflow: 'hidden',
@@ -245,8 +247,8 @@ export async function renderShareOg({ title, images, count }: ShareOgInput) {
                 <div
                     style={{
                         display: 'flex',
-                        marginTop: 12,
-                        fontSize: 22,
+                        marginTop: 16,
+                        fontSize: 26,
                         color: '#a1a1aa',
                     }}
                 >
