@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2 } from "lucide-react";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn } from "@/lib/utils";
@@ -27,14 +27,20 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
   const [isLoading, setIsLoading] = useState(false);
   const [loadingState, setLoadingState] = useState<string>("");
 
+  // Seed the form when the modal OPENS, not on every initialTitle change.
+  // Typing pushes the value up through onTitleUpdate, which comes straight back
+  // down as initialTitle - so clearing the field used to re-run this effect with
+  // an empty string and slam the default title back in mid-edit.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpen.current) {
         setStep('customize');
-        setCustomTitle(initialTitle || "My 100 Favorite Characters"); 
+        setCustomTitle(initialTitle || "My 100 Favorite Characters");
         setUrl("");
         setError(null);
         setLoadingState("");
     }
+    wasOpen.current = isOpen;
   }, [isOpen, initialTitle]);
 
   const handleGenerateLink = async () => {
