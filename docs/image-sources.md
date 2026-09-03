@@ -1,45 +1,55 @@
-# Image Sources: Reducing the Serper Dependency
+# Replacing Serper With Free Sources
 
 **Status:** planned, not implemented
 **Written:** 2026-09-04
-**Trigger:** GIF mode returned nothing in production; the root cause turned out to be a Serper account with no credits left, shared across several projects.
+**Goal:** drop Serper (Google Images) from `/api/gallery` entirely and cover its job with sources that cost nothing — matching or beating it on coverage, not merely limping along without it.
 
 ---
 
-## 1. Why this document exists
+## 1. Why drop it
 
-`/api/gallery` fans out to three sources in parallel. In production on 2026-09-03 they looked like this:
+Serper is a paid, metered API shared across several projects. When its credits ran out on 2026-09-03 the gallery quietly lost its only broad source:
 
-| Source | State | Notes |
+| Source | State that day | Notes |
 |---|---|---|
 | Serper (Google Images) | **broken** | `{"message":"Not enough credits","statusCode":400}` on every call, GIF or not |
-| Jikan (MyAnimeList) | **down** | `504` on every character query, verified directly against `api.jikan.moe` |
-| Konachan | working, thin | intermittent `403` from Vercel's shared IPs; very few animations per character |
+| Jikan (MyAnimeList) | **down** | `504` on every query — still 504 a day later, MAL upstream |
+| Konachan | working, thin | intermittent `403` from Vercel's shared IPs; almost no animations per character |
 
-Serper is the only source with broad coverage, so when its credits run out the gallery silently degrades to whatever Konachan happens to have. GIF mode degrades to nothing at all. The goal here is to make Serper an *enhancement* rather than the load-bearing source.
+A metered dependency in the hot path means the gallery breaks for reasons that have nothing to do with this project. Everything below is free, and everything marked *keyless* needs no account at all — nothing to run out, nothing to rotate.
 
-## 2. Measured alternatives
+## 2. The replacement stack
 
-All numbers below were measured against the live APIs on 2026-09-03/04, not taken from documentation.
+Every number here was measured against the live APIs on 2026-09-03/04. Nothing is quoted from vendor documentation.
 
-### 2.1 Safebooru — best value, no API key
+### 2.1 Safebooru — depth of character art, keyless
 
 ```
-https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=20&tags=<tags>
+https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=100&tags=<tags>
 ```
+
+Static art, per character tag:
+
+| tag | posts |
+|---|---|
+| `chitanda_eru` | 100 (hit the requested limit) |
+| `megumin` | 100 |
+| `yuuki_asuna` | 100 |
+| `frieren` | 100 |
+
+Animations, with the `animated` tag:
 
 | tags | result |
 |---|---|
 | `chitanda_eru animated` | 15 posts, **all 15 are .gif** |
 | `megumin animated` | 8 posts, all .gif |
-| `hatsune_miku animated` | 20 posts, 5 .gif (rest are .webm) |
-| `chitanda_eru` | 20 posts, 0 .gif |
+| `hatsune_miku animated` | 20 posts, 5 .gif (rest .webm) |
 
-For comparison, Konachan returns **0** posts for `chitanda_eru animated` — the character that motivated this whole investigation.
+Konachan returns **0** for `chitanda_eru animated` — the character that started this whole investigation. Safebooru alone covers both what Serper did for static art and the entirety of GIF mode.
 
 Response fields: `file_url`, `sample_url`, `preview_url`, `image`, `directory`, `tags`, `rating`.
 
-**Tag naming is solved by the tag endpoint.** Booru sites tag characters surname-first (`chitanda_eru`), while the app holds display names (`Eru Chitanda`). Rather than guessing the order:
+**Resolve the tag, never guess it.** Booru sites tag characters surname-first (`chitanda_eru`), and some use a different name entirely — `asuna_(sword_art_online)` returns nothing while `yuuki_asuna` returns 100 posts. The tag endpoint settles it:
 
 ```
 https://safebooru.org/index.php?page=dapi&s=tag&q=index&name_pattern=%chitanda%&orderby=count
@@ -51,49 +61,89 @@ https://safebooru.org/index.php?page=dapi&s=tag&q=index&name_pattern=%chitanda%&
 <tag type="4" count="2179" name="chitanda_eru"/>   <!-- type 4 = character -->
 ```
 
-Take `type="4"` with the highest `count`. Note this endpoint answers in **XML even with `json=1`**, unlike the post endpoint — parse accordingly, or match with a small regex.
+Take `type="4"` with the highest `count`, then cache it — character tags do not change. Note this endpoint answers in **XML even with `json=1`**, unlike the post endpoint.
 
-### 2.2 AniList GraphQL — replacement for Jikan, no API key
+### 2.2 Fandom (MediaWiki API) — the source Google was actually surfacing, keyless
+
+Look at the existing grids: a large share of saved characters carry `Google (something.fandom.com)` as their source. Google was mostly acting as an index *into Fandom*. Query Fandom directly and the middleman disappears.
+
+Find which wiki has the character (cross-wiki, no key):
+
+```
+https://services.fandom.com/unified-search/page-search?query=Eru%20Chitanda&limit=3&lang=en&namespace=0
+```
+
+`namespace=0` is mandatory — without it the endpoint 400s. Results carry `url`, `sitename`, `pageId`, `wikiId`.
+
+Then pull images from that wiki's own API. The character page plus its `/Gallery` subpage:
+
+```
+https://hyouka.fandom.com/api.php?action=query&titles=Eru%20Chitanda|Eru%20Chitanda/Gallery&prop=images&imlimit=100&format=json
+→ Eru Chitanda: 7 files, Eru Chitanda/Gallery: 35 files
+```
+
+Resolve those file names to direct URLs in one call:
+
+```
+https://hyouka.fandom.com/api.php?action=query&generator=images&titles=Eru%20Chitanda/Gallery&gimlimit=50&prop=imageinfo&iiprop=url&format=json
+→ https://static.wikia.nocookie.net/hyouka/images/3/38/01_(1).png/revision/latest?cb=...
+```
+
+42 images for one character, official stills included. A single-image lead is also available cheaply via `generator=search&prop=pageimages&piprop=original`.
+
+Guessing the subdomain from the series name works often enough to try first (`hyouka`, `konosuba`, `frieren` all resolve; `sao` 404s), with unified-search as the fallback.
+
+### 2.3 AniList GraphQL — official portrait, keyless
 
 ```graphql
 query($s:String){ Page(perPage:5){ characters(search:$s){ id name{full} image{large} } } }
 ```
 
-`POST https://graphql.anilist.co` returned Eru Chitanda's official portrait immediately while Jikan was returning 504s. Static art only — no use for GIF mode.
+`POST https://graphql.anilist.co` returned Eru Chitanda's official portrait instantly while Jikan was answering 504. One canonical image per character. This should become the primary official-art source with Jikan demoted to a fallback — the reverse of today.
 
-### 2.3 If Google results are still wanted
+### 2.4 GIFs beyond the boorus (free, needs a key)
+
+Safebooru's `animated` tag covers GIF mode on its own for most characters. If more volume is wanted, **Tenor** (Google-run, GIF-first) and **Giphy** both issue free API keys with no billing attached. These are free-tier keys rather than metered credit — but they are still an account to manage, so treat them as optional.
+
+### 2.5 If a general web image search is ever needed again
+
+Not required by the plan above. Kept for the record:
 
 | Option | Free allowance | Trade-off |
 |---|---|---|
-| Google Programmable Search JSON API | ~100 queries/day, then ~$5/1000 | Official and rule-abiding. Needs a CSE with "search the entire web" enabled. Supports `searchType=image` and `fileType=gif` directly — the closest drop-in for Serper. |
-| Brave Search API | ~2,000 queries/month | Smaller index than Google, but has a proper image endpoint. |
-| Self-hosted SearXNG | unlimited | The real "do it ourselves" answer: one Docker container, JSON output, `categories=images`. It is a scraper, so expect periodic CAPTCHAs from Google, dead engines to prune, and extra latency. |
+| Google Programmable Search JSON API | ~100 queries/day | Official; supports `searchType=image` and `fileType=gif` directly. Closest drop-in for Serper. |
+| Brave Search API | ~2,000 queries/month | Smaller index, proper image endpoint. |
+| Self-hosted SearXNG | unlimited | One Docker container, JSON output, `categories=images`. It is a scraper: periodic CAPTCHAs, dead engines to prune, extra latency. |
 
-Allowances shift — re-check the provider pages before committing to one.
+Allowances shift — re-check before committing to one.
 
-**Run scrapers from the home server, not Vercel.** Vercel's outbound IPs are shared and already get rejected by Konachan (`http-403` observed). A SearXNG instance on the home box behind a Cloudflare Tunnel avoids that entirely, at the cost of the app depending on that box being up.
+**Run any scraper from the home server, not Vercel.** Vercel's outbound IPs are shared and already get rejected by Konachan (`http-403` observed in production). SearXNG on the home box behind a Cloudflare Tunnel avoids that, at the cost of the app depending on that box being up.
 
 ## 3. Plan
 
-Ordered by value per unit of work.
+1. **Safebooru as the primary source**, static and GIF alike.
+   - Resolve the character tag through the tag endpoint; cache the mapping.
+   - GIF mode: query `<tag> animated`, keep only `.gif` — `.webm` cannot go in the grid.
+   - Fall back to the series tag when the character tag has nothing.
+2. **Fandom as the second source**, replacing what Google was fetching from those same wikis: unified-search for the wiki, then page + `/Gallery` images.
+3. **AniList promoted over Jikan** for the official portrait; keep Jikan as a fallback for when MAL is actually up.
+4. **Remove the Serper branch from `/api/gallery`** once 1–3 are in and measured against real characters. `/api/serper-images` is a separate route — decide it separately.
+5. Optional: Tenor/Giphy for GIF volume; SearXNG only if a genuine web-wide search turns out to be missed.
 
-1. **Add Safebooru as the primary GIF source.**
-   - Resolve the character tag through the tag endpoint (cache the mapping — tags never change).
-   - Query `<tag> animated`, keep only `.gif` (`.webm` cannot be dropped into the grid).
-   - Fall back to the series tag when the character tag has nothing, mirroring the existing Konachan behaviour.
-2. **Add AniList as a fallback for Jikan** on the official-art path, and reuse the same tag/name resolution.
-3. **Demote Serper to an enhancement.** It already fails soft; what is missing is that nothing else covers GIF mode when it is down. Steps 1–2 fix that.
-4. **Optional, only if Google results are genuinely missed:** Google CSE for a legitimate 100/day, or SearXNG on the home server for unlimited-but-maintained.
+Target end state: no metered API in the gallery path, and `sources` in the response showing at least two independent sources answering for a typical character.
 
 ## 4. Things not to re-learn the hard way
 
-- **`num` must be a multiple of ten** for Serper, mirroring Google's pagination. The sibling route `/api/serper-images` uses 20; `/api/gallery` now does too.
-- **`filetype:gif` inside `q` does nothing** on Google Images — it is read as a literal keyword. Image filters travel in `tbs` (`itp:animated`, `ift:gif`).
-- **Konachan tags animations as `animated`,** not `gif` (a single safe post site-wide) and not `animated_gif` (does not exist).
+- **Konachan tags animations as `animated`,** not `gif` (a single safe post site-wide) and not `animated_gif` (does not exist). Same tag on Safebooru.
+- **Booru results are not all images.** `.webm`/`.mp4` posts come back from the same `animated` tag and must be filtered out.
 - **A `.gif` URL test must ignore query strings,** and Tenor/Giphy/gfycat serve animations under `.webp`/`.mp4` URLs that never end in `.gif`.
-- **Booru results are not all images.** `.webm`/`.mp4` posts come back from the same `animated` tag and have to be filtered out.
-- **Rating filters cost a tag slot.** Konachan accepts `name animated rating:safe`; Safebooru is already SFW-only, so no slot is needed there.
-- **An empty gallery hides its cause.** `/api/gallery` reports per-source counts in `sources`, and `{"debug":true}` in the request body echoes the upstream error body — that is what surfaced the Serper credit message.
+- **Rating filters cost a tag slot.** Konachan accepts `name animated rating:safe`; Safebooru is already SFW-only, so the slot is free there.
+- **Fandom's unified-search 400s without `namespace=0`.**
+- **Safebooru's tag endpoint returns XML even with `json=1`;** its post endpoint honours the flag.
+- **Vercel's IPs get rejected** by these sites at random. Retry once before concluding a tag is empty, and cache aggressively.
+- **Send a descriptive User-Agent** on every one of these — they are free services being asked for a favour.
+- **An empty gallery hides its cause.** `/api/gallery` reports per-source counts in `sources`, and `{"debug":true}` in the request body echoes the upstream error body — that is what surfaced the Serper credit message in the first place.
+- Serper-specific, until the branch is deleted: **`num` must be a multiple of ten**, and **`filetype:gif` inside `q` does nothing** — Google Images reads it as a literal keyword; image filters travel in `tbs` (`itp:animated`, `ift:gif`).
 
 ## 5. Verifying after any change
 
@@ -103,4 +153,4 @@ curl -s -X POST https://waifu100.vercel.app/api/gallery \
   --data '{"characterName":"Eru Chitanda","animeSource":"Hyouka","isGif":true,"debug":true}'
 ```
 
-`sources.serper` as a number means Serper is answering; `http-400` with `serperError` means credits again. `sources.fanart` covers the booru path.
+Chitanda is the useful test case: Konachan has nothing animated for her, so a non-empty GIF result means the new sources are genuinely carrying the feature rather than Serper quietly doing the work.
