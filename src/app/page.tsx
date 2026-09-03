@@ -664,9 +664,14 @@ export default function Home() {
   // --- Export Helper ---
   const getGridBlob = async (_filename: string) => {
     if (!gridRef.current) return null;
-    
+
+    // The exported frame. Everything inside is measured against these two, so
+    // they must stay in sync with the `style` block below.
+    const EXPORT_SIZE = 1080;
+    const EXPORT_PADDING = 30;
+
     // Options for high-quality export
-    const options = { 
+    const options = {
         quality: 0.95, 
         pixelRatio: 2, 
         backgroundColor: "#000",
@@ -675,8 +680,8 @@ export default function Home() {
         // 1x1 transparent PNG.
         imagePlaceholder:
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-        width: 1080, 
-        height: 1080,
+        width: EXPORT_SIZE,
+        height: EXPORT_SIZE,
         filter: (node: HTMLElement) => {
             if (node.classList?.contains("export-exclude")) return false;
             // Robust Ghost Filter: Ignore images inside cells marked as empty
@@ -686,14 +691,14 @@ export default function Home() {
             return true;
         },
         style: {
-            width: "1080px",
-            height: "1080px",
+            width: `${EXPORT_SIZE}px`,
+            height: `${EXPORT_SIZE}px`,
             boxSizing: "border-box", 
             transform: "none",
             maxWidth: "none",
             maxHeight: "none",
             margin: "0",
-            padding: "30px",
+            padding: `${EXPORT_PADDING}px`,
             display: "flex", 
             flexDirection: "column",
             alignItems: "center", 
@@ -704,22 +709,9 @@ export default function Home() {
 
     // 1. Force Styles for Export
     const nodes = gridRef.current.querySelectorAll('.grid');
-    nodes.forEach(n => {
-        const el = n as HTMLElement;
-        el.style.width = '950px';
-        el.style.height = '950px';
-        el.style.maxWidth = 'none';
-        el.style.aspectRatio = 'unset';
-        el.style.gap = '0px'; 
-        el.style.display = 'grid';
-        el.style.gridTemplateColumns = 'repeat(10, 95px)';
-        el.style.gridTemplateRows = 'repeat(10, 95px)';
-        el.style.padding = '0';
-        el.style.margin = '0';
-        el.style.border = 'none';
-    });
-    
     const titles = gridRef.current.querySelectorAll('h2');
+
+    // Title first: the grid has to be sized against the header's real height.
     titles.forEach(t => {
         const el = t as HTMLElement;
         el.style.marginBottom = '25px';
@@ -729,25 +721,63 @@ export default function Home() {
         el.style.color = '#fff';
         el.style.textShadow = '0 2px 10px rgba(168, 85, 247, 0.5)';
     });
-    
-    gridRef.current.style.width = '1080px';
-    gridRef.current.style.height = '1080px';
+
+    gridRef.current.style.width = `${EXPORT_SIZE}px`;
+    gridRef.current.style.height = `${EXPORT_SIZE}px`;
     gridRef.current.style.maxWidth = 'none';
     gridRef.current.style.maxHeight = 'none';
     gridRef.current.style.aspectRatio = 'unset';
     gridRef.current.style.padding = '0';
     gridRef.current.style.margin = '0';
-    
+
+    // Size the cells to the space actually left over, rather than assuming 95px.
+    // The header is a 42px title in whatever font the locale needs, so its height
+    // is not a constant: hardcoded 95px cells made the grid 950px tall, which
+    // overflowed the 1080px frame and clipped the bottom row out of the export -
+    // and therefore out of the share thumbnail and the link embed.
+    const gridEl = nodes[0] as HTMLElement | undefined;
+    let headerHeight = 0;
+    Array.from(gridRef.current.children).forEach((child) => {
+        const el = child as HTMLElement;
+        if (el === gridEl) return;
+        // Matches the capture filter below - excluded nodes take no space in the clone.
+        if (el.classList.contains('export-exclude')) return;
+        const cs = getComputedStyle(el);
+        headerHeight +=
+            el.getBoundingClientRect().height +
+            parseFloat(cs.marginTop || '0') +
+            parseFloat(cs.marginBottom || '0');
+    });
+
+    const available = EXPORT_SIZE - EXPORT_PADDING * 2 - headerHeight;
+    const cellSize = Math.max(1, Math.floor(available / 10));
+    const gridSize = cellSize * 10;
+
+    nodes.forEach(n => {
+        const el = n as HTMLElement;
+        el.style.width = `${gridSize}px`;
+        el.style.height = `${gridSize}px`;
+        el.style.maxWidth = 'none';
+        el.style.aspectRatio = 'unset';
+        el.style.gap = '0px';
+        el.style.display = 'grid';
+        el.style.gridTemplateColumns = `repeat(10, ${cellSize}px)`;
+        el.style.gridTemplateRows = `repeat(10, ${cellSize}px)`;
+        el.style.padding = '0';
+        el.style.margin = '0';
+        el.style.border = 'none';
+    });
+
     const cells = gridRef.current.querySelectorAll('.grid > div');
     cells.forEach((c, idx) => {
         const el = c as HTMLElement;
-        el.style.width = '95px';
-        el.style.height = '95px';
+        el.style.width = `${cellSize}px`;
+        el.style.height = `${cellSize}px`;
         el.style.border = 'none';
         el.style.borderRadius = '0';
-        el.style.minWidth = '95px';
-        el.style.minHeight = '95px';
-        
+        el.style.minWidth = `${cellSize}px`;
+        el.style.minHeight = `${cellSize}px`;
+
         if (!grid[idx]?.character) {
             el.style.backgroundImage = 'none';
             el.style.backgroundColor = '#000000';
