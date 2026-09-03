@@ -55,7 +55,7 @@ function isAnimatedHost(url: string): boolean {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { characterName, animeSource, malId, isGif } = await request.json();
+    const { characterName, animeSource, malId, isGif, debug } = await request.json();
 
     if (!characterName) {
       return NextResponse.json({ error: "Name required" }, { status: 400 });
@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
     // told apart from an upstream rejection (bad key, out of credits, rate limit).
     let serperStatus: string | null = null;
     let konachanStatus: string | null = null;
+    // Upstream error body, echoed back only when the caller asks for it.
+    let serperError: string | null = null;
 
     // PARALLEL EXECUTION: All 3 sources at once
     const [serperResult, officialResult, fanartResult] = await Promise.allSettled([
@@ -85,7 +87,10 @@ export async function POST(request: NextRequest) {
             },
             body: JSON.stringify({
               q,
-              num: isGif ? 50 : 15, // GIF mode filters most results out, so ask for more
+              // Serper mirrors Google's pagination: num has to be a multiple of 10.
+              // This route asked for 15 and got a 400 back on every single call,
+              // which is why Google results never showed up in the gallery.
+              num: isGif ? 50 : 20, // GIF mode filters most results out, so ask for more
               gl: "us",
               hl: "en",
               ...(tbs ? { tbs } : {}),
@@ -93,8 +98,10 @@ export async function POST(request: NextRequest) {
           });
 
           if (!res.ok) {
+            const detail = await res.text();
             serperStatus = `http-${res.status}`;
-            console.error("[Gallery] Serper API error:", res.status, await res.text());
+            serperError = detail.slice(0, 200);
+            console.error("[Gallery] Serper API error:", res.status, detail);
             return [];
           }
 
@@ -283,6 +290,7 @@ export async function POST(request: NextRequest) {
         official: count(officialResult),
         fanart: report(fanartResult, konachanStatus),
       },
+      ...(debug && serperError ? { serperError } : {}),
     });
   } catch (error) {
     console.error("[Gallery] Failed:", error);
