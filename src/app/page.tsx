@@ -1429,20 +1429,27 @@ export default function Home() {
 
            <div className="flex gap-2 mt-2">
                 <button 
-                  onClick={() => setShowShareModal(true)}
-                  className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded-lg transition-colors border border-sky-500/30 text-sm font-medium flex-1 cursor-pointer"
+                  onClick={() => {
+                      setIsMobileSidebarOpen(false);
+                      setShowShareModal(true);
+                  }}
+                  className="flex items-center justify-center gap-2 px-3 py-1.5 bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded-lg transition-colors border border-sky-500/30 text-sm font-medium flex-1 whitespace-nowrap cursor-pointer"
                 >
                     <Share2 size={16} />
                     <span>Share</span>
                 </button>
 
                 <button 
-                  onClick={handleExport}
+                  onClick={() => {
+                      setIsMobileSidebarOpen(false);
+                      handleExport();
+                  }}
                   disabled={isExporting}
-                  className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg transition-colors border border-purple-600/30 text-sm font-medium flex-1 cursor-pointer"
-                >           {isExporting ? <Loader2 className="animate-spin w-4 h-4"/> : <Download className="w-4 h-4"/>}
-             Save as .png
-           </button>
+                  className="flex items-center justify-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg transition-colors border border-purple-600/30 text-sm font-medium flex-1 whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? <Loader2 className="animate-spin w-4 h-4"/> : <Download className="w-4 h-4"/>}
+                    <span>Save as .png</span>
+                </button>
            </div>
 
            {/* Clear Grid Button */}
