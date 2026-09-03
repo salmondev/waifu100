@@ -87,9 +87,8 @@ export async function POST(request: NextRequest) {
             },
             body: JSON.stringify({
               q,
-              // Serper mirrors Google's pagination: num has to be a multiple of 10.
-              // This route asked for 15 and got a 400 back on every single call,
-              // which is why Google results never showed up in the gallery.
+              // Serper pages in tens, like Google - keep num a multiple of 10 as
+              // the sibling /api/serper-images route does.
               num: isGif ? 50 : 20, // GIF mode filters most results out, so ask for more
               gl: "us",
               hl: "en",
