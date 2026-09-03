@@ -31,6 +31,8 @@ function truncate(text: string, max: number) {
 
 export interface ShareOgInput {
     title: string;
+    /** Origin of this deployment, used to reach its own image optimizer. */
+    origin: string;
     /** Cell image URLs, index 0-99. Missing entries render as empty cells. */
     images: (string | null | undefined)[];
     count: number;
@@ -70,33 +72,59 @@ async function loadFont(): Promise<ArrayBuffer | null> {
 
 // --- Images -----------------------------------------------------------------
 
-const IMAGE_TIMEOUT_MS = 4000;
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+const IMAGE_TIMEOUT_MS = 5000;
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const UA = 'waifu100-og/1.0 (+https://waifu100.vercel.app)';
+
+async function fetchImage(url: string, accept: string): Promise<string | null> {
+    const res = await fetch(url, {
+        signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
+        headers: { 'User-Agent': UA, Accept: accept },
+    });
+    if (!res.ok) return null;
+
+    const type = res.headers.get('content-type') || 'image/jpeg';
+    if (!type.startsWith('image/')) return null;
+
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > MAX_IMAGE_BYTES) return null;
+
+    return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
+}
 
 /**
- * Inlines one cell image. Fetching here rather than letting the renderer pull
- * the URL itself means a single dead link costs one cell instead of the whole
- * card.
+ * Inlines one cell image, at cell size.
+ *
+ * Two reasons not to hand the original URL to the renderer:
+ *  - one dead link would otherwise cost the whole card instead of one cell;
+ *  - originals are big. One real grid measured 83MB across its 100 cells, with
+ *    single images up to 10MB - far too much to hold in memory, and pointless
+ *    for a 48px cell.
+ *
+ * So each cell goes through this app's own image optimizer, which returns a
+ * few KB apiece. `q` must be 75: Next only allows the qualities configured for
+ * it, and anything else comes back 400. Asking for JPEG keeps the bytes in a
+ * format the card renderer can decode. Anything the optimizer refuses
+ * (animated GIFs pass through, some hosts block it) falls back to the source.
  */
-async function toDataUrl(url: string | null | undefined): Promise<string | null> {
+async function toDataUrl(
+    url: string | null | undefined,
+    origin: string
+): Promise<string | null> {
     if (!url) return null;
     if (url.startsWith('data:')) return url;
     if (!/^https?:\/\//.test(url)) return null;
 
     try {
-        const res = await fetch(url, {
-            signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
-            headers: { 'User-Agent': 'waifu100-og/1.0 (+https://waifu100.vercel.app)' },
-        });
-        if (!res.ok) return null;
+        const optimized = `${origin}/_next/image?url=${encodeURIComponent(url)}&w=96&q=75`;
+        const small = await fetchImage(optimized, 'image/jpeg');
+        if (small) return small;
+    } catch {
+        // fall through to the source
+    }
 
-        const type = res.headers.get('content-type') || 'image/jpeg';
-        if (!type.startsWith('image/')) return null;
-
-        const buffer = await res.arrayBuffer();
-        if (buffer.byteLength > MAX_IMAGE_BYTES) return null;
-
-        return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
+    try {
+        return await fetchImage(url, 'image/*');
     } catch {
         return null;
     }
@@ -104,11 +132,11 @@ async function toDataUrl(url: string | null | undefined): Promise<string | null>
 
 // --- Card -------------------------------------------------------------------
 
-export async function renderShareOg({ title, images, count }: ShareOgInput) {
+export async function renderShareOg({ title, images, count, origin }: ShareOgInput) {
     const [font, cells] = await Promise.all([
         loadFont(),
         Promise.all(
-            Array.from({ length: COLUMNS * COLUMNS }, (_, i) => toDataUrl(images[i]))
+            Array.from({ length: COLUMNS * COLUMNS }, (_, i) => toDataUrl(images[i], origin))
         ),
     ]);
 
