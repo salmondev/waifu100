@@ -72,7 +72,8 @@ async function loadFont(): Promise<ArrayBuffer | null> {
 
 // --- Images -----------------------------------------------------------------
 
-const IMAGE_TIMEOUT_MS = 5000;
+const IMAGE_TIMEOUT_MS = 8000;
+const CONCURRENCY = 12;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const UA = 'waifu100-og/1.0 (+https://waifu100.vercel.app)';
 
@@ -109,36 +110,85 @@ async function fetchImage(url: string, accept: string): Promise<string | null> {
  */
 async function toDataUrl(
     url: string | null | undefined,
-    origin: string
+    origin: string,
+    stats: CellStats
 ): Promise<string | null> {
     if (!url) return null;
-    if (url.startsWith('data:')) return url;
+    if (url.startsWith('data:')) {
+        stats.inline++;
+        return url;
+    }
     if (!/^https?:\/\//.test(url)) return null;
 
     try {
         const optimized = `${origin}/_next/image?url=${encodeURIComponent(url)}&w=96&q=75`;
         const small = await fetchImage(optimized, 'image/jpeg');
-        if (small) return small;
+        if (small) {
+            stats.optimized++;
+            return small;
+        }
     } catch {
         // fall through to the source
     }
 
     try {
-        return await fetchImage(url, 'image/*');
+        const direct = await fetchImage(url, 'image/*');
+        if (direct) {
+            stats.source++;
+            return direct;
+        }
     } catch {
-        return null;
+        // fall through to a blank cell
     }
+
+    stats.failed++;
+    return null;
+}
+
+export interface CellStats {
+    inline: number;
+    optimized: number;
+    source: number;
+    failed: number;
+    ms: number;
+}
+
+/**
+ * Resolves every cell to an inline image.
+ *
+ * Concurrency is capped: firing 100 requests at once (each of which makes the
+ * optimizer fetch a source image of its own) times most of them out, which is
+ * what left a production card two thirds empty.
+ */
+export async function resolveCells(
+    images: (string | null | undefined)[],
+    origin: string
+): Promise<{ cells: (string | null)[]; stats: CellStats }> {
+    const started = Date.now();
+    const stats: CellStats = { inline: 0, optimized: 0, source: 0, failed: 0, ms: 0 };
+
+    const total = COLUMNS * COLUMNS;
+    const cells: (string | null)[] = Array(total).fill(null);
+    let next = 0;
+
+    const worker = async () => {
+        while (next < total) {
+            const i = next++;
+            cells[i] = await toDataUrl(images[i], origin, stats);
+        }
+    };
+
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+
+    stats.ms = Date.now() - started;
+    return { cells, stats };
 }
 
 // --- Card -------------------------------------------------------------------
 
 export async function renderShareOg({ title, images, count, origin }: ShareOgInput) {
-    const [font, cells] = await Promise.all([
-        loadFont(),
-        Promise.all(
-            Array.from({ length: COLUMNS * COLUMNS }, (_, i) => toDataUrl(images[i], origin))
-        ),
-    ]);
+    const [font, resolved] = await Promise.all([loadFont(), resolveCells(images, origin)]);
+    const cells = resolved.cells;
 
     return new ImageResponse(
         (

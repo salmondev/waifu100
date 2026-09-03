@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { withRedis } from '@/lib/redis';
-import { renderShareOg } from '@/lib/share-og';
+import { renderShareOg, resolveCells } from '@/lib/share-og';
 
 // ioredis speaks TCP, so this cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -54,6 +54,14 @@ export async function GET(
 
         // The card pulls cells through this deployment's own image optimizer.
         const origin = new URL(req.url).origin;
+
+        // ?debug=1 reports how each cell resolved instead of drawing the card -
+        // a blank cell otherwise gives no clue whether the link is dead, the
+        // optimizer refused it, or the fetch timed out.
+        if (new URL(req.url).searchParams.get('debug')) {
+            const { stats } = await resolveCells(images, origin);
+            return Response.json({ id, title, count, stats });
+        }
 
         return await renderShareOg({ title, images, count, origin });
     } catch (e) {
