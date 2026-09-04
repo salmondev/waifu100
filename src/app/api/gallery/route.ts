@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin-auth";
 
 interface ImageResult {
   url: string;
@@ -289,7 +290,8 @@ export async function POST(request: NextRequest) {
         official: count(officialResult),
         fanart: report(fanartResult, konachanStatus),
       },
-      ...(debug && serperError ? { serperError } : {}),
+      // Upstream error bodies are for whoever runs this, not for callers.
+      ...(debug && serperError && isAdminRequest(request) ? { serperError } : {}),
     });
   } catch (error) {
     console.error("[Gallery] Failed:", error);

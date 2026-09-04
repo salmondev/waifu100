@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFlashModel } from "@/lib/gemini";
+import { isAdminRequest, adminOnlyResponse } from "@/lib/admin-auth";
 
 interface ImageResult {
   url: string;
@@ -8,6 +9,10 @@ interface ImageResult {
 }
 
 export async function POST(request: NextRequest) {
+  // Nothing in the app calls this route; left reachable it is a free Gemini and
+  // Google Custom Search bill for whoever finds it.
+  if (!isAdminRequest(request)) return adminOnlyResponse();
+
   try {
     const { characterName, animeSource } = await request.json();
 
