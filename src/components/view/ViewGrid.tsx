@@ -1,12 +1,13 @@
 "use client";
 
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
-import { cn, isGifUrl } from "@/lib/utils";
+import { cn, isGifUrl, optimizedImageSrc } from "@/lib/utils";
 
 import Link from "next/link";
 import { ArrowLeft, Check, Sparkles, Loader2, Grid3x3, Link2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
+import { CompareWithMine } from "@/components/compare/CompareWithMine";
 
 interface ViewGridProps {
   grid: GridCell[];
@@ -151,7 +152,7 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
              )}
          </div>
 
-         <div className="order-3 lg:order-none flex flex-row lg:flex-col items-center lg:items-end justify-center gap-2">
+         <div className="order-3 lg:order-none flex flex-row flex-wrap lg:flex-col items-center lg:items-end justify-center gap-2">
              <button
                 onClick={handleCopyLink}
                 className={cn(
@@ -179,6 +180,15 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
                  {isGenerating ? <Loader2 size={18} className="animate-spin shrink-0" /> : <Sparkles size={18} className="shrink-0" />}
                  <span className="truncate">{isGenerating ? "Generating..." : localVerdict ? "AI Verdict" : "✨ Generate AI Verdict"}</span>
              </button>
+
+             {/* Renders nothing unless this browser owns a grid of its own, so
+                 it takes no room for a first-time visitor. Full width below lg:
+                 a third button squeezed into that row truncates all three. */}
+             {shareId && (
+                <div className="basis-full lg:basis-auto lg:w-full lg:max-w-[232px]">
+                   <CompareWithMine shareId={shareId} />
+                </div>
+             )}
          </div>
       </div>
 
@@ -241,11 +251,9 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
               {cell.character ? (
                  <>
                    <img
-                      src={(() => {
-                              const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
-                              if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif') || url.includes('vercel-storage.com')) return url;
-                              return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
-                      })()}
+                      src={optimizedImageSrc(
+                          cell.character.customImageUrl || cell.character.images.jpg.image_url
+                      )}
                       alt={cell.character.name}
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                    />
