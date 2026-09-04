@@ -27,13 +27,16 @@ const CHROME = /site-?logo|favicon|wiki-?wordmark|wordmark|placeholder|badge|ico
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp)$/i;
 
 /**
- * static.wikia.nocookie.net serves resized derivatives from the same URL, so
- * the picker can load 320px thumbnails instead of full-size stills.
+ * No thumbnail rewriting. An earlier version pointed the picker at
+ * `/revision/latest/scale-to-width-down/320`, which looks like the obvious way
+ * to avoid loading full-size stills - but that derivative does not exist for
+ * every file, and the ones without it 404 as broken tiles. The plain
+ * `/revision/latest` URL is always there, and when the request carries a
+ * Referer (which a browser sends by default) wikia already answers it with a
+ * ~300px hotlink variant, so the rewrite bought nothing anyway.
  */
 function thumbnailFor(url: string): string {
-  return url.includes("/revision/latest")
-    ? url.replace("/revision/latest", "/revision/latest/scale-to-width-down/320")
-    : url;
+  return url;
 }
 
 async function imagesFromWiki(host: string, title: string, isGif: boolean): Promise<ImageResult[]> {
