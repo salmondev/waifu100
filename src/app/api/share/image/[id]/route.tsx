@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { withRedis } from '@/lib/redis';
 import { renderShareOg, resolveCells } from '@/lib/share-og';
+import { isAdminRequest } from '@/lib/admin-auth';
 
 // ioredis speaks TCP, so this cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -58,7 +59,9 @@ export async function GET(
         // ?debug=1 reports how each cell resolved instead of drawing the card -
         // a blank cell otherwise gives no clue whether the link is dead, the
         // optimizer refused it, or the fetch timed out.
-        if (new URL(req.url).searchParams.get('debug') === 'cells') {
+        const debugAllowed = isAdminRequest(req);
+
+        if (debugAllowed && new URL(req.url).searchParams.get('debug') === 'cells') {
             const { stats } = await resolveCells(images);
             return Response.json({ id, title, count, stats });
         }
@@ -74,7 +77,7 @@ export async function GET(
         console.error("Share OG Image Error:", e);
         const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
         return new Response(
-            new URL(req.url).searchParams.get('debug') ? detail : "Failed to render image",
+            isAdminRequest(req) ? detail : "Failed to render image",
             { status: 500 }
         );
     }

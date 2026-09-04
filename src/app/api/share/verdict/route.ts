@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRedis } from '@/lib/redis';
+import { isAdminRequest } from '@/lib/admin-auth';
 
-// PATCH: Update an existing share's verdict in Redis
+/**
+ * PATCH: fill in a share's verdict.
+ *
+ * Grids shared before verdicts existed have none, and the view page generates
+ * one the first time somebody opens them - that path has to stay open. What was
+ * never intended is what it also allowed: anyone holding a share id could
+ * rewrite the verdict on anybody's grid, any number of times. Replacing an
+ * existing verdict now needs the admin token.
+ */
 export async function PATCH(req: NextRequest) {
     try {
         const { shareId, verdict } = await req.json();
@@ -23,6 +32,13 @@ export async function PATCH(req: NextRequest) {
         }
 
         const data = JSON.parse(rawString);
+
+        if (data.verdict && !isAdminRequest(req)) {
+            return NextResponse.json(
+                { error: "This grid already has a verdict." },
+                { status: 403 }
+            );
+        }
 
         // Patch verdict into existing data
         data.verdict = verdict;

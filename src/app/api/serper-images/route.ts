@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFlashModel } from "@/lib/gemini";
+import { isAdminRequest, adminOnlyResponse } from "@/lib/admin-auth";
 
 interface SerperImage {
   title: string;
@@ -38,6 +39,10 @@ interface ImageResult {
  * Gemini AI generates optimized search queries for better accuracy.
  */
 export async function POST(request: NextRequest) {
+  // Unused by the app, and every call spends Serper credit - the exact resource
+  // that ran out and took GIF search down with it.
+  if (!isAdminRequest(request)) return adminOnlyResponse();
+
   try {
     const { characterName, animeSource, directQuery } = await request.json();
 
