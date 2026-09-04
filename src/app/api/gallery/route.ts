@@ -20,6 +20,28 @@ interface KonachanPost {
   preview_url?: string;
 }
 
+interface AniListCharacter {
+  id: number;
+  name?: { full?: string };
+  image?: { large?: string };
+}
+
+interface AniListResponse {
+  data?: { Page?: { characters?: AniListCharacter[] } };
+}
+
+/**
+ * These are free services being asked for a favour - identify the caller so a
+ * misbehaving deployment can be told apart from anonymous scraping.
+ */
+const ANILIST_UA = "waifu100/1.0 (+https://waifu100.vercel.app)";
+
+/**
+ * Jikan has been returning 504 to every query since MAL went down upstream.
+ * Without a cap the gallery waits on a source that is not going to answer.
+ */
+const JIKAN_TIMEOUT_MS = 5000;
+
 /** True when the URL points at an actual .gif file (query strings ignored). */
 function isGifUrl(url: string): boolean {
   try {
@@ -49,7 +71,7 @@ function isAnimatedHost(url: string): boolean {
  * 
  * Priority order:
  * 1. Serper (Google Images) - Primary source for accurate results
- * 2. Jikan (MAL) - Official character art
+ * 2. Official art - AniList, with Jikan (MAL) alongside it
  * 3. Konachan - Anime fanart
  * 
  * All sources run in parallel for speed.
@@ -68,6 +90,8 @@ export async function POST(request: NextRequest) {
     // told apart from an upstream rejection (bad key, out of credits, rate limit).
     let serperStatus: string | null = null;
     let konachanStatus: string | null = null;
+    let anilistStatus: string | null = null;
+    let jikanStatus: string | null = null;
     // Upstream error body, echoed back only when the caller asks for it.
     let serperError: string | null = null;
 
@@ -150,11 +174,79 @@ export async function POST(request: NextRequest) {
         }
       })(),
 
-      // 2. JIKAN (Official Art) - Fast via ID lookup
+      // 2. OFFICIAL ART - AniList first, Jikan (MyAnimeList) alongside it.
+      //
+      // Jikan used to be the only official source and it has been answering 504
+      // to every query for days (MAL upstream), so `sources.official` was
+      // permanently 0. AniList is keyless, answers in well under a second, and
+      // carries one canonical portrait per character - enough to keep the
+      // section alive on its own.
+      //
+      // Jikan is kept because it returns *several* pictures per character when
+      // MAL is up, which AniList cannot. It runs in parallel rather than only
+      // on AniList's failure: AniList almost always answers, so a true
+      // "only if empty" fallback would mean Jikan never runs again. A short
+      // timeout keeps its outage from holding up the whole gallery.
       (async (): Promise<ImageResult[]> => {
-        if (isGif) return []; // Jikan only has static JPG/WEBP
+        if (isGif) return []; // Neither source has animations - static JPG/PNG only.
 
-        try {
+        const anilist = async (): Promise<ImageResult[]> => {
+          // Series name helps AniList disambiguate common given names, but its
+          // search is AND-ish across the string, so an unmatched series wipes
+          // out the result. Try the qualified query first, then the bare name.
+          const queries = [
+            animeSource && animeSource !== "MyAnimeList" && animeSource !== "AniList"
+              ? `${characterName} ${animeSource}`
+              : null,
+            characterName,
+          ].filter(Boolean) as string[];
+
+          for (const q of queries) {
+            const res = await fetch("https://graphql.anilist.co", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "User-Agent": ANILIST_UA,
+              },
+              body: JSON.stringify({
+                query:
+                  "query($s:String){Page(perPage:5){characters(search:$s){id name{full} image{large}}}}",
+                variables: { s: q },
+              }),
+              signal: AbortSignal.timeout(8000),
+            });
+
+            if (!res.ok) {
+              anilistStatus = `http-${res.status}`;
+              console.error("[Gallery] AniList API error:", res.status, q);
+              continue;
+            }
+
+            const data: AniListResponse = await res.json();
+            const chars = data.data?.Page?.characters ?? [];
+            const results = chars
+              .map((c) => ({ url: c.image?.large ?? "", name: c.name?.full ?? "" }))
+              // AniList hands out a grey silhouette for characters with no
+              // artwork; it is worse than showing nothing.
+              .filter((c) => c.url && !c.url.includes("default.jpg"))
+              .map(
+                (c): ImageResult => ({
+                  url: c.url,
+                  thumbnail: c.url,
+                  title: c.name || "Official Art",
+                  source: "Official (AniList)",
+                })
+              );
+
+            // Only the top hit: further down the page are same-name characters
+            // from other series, which look like mistakes in the gallery.
+            if (results.length > 0) return results.slice(0, 1);
+          }
+          return [];
+        };
+
+        const jikan = async (): Promise<ImageResult[]> => {
           let targetId = malId;
 
           if (!targetId) {
@@ -163,30 +255,44 @@ export async function POST(request: NextRequest) {
               q += ` ${animeSource}`;
             }
             const res = await fetch(
-              `https://api.jikan.moe/v4/characters?q=${encodeURIComponent(q)}&limit=1`
+              `https://api.jikan.moe/v4/characters?q=${encodeURIComponent(q)}&limit=1`,
+              { headers: { "User-Agent": ANILIST_UA }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) }
             );
-            if (res.ok) {
-              const data = await res.json();
-              targetId = data.data?.[0]?.mal_id;
+            if (!res.ok) {
+              jikanStatus = `http-${res.status}`;
+              return [];
             }
+            const data = await res.json();
+            targetId = data.data?.[0]?.mal_id;
           }
 
-          if (targetId) {
-            const picRes = await fetch(
-              `https://api.jikan.moe/v4/characters/${targetId}/pictures`
-            );
-            if (picRes.ok) {
-              const picData = await picRes.json();
-              return (picData.data || []).map((img: { jpg: { image_url: string } }) => ({
-                url: img.jpg.image_url,
-                thumbnail: img.jpg.image_url,
-                title: "Official Art",
-                source: "Official (MAL)",
-              }));
-            }
+          if (!targetId) return [];
+
+          const picRes = await fetch(
+            `https://api.jikan.moe/v4/characters/${targetId}/pictures`,
+            { headers: { "User-Agent": ANILIST_UA }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) }
+          );
+          if (!picRes.ok) {
+            jikanStatus = `http-${picRes.status}`;
+            return [];
           }
-        } catch { /* ignore */ }
-        return [];
+          const picData = await picRes.json();
+          return (picData.data || []).map((img: { jpg: { image_url: string } }) => ({
+            url: img.jpg.image_url,
+            thumbnail: img.jpg.image_url,
+            title: "Official Art",
+            source: "Official (MAL)",
+          }));
+        };
+
+        const [a, j] = await Promise.allSettled([anilist(), jikan()]);
+        const out: ImageResult[] = [];
+        // AniList first: it is the one that is actually reliable right now.
+        if (a.status === "fulfilled") out.push(...a.value);
+        else console.error("[Gallery] AniList error:", a.reason);
+        if (j.status === "fulfilled") out.push(...j.value);
+        else jikanStatus = jikanStatus ?? "timeout";
+        return out;
       })(),
 
       // 3. KONACHAN (Fanart) - Fast tags without Gemini
@@ -287,7 +393,7 @@ export async function POST(request: NextRequest) {
         serper: !process.env.SERPER_API_KEY
           ? "no-api-key"
           : report(serperResult, serperStatus),
-        official: count(officialResult),
+        official: report(officialResult, anilistStatus ?? jikanStatus),
         fanart: report(fanartResult, konachanStatus),
       },
       // Upstream error bodies are for whoever runs this, not for callers.
