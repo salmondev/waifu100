@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2 } from "lucide-react";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn } from "@/lib/utils";
+import { ensureUserId } from "@/lib/user-id";
 import { upload } from '@vercel/blob/client';
 
 interface ShareModalProps {
@@ -164,7 +165,10 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
          // 3. Send Lightweight Payload
          setLoadingState("Saving...");
          
-         const userId = localStorage.getItem('waifu100-user-id'); // Retrieve anonymous ID
+         // Mint-on-first-use. Nothing in the app ever wrote this key, so every
+         // share so far stored meta.userId = null - which silently disabled both
+         // title versioning and any chance of the author managing it later.
+         const userId = ensureUserId();
 
          const res = await fetch("/api/share", {
              method: "POST",
@@ -173,7 +177,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                 grid: cleanGridData, 
                 customTitle: customTitle.trim(), 
                 imageUrl: imageUrl, // Single thumbnail URL
-                userId, // Send ID for versioning
+                userId, // Owner of record: drives versioning and delete rights
                 verdict: finalVerdict,
                 verdictFeedback
              })
