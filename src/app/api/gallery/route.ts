@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-auth";
-
-interface ImageResult {
-  url: string;
-  thumbnail: string;
-  title: string;
-  source: string;
-}
+import { isGifUrl } from "@/lib/utils";
+import { ImageResult } from "@/types";
+import { safebooruImages } from "@/lib/image-sources/safebooru";
+import { fandomImages } from "@/lib/image-sources/fandom";
 
 interface SerperImage {
   title: string;
@@ -42,14 +39,12 @@ const ANILIST_UA = "waifu100/1.0 (+https://waifu100.vercel.app)";
  */
 const JIKAN_TIMEOUT_MS = 5000;
 
-/** True when the URL points at an actual .gif file (query strings ignored). */
-function isGifUrl(url: string): boolean {
-  try {
-    return new URL(url).pathname.toLowerCase().endsWith(".gif");
-  } catch {
-    return url.toLowerCase().split("?")[0].endsWith(".gif");
-  }
-}
+/**
+ * How thin the keyless sources have to come back before a paid Serper call is
+ * worth making. A picker with a dozen options is already usable; below that it
+ * looks broken, which is the only case worth spending credit on.
+ */
+const SERPER_TOP_UP_BELOW = 12;
 
 /**
  * Animation-first hosts. They serve GIFs through .webp/.mp4 derivatives, so the
@@ -69,12 +64,15 @@ function isAnimatedHost(url: string): boolean {
 /**
  * Gallery API - Multi-source Image Search
  * 
- * Priority order:
- * 1. Serper (Google Images) - Primary source for accurate results
- * 2. Official art - AniList, with Jikan (MAL) alongside it
- * 3. Konachan - Anime fanart
- * 
- * All sources run in parallel for speed.
+ * Every source here is keyless and free; they all run in parallel:
+ * 1. Official art - AniList, with Jikan (MAL) alongside it
+ * 2. Safebooru - the deep one, and the only source of real GIFs
+ * 3. Fandom wikis - what Google was indexing on the gallery's behalf anyway
+ * 4. Konachan - more fanart
+ *
+ * Serper (Google Images) is metered and no longer part of that set. It runs
+ * afterwards, and only when the four above have produced too little to fill a
+ * picker - see SERPER_TOP_UP_BELOW.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -95,10 +93,14 @@ export async function POST(request: NextRequest) {
     // Upstream error body, echoed back only when the caller asks for it.
     let serperError: string | null = null;
 
-    // PARALLEL EXECUTION: All 3 sources at once
-    const [serperResult, officialResult, fanartResult] = await Promise.allSettled([
-      // 1. SERPER (Primary) - Google Images
-      (async (): Promise<ImageResult[]> => {
+    // SERPER (top-up only) - Google Images.
+    //
+    // Serper is metered and shared with other projects; when its credits ran
+    // out the gallery lost its only broad source and went blank. It is no
+    // longer in the hot path: the keyless sources below run first, and this
+    // only runs to top up a thin result. Defined here, called after them.
+    const searchSerperImages = async (): Promise<ImageResult[]> => {
+      {
         if (!process.env.SERPER_API_KEY) return [];
 
         const baseQuery = `${characterName} ${animeSource || ""}`.trim();
@@ -172,9 +174,13 @@ export async function POST(request: NextRequest) {
           console.error("[Gallery] Serper error:", e);
           return [];
         }
-      })(),
+      }
+    };
 
-      // 2. OFFICIAL ART - AniList first, Jikan (MyAnimeList) alongside it.
+    // The keyless sources, all at once. None of them costs anything, so they
+    // all run on every request.
+    const [officialResult, safebooruResult, fandomResult, fanartResult] = await Promise.allSettled([
+      // 1. OFFICIAL ART - AniList first, Jikan (MyAnimeList) alongside it.
       //
       // Jikan used to be the only official source and it has been answering 504
       // to every query for days (MAL upstream), so `sources.official` was
@@ -295,7 +301,21 @@ export async function POST(request: NextRequest) {
         return out;
       })(),
 
-      // 3. KONACHAN (Fanart) - Fast tags without Gemini
+      // 2. SAFEBOORU - the deepest keyless source, and the only one that
+      // reliably has animations. This is what replaces Serper for both the
+      // normal gallery and GIF mode.
+      safebooruImages({ characterName, animeSource, isGif, limit: 40 }).catch((e) => {
+        console.error("[Gallery] Safebooru error:", e);
+        return [];
+      }),
+
+      // 3. FANDOM - the wikis Serper was mostly indexing in the first place.
+      fandomImages({ characterName, animeSource, isGif, limit: 30 }).catch((e) => {
+        console.error("[Gallery] Fandom error:", e);
+        return [];
+      }),
+
+      // 4. KONACHAN (Fanart) - Fast tags without Gemini
       (async (): Promise<ImageResult[]> => {
         const browserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
@@ -350,10 +370,30 @@ export async function POST(request: NextRequest) {
       })(),
     ]);
 
-    // Combine results: Serper first (primary), then Official, then Fanart
-    if (serperResult.status === "fulfilled") images.push(...serperResult.value);
-    if (officialResult.status === "fulfilled") images.push(...officialResult.value);
-    if (fanartResult.status === "fulfilled") images.push(...fanartResult.value);
+    const take = (r: PromiseSettledResult<ImageResult[]>) =>
+      r.status === "fulfilled" ? r.value : [];
+
+    // Order the free sources by how likely each is to be the picture someone
+    // actually wants. In GIF mode Safebooru leads outright - it is the only
+    // one of these with real animations.
+    if (isGif) {
+      images.push(...take(safebooruResult), ...take(fanartResult), ...take(fandomResult));
+    } else {
+      images.push(
+        ...take(officialResult),
+        ...take(fandomResult),
+        ...take(safebooruResult),
+        ...take(fanartResult)
+      );
+    }
+
+    // Only now, and only if the free sources came up short, spend a Serper
+    // credit. A typical character never reaches this line.
+    const serperResult: PromiseSettledResult<ImageResult[]> | null =
+      images.length < SERPER_TOP_UP_BELOW
+        ? (await Promise.allSettled([searchSerperImages()]))[0]
+        : null;
+    if (serperResult) images.push(...take(serperResult));
 
     // Deduplicate by URL
     const seen = new Set<string>();
@@ -390,10 +430,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       images: uniqueImages,
       sources: {
-        serper: !process.env.SERPER_API_KEY
-          ? "no-api-key"
-          : report(serperResult, serperStatus),
+        serper: !serperResult
+          ? "not-needed"
+          : !process.env.SERPER_API_KEY
+            ? "no-api-key"
+            : report(serperResult, serperStatus),
         official: report(officialResult, anilistStatus ?? jikanStatus),
+        safebooru: count(safebooruResult),
+        fandom: count(fandomResult),
         fanart: report(fanartResult, konachanStatus),
       },
       // Upstream error bodies are for whoever runs this, not for callers.

@@ -1,7 +1,23 @@
 # Replacing Serper With Free Sources
 
-**Status:** planned, not implemented
+**Status:** implemented 2026-09-04 — steps 1-3 shipped, step 4 (deleting the Serper branch) deliberately not taken
 **Written:** 2026-09-04
+
+> **What actually shipped.** Safebooru (`src/lib/image-sources/safebooru.ts`) and
+> Fandom (`src/lib/image-sources/fandom.ts`) run on every `/api/gallery` request
+> alongside AniList and Konachan, all keyless. Serper is no longer in that set:
+> it runs afterwards and only when the free sources return fewer than
+> `SERPER_TOP_UP_BELOW` (12) images, so a typical character never spends credit.
+> Measured with `SERPER_API_KEY` unset: Chitanda 81 images, Asuna 73, Marin
+> Kitagawa 71, and GIF mode 15 / 8 real `.gif`s for Chitanda / Megumin.
+>
+> Two things this document did not predict:
+> - Wikia serves images from a path that continues past the extension
+>   (`.../Foo.jpg/revision/latest?cb=…`), so an extension test against the URL
+>   matches nothing. Test the `File:` title instead.
+> - The subdomain guess can be right while the page title is wrong — the Sword
+>   Art Online wiki files Asuna Yuuki under `Asuna`. Without a wiki-local
+>   `list=search` step, cross-wiki search takes over and returns a parody wiki.
 **Goal:** drop Serper (Google Images) from `/api/gallery` entirely and cover its job with sources that cost nothing — matching or beating it on coverage, not merely limping along without it.
 
 ---
@@ -127,7 +143,7 @@ Allowances shift — re-check before committing to one.
    - Fall back to the series tag when the character tag has nothing.
 2. **Fandom as the second source**, replacing what Google was fetching from those same wikis: unified-search for the wiki, then page + `/Gallery` images.
 3. **AniList promoted over Jikan** for the official portrait; keep Jikan as a fallback for when MAL is actually up.
-4. **Remove the Serper branch from `/api/gallery`** once 1–3 are in and measured against real characters. `/api/serper-images` is a separate route — decide it separately.
+4. ~~**Remove the Serper branch from `/api/gallery`**~~ — *not done, on purpose.* Demoting it to a top-up costs nothing while credits are absent (`sources.serper` reads `not-needed`) and keeps a broad web fallback for the characters the boorus and wikis genuinely do not cover. Deleting it would throw that away to remove a branch that no longer runs. `/api/serper-images` is a separate route — decide it separately.
 5. Optional: Tenor/Giphy for GIF volume; SearXNG only if a genuine web-wide search turns out to be missed.
 
 Target end state: no metered API in the gallery path, and `sources` in the response showing at least two independent sources answering for a typical character.
