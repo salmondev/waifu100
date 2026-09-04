@@ -151,4 +151,9 @@ export const LIMITS = {
   analyze: { name: "analyze", limit: 10, windowSec: 60 } satisfies RateLimit,
   suggest: { name: "suggest", limit: 10, windowSec: 60 } satisfies RateLimit,
   gallery: { name: "gallery", limit: 30, windowSec: 60 } satisfies RateLimit,
+  // Tighter than /api/analyze: a compare link can be opened by a crowd at once,
+  // and the button sits on a page nobody in that crowd created. The Redis cache
+  // in front of it means a repeat view of the same pair never gets here at all,
+  // so this budget only ever counts genuinely new pairs.
+  compareVerdict: { name: "compare-verdict", limit: 6, windowSec: 60 } satisfies RateLimit,
 };

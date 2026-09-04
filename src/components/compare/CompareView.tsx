@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowLeft, Check, Grid3x3, Link2, Users } from "lucide-react";
 import { cn, optimizedImageSrc } from "@/lib/utils";
 import type { CompareCharacter, ComparePair } from "@/lib/character-match";
+import { CompareVerdict } from "@/components/compare/CompareVerdict";
 
 export interface CompareSide {
     id: string;
@@ -242,6 +243,8 @@ export function CompareView({ a, b, similarity, shared, onlyA, onlyB }: CompareV
                         {verdictLine(similarity, shared.length)}
                     </p>
                 </div>
+
+                <CompareVerdict a={a.id} b={b.id} />
 
                 {/* Shared */}
                 {shared.length > 0 && (
