@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Calendar, ExternalLink, Grid3x3, Loader2, Trash2 } from "lucide-react";
 import { shareCardPath } from "@/lib/share-card";
 import type { ShareSummary } from "@/lib/share-summary";
+import { CompareWithMine } from "@/components/compare/CompareWithMine";
 
 interface GridCardProps {
     grid: ShareSummary;
@@ -115,6 +116,14 @@ export function GridCard({ grid, onDelete, deleting = false }: GridCardProps) {
                     </div>
                 </div>
             </Link>
+
+            {/* Compare, like delete, sits outside the Link - it is a different
+                destination, and a nested <a> would be invalid markup anyway.
+                It renders nothing at all until this browser has a grid of its
+                own, so a first-time visitor sees the card exactly as before. */}
+            <div className="absolute bottom-[4.75rem] right-3 z-40">
+                <CompareWithMine shareId={grid.id} variant="card" />
+            </div>
 
             {/* Delete sits outside the Link so it is never a stray click on the
                 way to opening a grid. */}

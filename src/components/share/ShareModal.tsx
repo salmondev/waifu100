@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2 } from "lucide-react";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, isGifUrl } from "@/lib/utils";
 import { ensureUserId } from "@/lib/user-id";
+import { rememberOwnGrid } from "@/lib/my-grids";
 import { upload } from '@vercel/blob/client';
 
 interface ShareModalProps {
@@ -186,6 +187,23 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
          if (!res.ok) throw new Error("Failed to save");
          
          const data = await res.json();
+
+         // Record it locally straight away, so "Compare with my grid" is already
+         // there the first time this browser opens someone else's grid - before
+         // /api/my-grids has ever been called.
+         rememberOwnGrid({
+             id: data.id,
+             title: customTitle.trim() || "My 100 Favorite Characters",
+             imageUrl: imageUrl || null,
+             createdAt: new Date().toISOString(),
+             hasGif: grid.some(
+                 (cell) =>
+                     isGifUrl(cell.character?.customImageUrl) ||
+                     isGifUrl(cell.character?.images?.jpg?.image_url)
+             ),
+             count: cleanGridData.length,
+         });
+
          const fullUrl = `${window.location.origin}/view/${data.id}`;
          setUrl(fullUrl);
          setStep('result');

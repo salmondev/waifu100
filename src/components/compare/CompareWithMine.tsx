@@ -4,47 +4,34 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, GitCompareArrows } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { readUserId, USER_ID_HEADER } from "@/lib/user-id";
-import type { ShareSummary } from "@/lib/share-summary";
+import { useMyGrids } from "@/lib/my-grids";
 
 /**
- * The way into a comparison, on someone else's grid.
+ * The way into a comparison, from someone else's grid.
  *
  * It only appears for a browser that already has a grid of its own, because
  * that is the only case where one click can produce a result. Someone without
  * one is not offered a broken button - the "Create Your Own" link next to it is
  * the honest path for them, and the comparison is the reason to take it.
  *
- * The owner id is read from localStorage and sent as a header, never a query
- * parameter, exactly as /api/my-grids requires (see src/lib/user-id.ts).
+ * The list comes from the shared store in src/lib/my-grids.ts: cached in
+ * localStorage so the button lands with the rest of the page rather than after
+ * a Redis round trip, and fetched once per page no matter how many cards ask.
  */
-export function CompareWithMine({ shareId }: { shareId: string }) {
-    const [grids, setGrids] = useState<ShareSummary[]>([]);
+export function CompareWithMine({
+    shareId,
+    variant = "button",
+}: {
+    shareId: string;
+    /** "button" sits in the view page header; "card" is the showcase overlay. */
+    variant?: "button" | "card";
+}) {
+    const mine = useMyGrids();
+    // Comparing a grid with itself is a 100% match and no fun.
+    const grids = mine.filter((g) => g.id !== shareId);
+
     const [open, setOpen] = useState(false);
     const boxRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const userId = readUserId();
-        if (!userId) return;
-
-        let cancelled = false;
-        fetch("/api/my-grids", { headers: { [USER_ID_HEADER]: userId } })
-            .then((res) => (res.ok ? res.json() : { grids: [] }))
-            .then((data) => {
-                if (cancelled) return;
-                const mine: ShareSummary[] = Array.isArray(data.grids) ? data.grids : [];
-                // Comparing a grid with itself is a 100% match and no fun.
-                setGrids(mine.filter((g) => g.id !== shareId));
-            })
-            .catch(() => {
-                // A failed lookup means no button, not an error message: this is
-                // an extra on someone else's page.
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [shareId]);
 
     useEffect(() => {
         if (!open) return;
@@ -64,33 +51,43 @@ export function CompareWithMine({ shareId }: { shareId: string }) {
 
     if (grids.length === 0) return null;
 
-    const buttonClass =
-        "flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-500/20 sm:text-base";
+    const isCard = variant === "card";
+
+    const className = isCard
+        ? "flex items-center gap-1.5 rounded-full border border-white/10 bg-black/70 px-2.5 py-1.5 text-[11px] font-medium text-purple-200 backdrop-blur-sm transition-colors hover:bg-purple-600/70 hover:text-white"
+        : "flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-500/20 sm:text-base";
+
+    const label = isCard ? "Compare" : "Compare with my grid";
+    const iconSize = isCard ? 14 : 18;
 
     // The visitor's grid is side A, so the page reads "only in <their grid>" as
     // the list of characters they themselves have not picked.
     if (grids.length === 1) {
         return (
-            <Link href={`/compare?a=${grids[0].id}&b=${shareId}`} className={buttonClass}>
-                <GitCompareArrows size={18} className="shrink-0" />
-                <span className="truncate">Compare with my grid</span>
+            <Link
+                href={`/compare?a=${grids[0].id}&b=${shareId}`}
+                title={`Compare with "${grids[0].title}"`}
+                className={className}
+            >
+                <GitCompareArrows size={iconSize} className="shrink-0" />
+                <span className="truncate">{label}</span>
             </Link>
         );
     }
 
     return (
-        <div ref={boxRef} className="relative w-full">
+        <div ref={boxRef} className={cn("relative", !isCard && "w-full")}>
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
                 aria-expanded={open}
                 aria-haspopup="menu"
-                className={buttonClass}
+                className={className}
             >
-                <GitCompareArrows size={18} className="shrink-0" />
-                <span className="truncate">Compare with my grid</span>
+                <GitCompareArrows size={iconSize} className="shrink-0" />
+                <span className="truncate">{label}</span>
                 <ChevronDown
-                    size={16}
+                    size={isCard ? 12 : 16}
                     className={cn("shrink-0 transition-transform", open && "rotate-180")}
                 />
             </button>
@@ -98,7 +95,12 @@ export function CompareWithMine({ shareId }: { shareId: string }) {
             {open && (
                 <div
                     role="menu"
-                    className="absolute right-0 z-50 mt-2 max-h-72 w-full min-w-[240px] overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900 p-1 shadow-2xl shadow-black/60"
+                    className={cn(
+                        "absolute right-0 z-50 max-h-72 w-max min-w-[220px] max-w-[280px] overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900 p-1 shadow-2xl shadow-black/60",
+                        // On a card the control sits at the bottom edge, so the
+                        // menu opens upwards or it would fall out of the tile.
+                        isCard ? "bottom-full mb-2" : "mt-2 w-full"
+                    )}
                 >
                     {grids.map((grid) => (
                         <Link
