@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, ExternalLink, Grid3x3, Loader2, Trash2 } from "lucide-react";
+import { Calendar, ExternalLink, GitCompareArrows, Grid3x3, Loader2, Trash2 } from "lucide-react";
 import { shareCardPath } from "@/lib/share-card";
+import { cn } from "@/lib/utils";
 import type { ShareSummary } from "@/lib/share-summary";
 import { CompareWithMine } from "@/components/compare/CompareWithMine";
 
@@ -11,6 +12,13 @@ interface GridCardProps {
     /** Present only on the owner's own list; absent on the public showcase. */
     onDelete?: (id: string) => void;
     deleting?: boolean;
+    /**
+     * Which compare slot this grid currently occupies, when the page above has
+     * a compare bar. Passing `onSelect` is what turns the card's compare
+     * control from a link into a slot picker.
+     */
+    selected?: "a" | "b" | null;
+    onSelect?: (grid: ShareSummary) => void;
 }
 
 /**
@@ -18,14 +26,23 @@ interface GridCardProps {
  * looks the same wherever it is listed - the count and GIF chips in particular
  * only teach people what they mean if they never move.
  */
-export function GridCard({ grid, onDelete, deleting = false }: GridCardProps) {
+export function GridCard({
+    grid,
+    onDelete,
+    deleting = false,
+    selected = null,
+    onSelect,
+}: GridCardProps) {
     // A share whose thumbnail upload failed has no imageUrl; the OG route draws
     // one from the grid data so the card is never blank.
     const preview = grid.imageUrl || shareCardPath(grid.id);
     const isComplete = grid.count >= 100;
 
     return (
-        <div className="group relative bg-zinc-900/40 border border-zinc-800/50 rounded-2xl overflow-hidden hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-900/20 transition-all duration-300 hover:-translate-y-1 h-fit">
+        <div className={cn(
+            "group relative bg-zinc-900/40 border border-zinc-800/50 rounded-2xl overflow-hidden hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-900/20 transition-all duration-300 hover:-translate-y-1 h-fit",
+            selected && "border-purple-500 ring-2 ring-purple-500/40"
+        )}>
             <Link
                 href={`/view/${grid.id}`}
                 target="_blank"
@@ -118,11 +135,33 @@ export function GridCard({ grid, onDelete, deleting = false }: GridCardProps) {
             </Link>
 
             {/* Compare, like delete, sits outside the Link - it is a different
-                destination, and a nested <a> would be invalid markup anyway.
-                It renders nothing at all until this browser has a grid of its
-                own, so a first-time visitor sees the card exactly as before. */}
+                action, and a nested <a> would be invalid markup anyway.
+                With a compare bar above the list this fills a slot; without one
+                it links out, and then only for a browser that owns a grid. */}
             <div className="absolute bottom-[4.75rem] right-3 z-40">
-                <CompareWithMine shareId={grid.id} variant="card" />
+                {onSelect ? (
+                    <button
+                        type="button"
+                        onClick={() => onSelect(grid)}
+                        aria-pressed={!!selected}
+                        aria-label={
+                            selected
+                                ? `Remove "${grid.title}" from the comparison`
+                                : `Add "${grid.title}" to the comparison`
+                        }
+                        className={cn(
+                            "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-medium backdrop-blur-sm transition-colors",
+                            selected
+                                ? "gif-badge text-white"
+                                : "border border-white/10 bg-black/70 text-purple-200 hover:bg-purple-600/70 hover:text-white"
+                        )}
+                    >
+                        <GitCompareArrows className="h-3.5 w-3.5 shrink-0" />
+                        {selected ? `Grid ${selected.toUpperCase()}` : "Compare"}
+                    </button>
+                ) : (
+                    <CompareWithMine shareId={grid.id} variant="card" />
+                )}
             </div>
 
             {/* Delete sits outside the Link so it is never a stray click on the
