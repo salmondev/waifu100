@@ -2143,14 +2143,26 @@ export default function Home() {
                                          "aspect-square relative group rounded-lg overflow-hidden border border-zinc-800 cursor-pointer hover:border-pink-500 transition-all bg-zinc-900 w-full",
                                          selectedCharacter?.customImageUrl === img.url && "ring-2 ring-pink-500 border-transparent"
                                       )}>
-                                         {/* static.wikia.nocookie.net answers 404 to any request
-                                             carrying a Referer, so every Fandom thumbnail rendered
-                                             as a broken image while the same URL worked fine from
-                                             the server. These load straight from the origin rather
-                                             than through /_next/image - a picker shows dozens of
-                                             thumbnails per character, and proxying them all would
-                                             burn image-optimization quota on pictures nobody picks. */}
-                                         <img src={char.customImageUrl} referrerPolicy="no-referrer" className="w-full h-full object-cover pointer-events-none select-none"/>
+                                         {/* The picker asks for 70+ thumbnails at once and the
+                                             booru/wiki CDNs throttle a burst that size, dropping a
+                                             scattered handful as broken tiles. loading="lazy" only
+                                             fetches what is scrolled into view, and onError retries
+                                             once against the full-size original - for Fandom the
+                                             thumbnail is a /scale-to-width-down/ derivative, so the
+                                             original is a different object that may well be there
+                                             when the derivative is not. */}
+                                         <img
+                                            src={char.customImageUrl}
+                                            referrerPolicy="no-referrer"
+                                            loading="lazy"
+                                            onError={(e) => {
+                                               const el = e.currentTarget;
+                                               if (el.dataset.retried || el.src === img.url) return;
+                                               el.dataset.retried = "1";
+                                               el.src = img.url;
+                                            }}
+                                            className="w-full h-full object-cover pointer-events-none select-none"
+                                         />
                                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                                             <span className="text-[9px] text-white bg-black/50 px-1 rounded">{img.source}</span>
                                          </div>
