@@ -2,73 +2,21 @@ import { Metadata } from "next";
 import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { withRedis } from '@/lib/redis';
+import { readShare } from '@/lib/share-store';
 import { shareCardPath } from '@/lib/share-card';
-import { GridCell } from "@/types";
-
-import { AnalysisResult, VerdictFeedback } from "@/types";
 
 interface ServerPageProps {
   params: Promise<{ id: string }>;
 }
 
-interface ShareData {
-    grid: GridCell[];
-    title: string;
-    hasImage?: boolean;
-    imageUrl?: string;
-    verdict?: AnalysisResult | null; 
-    verdictFeedback?: VerdictFeedback;
-}
-
-async function getShareData(id: string): Promise<ShareData | null> {
+/**
+ * Reading a share is the same job on this page, the compare page and the card
+ * routes, so the parsing (two historical payload shapes, cells carrying their
+ * own index) lives in one place - see src/lib/share-store.ts.
+ */
+async function getShareData(id: string) {
     try {
-        // Read from Redis (ioredis)
-        const rawString = await withRedis((redis) => redis.get(`waifu100:share:${id}`));
-        
-        if (!rawString) return null;
-
-        // Redis returns string, parse it
-        const raw = JSON.parse(rawString);
-        
-        // Handle Migration/Structure
-        let dataArray = [];
-        let title = "Waifu100 Grid";
-        let imageUrl = undefined;
-        let hasImage = false;
-        let verdict = null;
-        let verdictFeedback: VerdictFeedback = null;
-
-        if (Array.isArray(raw)) {
-            dataArray = raw;
-        } else if (raw.grid && Array.isArray(raw.grid)) {
-            dataArray = raw.grid;
-            if (raw.meta?.title) title = raw.meta.title;
-            // Get Image URL directly from metadata
-            if (raw.meta?.imageUrl) {
-                imageUrl = raw.meta.imageUrl;
-                hasImage = true;
-            } else if (raw.meta?.hasImage) {
-                 hasImage = true; 
-            }
-            
-            // Extract verdict if available
-            if (raw.verdict) verdict = raw.verdict;
-            if (raw.verdictFeedback) verdictFeedback = raw.verdictFeedback;
-        }
-
-        // Reconstruct Grid
-        const newGrid: GridCell[] = Array(100).fill(null).map(() => ({ character: null }));
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        dataArray.forEach((item: any) => {
-            const index = item.i !== undefined ? item.i : -1;
-            if (index >= 0 && index < 100 && item.character) {
-                    newGrid[index] = { character: item.character };
-            }
-        });
-
-        return { grid: newGrid, title, hasImage, imageUrl, verdict, verdictFeedback };
+        return await readShare(id);
     } catch (e) {
         console.error("Read Share Error:", e);
         return null;

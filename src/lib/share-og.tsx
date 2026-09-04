@@ -48,7 +48,8 @@ const FONT_CSS =
 
 let fontCache: Promise<ArrayBuffer | null> | null = null;
 
-async function loadFont(): Promise<ArrayBuffer | null> {
+/** Shared with the compare card, which needs the same Thai-capable face. */
+export async function loadOgFont(): Promise<ArrayBuffer | null> {
     if (!fontCache) {
         fontCache = (async () => {
             try {
@@ -93,7 +94,7 @@ const UA =
  * carry 83MB of source images, and every one of those gets base64'd and then
  * decoded in full for an 80px tile. A few KB per cell instead.
  */
-async function fetchCell(url: string): Promise<{ data?: string; reason?: string }> {
+async function fetchCell(url: string, px: number): Promise<{ data?: string; reason?: string }> {
     const res = await fetch(url, {
         signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
         headers: {
@@ -120,7 +121,7 @@ async function fetchCell(url: string): Promise<{ data?: string; reason?: string 
     // static card can show, and decoding every frame of a long GIF is exactly
     // the memory the crash was made of.
     const jpeg = await sharp(Buffer.from(buffer), { limitInputPixels: 50_000_000 })
-        .resize(SOURCE_PX, SOURCE_PX, { fit: 'cover' })
+        .resize(px, px, { fit: 'cover' })
         .jpeg({ quality: 72 })
         .toBuffer();
 
@@ -131,7 +132,8 @@ async function fetchCell(url: string): Promise<{ data?: string; reason?: string 
 async function toDataUrl(
     index: number,
     url: string | null | undefined,
-    stats: CellStats
+    stats: CellStats,
+    px: number
 ): Promise<string | null> {
     if (!url) return null;
     if (!/^https?:\/\//.test(url)) {
@@ -142,7 +144,7 @@ async function toDataUrl(
 
     let reason = 'unknown';
     try {
-        const result = await fetchCell(url);
+        const result = await fetchCell(url, px);
         if (result.data) {
             stats.loaded++;
             return result.data;
@@ -166,25 +168,26 @@ export interface CellStats {
 }
 
 /**
- * Resolves every cell to an inline image.
+ * Resolves a list of image URLs to inline data URLs, each `px` square.
  *
  * Concurrency is capped: firing all 100 at once timed most of them out and left
  * a production card two thirds empty.
  */
-export async function resolveCells(
-    images: (string | null | undefined)[]
+export async function resolveImages(
+    images: (string | null | undefined)[],
+    px: number
 ): Promise<{ cells: (string | null)[]; stats: CellStats }> {
     const started = Date.now();
     const stats: CellStats = { loaded: 0, failed: 0, ms: 0, failures: [] };
 
-    const total = COLUMNS * COLUMNS;
+    const total = images.length;
     const cells: (string | null)[] = Array(total).fill(null);
     let next = 0;
 
     const worker = async () => {
         while (next < total) {
             const i = next++;
-            cells[i] = await toDataUrl(i, images[i], stats);
+            cells[i] = await toDataUrl(i, images[i], stats, px);
         }
     };
 
@@ -194,10 +197,21 @@ export async function resolveCells(
     return { cells, stats };
 }
 
+/** The 100 cells of a share grid, at the size this card draws them. */
+export async function resolveCells(
+    images: (string | null | undefined)[]
+): Promise<{ cells: (string | null)[]; stats: CellStats }> {
+    const total = COLUMNS * COLUMNS;
+    return resolveImages(
+        Array.from({ length: total }, (_, i) => images[i]),
+        SOURCE_PX
+    );
+}
+
 // --- Card -------------------------------------------------------------------
 
 export async function renderShareOg({ title, images, count }: ShareOgInput) {
-    const [font, resolved] = await Promise.all([loadFont(), resolveCells(images)]);
+    const [font, resolved] = await Promise.all([loadOgFont(), resolveCells(images)]);
     const cells = resolved.cells;
 
     return new ImageResponse(
