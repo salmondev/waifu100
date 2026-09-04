@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFlashModel } from "@/lib/gemini";
+import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    // This route spends a Gemini call per request and has to stay open to the
+    // public, so it cannot sit behind ADMIN_TOKEN - the public gets a budget.
+    const limited = await enforceRateLimit(request, LIMITS.analyze);
+    if (limited) return limited;
+
     const { characterNames } = await request.json();
 
     if (!characterNames || characterNames.length === 0) {
