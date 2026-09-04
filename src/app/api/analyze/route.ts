@@ -38,8 +38,9 @@ export async function POST(request: NextRequest) {
                 1. **No exclamation marks at all.** Not one, in the title, content or tags.
                 2. **Banned openers and interjections**: "โอ้โห", "โห", "ว้าว", "อู้หู", "โอ้", "เฮ้ย", "อุ๊ย".
                 3. **Banned hype phrases**: "สุดๆ", "ตัวจริงเสียงจริง", "ฟรุ้งฟริ้ง", "ชัดๆ", "ปัง", "จัดเต็ม", "ที่สุดในกาแล็กซี", "โลกเป็นสีชมพู", "ขบวนการ...", "รวมดาว", "ตัวแม่", "สายแข็ง".
-                4. Use "นะ" or "เลยล่ะ" at most **once** in the whole content. Never "นะเนี่ย".
-                5. 2-3 short sentences. Plain everyday words. No emoji inside the text.
+                4. Use "นะ" or "เลยล่ะ" at most **once** in the whole content, and **never** "นะเนี่ย".
+                5. The Thai **title** is a plain short noun phrase (4-8 words) describing the person - no particles at all ("นะ", "เนี่ย", "ล่ะ", "ค่ะ", "ครับ"), no punctuation.
+                6. 2-3 short sentences. Plain everyday words. No emoji inside the text.
             - Say something about *the person* that only their grid could reveal - what they seem to enjoy, what they seem to care about - rather than praising the characters.
             - **Wrong (theatrical, do not write like this):** "โอ้โห! นี่มันรวมดาวตัวละครที่ใจดีที่สุดในกาแล็กซีชัดๆ! คุณนี่มันนักสะสมความฟรุ้งฟริ้งตัวจริงเสียงจริงเลยนะเนี่ย!"
             - **Right (calm and warm, write like this):** "ตัวละครที่เลือกมาส่วนใหญ่เป็นคนที่ใจดีกับคนอื่นเงียบ ๆ ไม่ค่อยเรียกร้องอะไร น่าจะเป็นคนที่ชอบเรื่องอบอุ่นมากกว่าเรื่องที่ตื่นเต้น อยู่ใกล้ ๆ แล้วคงสบายใจดี"
