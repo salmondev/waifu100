@@ -32,11 +32,13 @@ export async function POST(request: NextRequest) {
     3.  **Generate a Verdict**:
         - **English**: A short, punchy title, a 3-4 sentence fun/insightful analysis, and 3-4 short hashtags. **Use simple, conversational English.**
         - **Thai**: **DO NOT TRANSLATE FROM ENGLISH.** Write a completely new, natural Thai analysis that fits the context. Use **Natural / Casual Thai**, specific anime terminology where appropriate, but keep it grounded.
-            - **Tone**: Fun, friendly, and teasing (like a close friend), but NOT "try-hard" or overly slang-heavy.
-            - **Avoid**: "Phasa Wibat" (intentional misspellings), forced trendy slang (e.g., "ตัวแม่จะแคร์เพื่อ", "โฮกปิ๊บ"), or sounding like a bot trying too hard to be cool.
-            - Examples of good tone: "งานดี", "สุดจัด", "เบียวได้ใจ", "หวานเจี๊ยบ", "ตึงๆ".
-            - Focus on the *insight* and *humor* of the analysis rather than just using slang words.
-        - **Tone**: Playful, hyperbolic, and appreciative. **ABSOLUTELY NO meaningful insults, mean-spirited sarcasm, or medical/health metaphors.** 
+            - **Tone**: soft, warm and gently endearing - like a friend who noticed something lovely about your taste and says it kindly. Cute, not loud.
+            - **Write plainly.** Calm sentences, ordinary words, a light smile behind them. End sentences softly ("...นะ", "...เลยล่ะ", "...ครับ/ค่ะ" sparingly). One gentle observation is worth more than three exclamations.
+            - **Do NOT be theatrical.** No screaming enthusiasm, no drama-queen voice, no "จริต", no performative flirting or camp. Avoid stacked exclamation marks and ALL-CAPS energy.
+            - **Avoid**: "Phasa Wibat" (intentional misspellings), forced trendy slang ("ตัวแม่", "จัดหนักจัดเต็ม", "โฮกปิ๊บ", "สาดดด"), overused hype words ("ปังมาก", "สุดจัดปลัดบอก"), and anything that sounds like a bot trying to be cool.
+            - Examples of the right register: "รสนิยมนุ่มนวลใช้ได้เลยนะ", "เลือกตัวละครที่อบอุ่นเป็นส่วนใหญ่", "ดูเป็นคนใจดีนะเนี่ย", "ชอบเรื่องที่ค่อย ๆ เล่าสินะ".
+            - Focus on the *insight* and quiet warmth of the analysis, not on slang or volume.
+        - **Tone (English only - the Thai voice follows its own guidance above)**: Playful and appreciative. **ABSOLUTELY NO meaningful insults, mean-spirited sarcasm, or medical/health metaphors.**
         - **NEGATIVE CONSTRAINTS**: Do NOT use words like "diabetes", "insulin", "heart attack", "stroke", "addiction", "overdose", or "filling a void". Instead use phrases like "levels of sweetness", "heart-melting", "pure joy", "maximum comfiness".
     4.  **Vibe Check**: 
         - Choose a single **Emoji** that best represents their grid.
@@ -50,9 +52,9 @@ export async function POST(request: NextRequest) {
         "tags": ["#Emo", "#Tragedy", "#DarkFantasies"]
       },
       "th": {
-        "title": "จอมมารเบียวตัวพ่อ",
-        "content": "รสนิยมแบบนี้มัน... ตึงจัดครับพี่น้อง! ชอบแต่ตัวละครที่แบกโลกไว้คนเดียวหรอ? ระวังตับพังนะบอกก่อน...",
-        "tags": ["#เบียว", "#ดาร์ก", "#ตับพังยับ"]
+        "title": "คนที่ชอบเรื่องเงียบ ๆ",
+        "content": "เลือกแต่ตัวละครที่แบกอะไรไว้ในใจเยอะเลยนะ ดูเป็นคนที่อ่านคนเก่ง และชอบเรื่องที่ค่อย ๆ เล่ามากกว่าเรื่องที่ตะโกนใส่ ใครได้คุยด้วยคงสบายใจน่าดู",
+        "tags": ["#สายดาร์กอบอุ่น", "#ชอบเรื่องลึก", "#ใจดีแบบเงียบ ๆ"]
       }
     }`;
 

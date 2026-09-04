@@ -1,10 +1,10 @@
 "use client";
 
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, isGifUrl } from "@/lib/utils";
 
 import Link from "next/link";
-import { Copy, ArrowLeft, Check, Sparkles, Loader2 } from "lucide-react";
+import { Copy, ArrowLeft, Check, Sparkles, Loader2, Grid3x3, Link2 } from "lucide-react";
 import { useState } from "react";
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 
@@ -24,6 +24,12 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
   const [showVerdict, setShowVerdict] = useState(false);
   const [localVerdict, setLocalVerdict] = useState<AnalysisResult | null>(verdict ?? null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const hasGif = grid.some(
+    (cell) =>
+      isGifUrl(cell.character?.customImageUrl) ||
+      isGifUrl(cell.character?.images?.jpg?.image_url)
+  );
 
   const handleCopyLink = () => {
     if (typeof window !== "undefined") {
@@ -82,19 +88,28 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center py-10 relative">
       {/* Header */}
       <div className="w-full max-w-[1000px] grid grid-cols-3 items-center px-4 mb-8">
-         <div className="flex items-center justify-start">
-             <Link 
-                href="/"
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+         <div className="flex flex-col items-start justify-center gap-2">
+             {/* Most visitors arrive from the showcase; sending them back there was
+                 impossible without the browser's own back button. */}
+             <Link
+                href="/community"
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors min-w-[190px]"
              >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={18} />
+                <span>Community Showcase</span>
+             </Link>
+             <Link
+                href="/"
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors min-w-[190px]"
+             >
+                <Grid3x3 size={18} />
                 <span>Create Your Own</span>
              </Link>
          </div>
-         
+
          {/* Center Title */}
-         <div className="flex items-center justify-center">
-             <h1 
+         <div className="flex flex-col items-center justify-center gap-2">
+             <h1
                 className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400 bg-clip-text text-transparent px-4 text-center pb-1"
                 style={{
                     textShadow: '0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(168, 85, 247, 0.2)'
@@ -102,6 +117,17 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
              >
                  {title}
              </h1>
+
+             {/* Same chip as the showcase card, so a grid keeps its badge when opened. */}
+             {hasGif && (
+                <span
+                   title="This grid contains animated characters"
+                   className="gif-badge inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest text-white"
+                >
+                   <span className="h-1.5 w-1.5 rounded-full bg-white/90 animate-pulse" />
+                   GIF
+                </span>
+             )}
          </div>
 
          <div className="flex flex-col items-end justify-center gap-2">
@@ -114,8 +140,8 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
                         : "bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 border border-transparent"
                 )}
              >
-                 {copied ? <Check size={18} /> : <Copy size={18} />}
-                 <span>{copied ? "Copied!" : "Share Linked"}</span>
+                 {copied ? <Check size={18} /> : <Link2 size={18} />}
+                 <span>{copied ? "Link Copied!" : "Copy Link"}</span>
              </button>
 
              <button

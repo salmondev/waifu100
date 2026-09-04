@@ -177,28 +177,35 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
                         </p>
                     </div>
 
-                    {/* Action Buttons */}
-                    {!readonly && (
-                        <div id="verdict-actions" className="flex flex-wrap justify-center items-center gap-3 mt-8 pb-2">
-                            <ActionButton 
-                                icon={ThumbsUp} 
-                                label="Agree" 
-                                onClick={() => onFeedback(feedback === 'agree' ? null : 'agree')}
-                                hoverColor="hover:text-green-400 hover:border-green-500/30 hover:bg-green-900/20"
-                                forceActive={feedback === 'agree'}
-                                activeColor="text-green-400 border-green-500/30 bg-green-900/20"
-                            />
-                            <ActionButton 
-                                icon={ThumbsDown} 
-                                label="Disagree" 
-                                onClick={() => onFeedback(feedback === 'disagree' ? null : 'disagree')}
-                                hoverColor="hover:text-red-400 hover:border-red-500/30 hover:bg-red-900/20"
-                                forceActive={feedback === 'disagree'}
-                                activeColor="text-red-400 border-red-500/30 bg-red-900/20"
-                            />
-                            <div className="w-px h-6 bg-zinc-800 mx-1 hidden sm:block"></div>
-                            
-                            <ActionButton 
+                    {/* Action Buttons.
+                        A shared grid is someone else's, so the verdict is not the
+                        viewer's to rate - but copying and saving it is exactly what
+                        a visitor wants, and hiding the whole row from them was an
+                        oversight. */}
+                    <div id="verdict-actions" className="flex flex-wrap justify-center items-center gap-3 mt-8 pb-2">
+                            {!readonly && (
+                              <>
+                                <ActionButton
+                                    icon={ThumbsUp}
+                                    label="Agree"
+                                    onClick={() => onFeedback(feedback === 'agree' ? null : 'agree')}
+                                    hoverColor="hover:text-green-400 hover:border-green-500/30 hover:bg-green-900/20"
+                                    forceActive={feedback === 'agree'}
+                                    activeColor="text-green-400 border-green-500/30 bg-green-900/20"
+                                />
+                                <ActionButton
+                                    icon={ThumbsDown}
+                                    label="Disagree"
+                                    onClick={() => onFeedback(feedback === 'disagree' ? null : 'disagree')}
+                                    hoverColor="hover:text-red-400 hover:border-red-500/30 hover:bg-red-900/20"
+                                    forceActive={feedback === 'disagree'}
+                                    activeColor="text-red-400 border-red-500/30 bg-red-900/20"
+                                />
+                                <div className="w-px h-6 bg-zinc-800 mx-1 hidden sm:block"></div>
+                              </>
+                            )}
+
+                            <ActionButton
                                 icon={Copy} 
                                 label="Copy Text" 
                                 onClick={() => {
@@ -251,8 +258,7 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
                                     }
                                 }}
                             />
-                        </div>
-                    )}
+                    </div>
                 </div>
             )}
         </div>
