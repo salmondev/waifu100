@@ -255,6 +255,7 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
                           cell.character.customImageUrl || cell.character.images.jpg.image_url
                       )}
                       alt={cell.character.name}
+                      referrerPolicy="no-referrer"
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                    />
                    {/* Hover caption. It survives untouched on desktop; a phone
@@ -302,6 +303,7 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
                <img
                   src={selected.customImageUrl || selected.images.jpg.image_url}
                   alt=""
+                  referrerPolicy="no-referrer"
                   className="w-11 h-11 rounded-xl object-cover shrink-0 bg-zinc-800"
                />
                <div className="min-w-0 flex-1">

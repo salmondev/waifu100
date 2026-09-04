@@ -15,6 +15,7 @@ export function DragOverlayWrapper({ activeDragData }: DragOverlayWrapperProps) 
                 <img 
                     src={activeDragData.character.customImageUrl || activeDragData.character.images.jpg.image_url} 
                     alt={activeDragData.character.name || "Dragged character"}
+                    referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
                 />
             </div>
