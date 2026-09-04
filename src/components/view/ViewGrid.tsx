@@ -4,8 +4,8 @@ import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn, isGifUrl } from "@/lib/utils";
 
 import Link from "next/link";
-import { ArrowLeft, Check, Sparkles, Loader2, Grid3x3, Link2 } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Check, Sparkles, Loader2, Grid3x3, Link2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 
 interface ViewGridProps {
@@ -24,6 +24,25 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
   const [showVerdict, setShowVerdict] = useState(false);
   const [localVerdict, setLocalVerdict] = useState<AnalysisResult | null>(verdict ?? null);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Which cell the visitor tapped. Names were hover-only, which on a phone -
+  // where most of these links are opened - meant they could not be read at all.
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const selected = selectedIdx !== null ? grid[selectedIdx]?.character ?? null : null;
+
+  // Esc closes the name bar, same as tapping the cell again.
+  useEffect(() => {
+    if (selectedIdx === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedIdx(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedIdx]);
+
+  // Read at render time rather than from window.location.href so the share text
+  // never carries whatever query string the visitor arrived with.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
 
   const hasGif = grid.some(
     (cell) =>
@@ -200,7 +219,24 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
           {grid.map((cell, idx) => (
             <div
               key={idx}
-              className="relative min-w-0 min-h-0 bg-zinc-900/50 border border-zinc-900/50 overflow-hidden group"
+              onClick={() => cell.character && setSelectedIdx(selectedIdx === idx ? null : idx)}
+              role={cell.character ? "button" : undefined}
+              tabIndex={cell.character ? 0 : undefined}
+              aria-label={cell.character?.name}
+              aria-pressed={cell.character ? selectedIdx === idx : undefined}
+              onKeyDown={(e) => {
+                if (!cell.character) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelectedIdx(selectedIdx === idx ? null : idx);
+                }
+              }}
+              className={cn(
+                "relative min-w-0 min-h-0 bg-zinc-900/50 border border-zinc-900/50 overflow-hidden group",
+                cell.character && "cursor-pointer focus:outline-none",
+                selectedIdx === idx &&
+                  "ring-2 ring-inset ring-purple-400 z-10 shadow-[0_0_18px_rgba(168,85,247,0.6)]"
+              )}
             >
               {cell.character ? (
                  <>
@@ -213,8 +249,13 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
                       alt={cell.character.name}
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                    />
-                   {/* Tooltip-like overlay on hover */}
-                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                   {/* Hover caption. It survives untouched on desktop; a phone
+                       cell is ~35px wide, so this is unreadable there and the
+                       tap opens the readable bar below instead. */}
+                   <div className={cn(
+                      "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 transition-opacity duration-200 pointer-events-none hidden sm:block",
+                      selectedIdx === idx ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                   )}>
                       <p className="text-[10px] font-bold truncate text-white text-center leading-tight">
                           {cell.character.name}
                       </p>
@@ -231,9 +272,54 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
       </div>
       </div>
 
-      <div className="mt-8 text-zinc-500 text-sm">
+      <p className="mt-4 sm:hidden text-[11px] text-zinc-600 px-4 text-center">
+         Tap any character to see who it is.
+      </p>
+
+      <div className="mt-8 mb-16 text-zinc-500 text-sm">
          Made with <Link href="/" className="text-purple-400 hover:underline">Waifu100</Link>
       </div>
+
+      {/* The tapped character, read out at a size a phone can actually show.
+          A bar pinned to the bottom edge rather than a popover over the cell:
+          the grid stays fully visible, so the visitor can keep tapping around
+          it without the answer covering the thing they are looking at. */}
+      {selected && (
+         <div
+            role="status"
+            aria-live="polite"
+            className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 pointer-events-none animate-in slide-in-from-bottom-4 duration-200"
+         >
+            <div className="pointer-events-auto mx-auto max-w-[560px] flex items-center gap-3 rounded-2xl border border-purple-500/30 bg-zinc-900/95 backdrop-blur px-3 py-2.5 shadow-2xl shadow-purple-900/40">
+               <img
+                  src={selected.customImageUrl || selected.images.jpg.image_url}
+                  alt=""
+                  className="w-11 h-11 rounded-xl object-cover shrink-0 bg-zinc-800"
+               />
+               <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-white leading-tight break-words">
+                     {selected.name}
+                  </p>
+                  <p className="text-[11px] text-zinc-500 truncate">
+                     {selected.source || "Unknown source"}
+                     {selectedIdx !== null && (
+                        <span className="ml-2 font-mono text-zinc-600">
+                           {COLUMNS[selectedIdx % 10]}{Math.floor(selectedIdx / 10) + 1}
+                        </span>
+                     )}
+                  </p>
+               </div>
+               <button
+                  type="button"
+                  onClick={() => setSelectedIdx(null)}
+                  aria-label="Close"
+                  className="shrink-0 p-2 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+               >
+                  <X size={16} />
+               </button>
+            </div>
+         </div>
+      )}
 
       <AnalysisModal 
          isOpen={showVerdict}
@@ -244,6 +330,8 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
          feedback={verdictFeedback ?? null}
          onFeedback={() => {}}
          readonly={true}
+         shareUrl={shareId ? `${origin}/view/${shareId}` : undefined}
+         gridTitle={title}
       />
     </div>
   );
