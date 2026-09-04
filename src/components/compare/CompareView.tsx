@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, Check, Grid3x3, Link2, Users } from "lucide-react";
+import { ArrowLeft, Check, GitCompareArrows, Grid3x3, Link2, Users } from "lucide-react";
 import { cn, optimizedImageSrc } from "@/lib/utils";
 import type { CompareCharacter, ComparePair } from "@/lib/character-match";
 import { CompareVerdict } from "@/components/compare/CompareVerdict";
@@ -19,7 +19,8 @@ export interface CompareViewProps {
     b: CompareSide;
     similarity: number;
     shared: ComparePair[];
-    /** In A only - the visitor's side, when they arrived from their own grid. */
+    /** In A only. A is the visitor's own grid when they arrived from it, but
+     *  any two grids can be compared, so nothing here assumes that. */
     onlyA: CompareCharacter[];
     onlyB: CompareCharacter[];
 }
@@ -204,6 +205,15 @@ export function CompareView({ a, b, similarity, shared, onlyA, onlyB }: CompareV
                         <Grid3x3 size={18} className="shrink-0" />
                         <span>Create Your Own</span>
                     </Link>
+                    {/* Keeps side A and swaps the other, which is how someone
+                        works through several grids one after another. */}
+                    <Link
+                        href={`/compare?a=${a.id}`}
+                        className="flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+                    >
+                        <GitCompareArrows size={18} className="shrink-0" />
+                        <span>Compare others</span>
+                    </Link>
                     <button
                         onClick={handleCopyLink}
                         className={cn(
@@ -265,18 +275,20 @@ export function CompareView({ a, b, similarity, shared, onlyA, onlyB }: CompareV
                     the other person's picks first because those are the ones
                     worth looking up. */}
                 <div className="mt-12 grid gap-8 lg:grid-cols-2">
+                    {/* Named by grid, not by "you" and "them": either side can be
+                        a stranger's now that any two grids can be compared. */}
                     <OnlyColumn
                         heading={`Only in ${b.title}`}
                         note={`${onlyB.length} character${
                             onlyB.length === 1 ? "" : "s"
-                        } you have not picked`}
+                        } missing from ${a.title}`}
                         characters={onlyB}
                     />
                     <OnlyColumn
                         heading={`Only in ${a.title}`}
                         note={`${onlyA.length} character${
                             onlyA.length === 1 ? "" : "s"
-                        } they have not picked`}
+                        } missing from ${b.title}`}
                         characters={onlyA}
                     />
                 </div>
