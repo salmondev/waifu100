@@ -21,7 +21,9 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
   const [loading, setLoading] = useState(false);
   // Remove local result state
   const [error, setError] = useState<string | null>(null);
-  const [lang, setLang] = useState<'en' | 'th'>('en');
+  // Thai first: the audience for this app is Thai, and the Thai verdict is
+  // written for them rather than translated into their language.
+  const [lang, setLang] = useState<'en' | 'th'>('th');
 
   useEffect(() => {
     if (isOpen && !result && !loading) {
