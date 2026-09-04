@@ -240,9 +240,6 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
             >
               {cell.character ? (
                  <>
-                   {/* referrerPolicy: GIF cells bypass /_next/image so they keep
-                       animating, which leaves them talking to the origin directly -
-                       and Fandom's CDN 404s anything carrying a Referer. */}
                    <img
                       src={(() => {
                               const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
@@ -250,7 +247,6 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
                               return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
                       })()}
                       alt={cell.character.name}
-                      referrerPolicy="no-referrer"
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                    />
                    {/* Hover caption. It survives untouched on desktop; a phone
