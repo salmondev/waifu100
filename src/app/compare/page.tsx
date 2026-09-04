@@ -1,10 +1,12 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { readShares } from "@/lib/share-store";
+import { readShare, readShares } from "@/lib/share-store";
 import { compareGrids } from "@/lib/character-match";
 import { compareCardPath, shareCardPath } from "@/lib/share-card";
 import { CompareView } from "@/components/compare/CompareView";
+import { ComparePicker } from "@/components/compare/ComparePicker";
+import type { ShareSummary } from "@/lib/share-summary";
 
 interface ComparePageProps {
     searchParams: Promise<{ a?: string; b?: string }>;
@@ -19,9 +21,16 @@ interface ComparePageProps {
  * showcase summarises its cards server-side.
  */
 async function load(idA: string, idB: string) {
-    const [shareA, shareB] = await readShares([idA, idB]);
-    if (!shareA || !shareB) return null;
-    return { shareA, shareB, result: compareGrids(shareA.grid, shareB.grid) };
+    try {
+        const [shareA, shareB] = await readShares([idA, idB]);
+        if (!shareA || !shareB) return null;
+        return { shareA, shareB, result: compareGrids(shareA.grid, shareB.grid) };
+    } catch (e) {
+        // A Redis outage must not surface as a bare framework 500 - the page
+        // has a "this grid is gone" state and that is the honest thing to show.
+        console.error("Compare read error:", e);
+        return null;
+    }
 }
 
 export async function generateMetadata({ searchParams }: ComparePageProps): Promise<Metadata> {
@@ -75,25 +84,39 @@ function Empty({ heading, body }: { heading: string; body: string }) {
     );
 }
 
+/**
+ * A side that was named in the URL, as the picker wants it.
+ *
+ * Never throws: the picker's job is to let someone choose two grids, and it can
+ * do that whether or not this lookup worked. A failed one costs a filled-in
+ * slot, not the page.
+ */
+async function preset(id: string): Promise<ShareSummary | null> {
+    if (!id) return null;
+    const share = await readShare(id).catch((e) => {
+        console.error("Compare preset read error:", e);
+        return null;
+    });
+    if (!share) return null;
+    return {
+        id: share.id,
+        title: share.title,
+        imageUrl: share.imageUrl,
+        createdAt: share.createdAt ?? "",
+        hasGif: false,
+        count: share.grid.filter((cell) => cell.character).length,
+    };
+}
+
 export default async function ComparePage({ searchParams }: ComparePageProps) {
     const { a = "", b = "" } = await searchParams;
 
-    if (!a || !b) {
-        return (
-            <Empty
-                heading="Pick two grids"
-                body="A comparison needs two grids. Open one from the showcase and use “Compare with my grid”."
-            />
-        );
-    }
-
-    if (a === b) {
-        return (
-            <Empty
-                heading="That is the same grid twice"
-                body="Comparing a grid with itself is a 100% match, which nobody needed a page for. Pick a different one."
-            />
-        );
+    // Anything short of two different, existing grids lands in the picker with
+    // whatever was named already filled in - a half-formed link ("compare this
+    // one with...") is the normal way in, not an error.
+    if (!a || !b || a === b) {
+        const [presetA, presetB] = await Promise.all([preset(a), preset(a === b ? "" : b)]);
+        return <ComparePicker initialA={presetA} initialB={presetB} />;
     }
 
     const data = await load(a, b);

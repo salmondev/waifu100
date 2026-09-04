@@ -49,19 +49,35 @@ export function CompareWithMine({
         };
     }, [open]);
 
-    if (grids.length === 0) return null;
-
     const isCard = variant === "card";
 
     const className = isCard
         ? "flex items-center gap-1.5 rounded-full border border-white/10 bg-black/70 px-2.5 py-1.5 text-[11px] font-medium text-purple-200 backdrop-blur-sm transition-colors hover:bg-purple-600/70 hover:text-white"
         : "flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-500/20 sm:text-base";
 
-    const label = isCard ? "Compare" : "Compare with my grid";
     const iconSize = isCard ? 14 : 18;
 
-    // The visitor's grid is side A, so the page reads "only in <their grid>" as
-    // the list of characters they themselves have not picked.
+    // Someone with no grid of their own is not shut out any more: the button
+    // takes them to the picker with this grid already in one slot, so they can
+    // put any two grids side by side (and see what they would get by making
+    // one). Only the wording changes.
+    if (grids.length === 0) {
+        return (
+            <Link
+                href={`/compare?b=${shareId}`}
+                title="Compare this grid with another"
+                className={className}
+            >
+                <GitCompareArrows size={iconSize} className="shrink-0" />
+                <span className="truncate">{isCard ? "Compare" : "Compare with another grid"}</span>
+            </Link>
+        );
+    }
+
+    const label = isCard ? "Compare" : "Compare with my grid";
+
+    // Their own grid goes in side A, so the page reads "only in <the other
+    // grid>" as the list of characters they themselves have not picked.
     if (grids.length === 1) {
         return (
             <Link
@@ -113,6 +129,15 @@ export function CompareWithMine({
                             <p className="text-[11px] text-zinc-500">{grid.count} characters</p>
                         </Link>
                     ))}
+
+                    {/* The other side does not have to be one of theirs. */}
+                    <Link
+                        role="menuitem"
+                        href={`/compare?b=${shareId}`}
+                        className="mt-1 block border-t border-zinc-800 px-3 py-2 text-left text-xs text-zinc-400 transition-colors hover:text-purple-300"
+                    >
+                        Pick another grid…
+                    </Link>
                 </div>
             )}
         </div>
