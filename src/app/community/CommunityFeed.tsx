@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Search, SlidersHorizontal, LayoutGrid, X } from "lucide-react";
 import { GridCard } from "@/components/community/GridCard";
+import { CompareBar, type CompareSlot } from "@/components/compare/CompareBar";
 import type { ShareSummary } from "@/lib/share-summary";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,43 @@ export default function CommunityFeed() {
   const [order, setOrder] = useState<SortOrder>("new");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+
+  /**
+   * The compare bar's two slots.
+   *
+   * Selection lives here rather than inside the bar so it survives everything
+   * the feed does around it - Load more, a filter, a re-sort that refetches
+   * from offset 0. Picking the first grid at the top of the feed and the second
+   * three pages down is the normal case, not the edge one.
+   */
+  const [slotA, setSlotA] = useState<ShareSummary | null>(null);
+  const [slotB, setSlotB] = useState<ShareSummary | null>(null);
+  const [activeSlot, setActiveSlot] = useState<CompareSlot>("a");
+
+  const slotOf = (id: string): CompareSlot | null =>
+    slotA?.id === id ? "a" : slotB?.id === id ? "b" : null;
+
+  const toggleSelect = (grid: ShareSummary) => {
+    // Tapping a chosen grid again takes it back out, and leaves that slot armed
+    // for the next tap.
+    if (slotA?.id === grid.id) {
+      setSlotA(null);
+      setActiveSlot("a");
+      return;
+    }
+    if (slotB?.id === grid.id) {
+      setSlotB(null);
+      setActiveSlot("b");
+      return;
+    }
+    if (activeSlot === "a") {
+      setSlotA(grid);
+      setActiveSlot("b");
+    } else {
+      setSlotB(grid);
+      setActiveSlot("a");
+    }
+  };
 
   /**
    * Sort is a server concern (it reorders the whole feed, not the loaded page),
@@ -160,6 +198,21 @@ export default function CommunityFeed() {
           </div>
         </div>
 
+        {/* Sits above the feed rather than behind a toggle: two empty slots and
+            a × explain the feature without anyone pressing anything, which is
+            the point of putting it on the page people actually browse. */}
+        <CompareBar
+          a={slotA}
+          b={slotB}
+          active={activeSlot}
+          onFocus={setActiveSlot}
+          onClear={(slot) => {
+            if (slot === "a") setSlotA(null);
+            else setSlotB(null);
+            setActiveSlot(slot);
+          }}
+        />
+
         {error && (
           <div className="mb-6 px-4 py-3 rounded-xl border border-red-900/50 bg-red-950/30 text-red-300 text-sm">
             {error}
@@ -215,7 +268,12 @@ export default function CommunityFeed() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {visible.map((grid) => (
-                <GridCard key={grid.id} grid={grid} />
+                <GridCard
+                  key={grid.id}
+                  grid={grid}
+                  selected={slotOf(grid.id)}
+                  onSelect={toggleSelect}
+                />
               ))}
             </div>
 
