@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRedis } from '@/lib/redis';
+import { isGifUrl } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 
@@ -36,11 +37,20 @@ export async function GET(req: NextRequest) {
                  // Broadened filter to catch "Loading...", "generating", etc.
                  if (/loading|generating|captioning/i.test(title)) return null;
 
+                 // Whether the grid holds any animated cells - the feed shows a
+                 // badge for it, and the full grid is far too heavy to send.
+                 const cells: unknown[] = Array.isArray(parsed) ? parsed : parsed.grid || [];
+                 const hasGif = cells.some((cell) => {
+                     const character = (cell as { character?: { customImageUrl?: string; images?: { jpg?: { image_url?: string } } } })?.character;
+                     return isGifUrl(character?.customImageUrl) || isGifUrl(character?.images?.jpg?.image_url);
+                 });
+
                  return {
                      id: ids[index],
                      title: title,
                      imageUrl: parsed.meta?.imageUrl || null, // Create thumbnail availability
                      createdAt: parsed.meta?.createdAt,
+                     hasGif,
                      // We don't send the full grid to list, just meta
                  };
             } catch (e) {

@@ -10,6 +10,7 @@ interface CommunityGrid {
   title: string;
   imageUrl: string | null;
   createdAt: string;
+  hasGif?: boolean;
 }
 
 export default function CommunityFeed() {
@@ -140,10 +141,24 @@ export default function CommunityFeed() {
                        })}
                        </span>
                     </div>
-                    {/* ID Badge */}
-                    <span className="font-mono bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] text-zinc-600 uppercase tracking-widest">
-                        {grid.id.slice(0, 5)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        {/* Animated grids get a chip beside the id, in the GIF MODE
+                            palette so the toggle and the badge teach each other. */}
+                        {grid.hasGif && (
+                            <span
+                                title="This grid contains animated characters"
+                                className="gif-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest text-white"
+                            >
+                                <span className="h-1 w-1 rounded-full bg-white/90 animate-pulse" />
+                                GIF
+                            </span>
+                        )}
+
+                        {/* ID Badge */}
+                        <span className="font-mono bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] text-zinc-600 uppercase tracking-widest">
+                            {grid.id.slice(0, 5)}
+                        </span>
+                    </div>
                   </div>
                 </div>
               </Link>
