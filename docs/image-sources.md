@@ -127,7 +127,7 @@ Not required by the plan above. Kept for the record:
 
 | Option | Free allowance | Trade-off |
 |---|---|---|
-| Google Programmable Search JSON API | ~100 queries/day | Official; supports `searchType=image` and `fileType=gif` directly. Closest drop-in for Serper. |
+| Google Programmable Search JSON API | ~100 queries/day | Official; supports `searchType=image` and `fileType=gif` directly. Closest drop-in for Serper. A `/api/images` route wired this up (Gemini wrote the query, CSE ran it) but nothing in the app ever called it; it was deleted on 2026-09-04 along with `GOOGLE_CSE_API_KEY` / `GOOGLE_CSE_ID`. Recover it from git history if this row is ever taken up. |
 | Brave Search API | ~2,000 queries/month | Smaller index, proper image endpoint. |
 | Self-hosted SearXNG | unlimited | One Docker container, JSON output, `categories=images`. It is a scraper: periodic CAPTCHAs, dead engines to prune, extra latency. |
 
