@@ -1444,7 +1444,7 @@ export default function Home() {
                        "group flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-all w-full",
                        selectedCharacter?.mal_id === char.mal_id ? "bg-purple-900/20 border-purple-500" : "bg-zinc-900/50 border-transparent hover:bg-zinc-800"
                      )}>
-                       <img src={char.images.jpg.image_url} alt={char.name} className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
+                       <img src={char.images.jpg.image_url} alt={char.name} referrerPolicy="no-referrer" className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
                        <div className="flex-1 min-w-0">
                          <p className="font-medium truncate text-sm">{char.name}</p>
                          <p className="text-xs text-zinc-500 truncate">{char.source}</p>
@@ -1607,6 +1607,7 @@ export default function Home() {
                       <img 
                          src={selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url} 
                          alt={selectedCharacter.name}
+                         referrerPolicy="no-referrer"
                          className="w-full h-full object-cover pointer-events-none"
                       />
                   ) : (
@@ -1866,6 +1867,7 @@ export default function Home() {
                                   return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
                               })()} 
                               alt={cell.character.name}
+                              referrerPolicy="no-referrer"
                               className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
                               loading="eager"
                             />
@@ -2136,41 +2138,28 @@ export default function Home() {
                                          "aspect-square relative group rounded-lg overflow-hidden border border-zinc-800 cursor-pointer hover:border-pink-500 transition-all bg-zinc-900 w-full",
                                          selectedCharacter?.customImageUrl === img.url && "ring-2 ring-pink-500 border-transparent"
                                       )}>
-                                         {/* The picker asks for 70+ thumbnails at once and the
-                                             booru/wiki CDNs throttle a burst that size, dropping a
-                                             scattered handful as broken tiles. loading="lazy" only
-                                             fetches what is scrolled into view, and onError retries
-                                             once against the full-size original - for Fandom the
-                                             thumbnail is a /scale-to-width-down/ derivative, so the
-                                             original is a different object that may well be there
-                                             when the derivative is not. */}
+                                         {/* referrerPolicy: wikia refuses hotlinked requests
+                                             outright - a fresh browser profile against production
+                                             recorded 31 of 31 wiki thumbnails answering 404, every
+                                             one of which returns a 17-50KB image the moment the
+                                             Referer is dropped. This used to be a minority of
+                                             files and is now all of them, so no-Referer is the
+                                             first attempt rather than a fallback.
+
+                                             loading="lazy" keeps a 70-tile picker from asking for
+                                             everything at once, and onError re-requests twice - a
+                                             failed load is not cached, so re-assigning the same
+                                             src really does retry - before hiding a tile whose
+                                             image is genuinely gone. */}
                                          <img
                                             src={char.customImageUrl}
+                                            referrerPolicy="no-referrer"
                                             loading="lazy"
                                             onError={(e) => {
-                                               // Two different failures look identical here, so
-                                               // escalate through them rather than guessing.
-                                               //
-                                               // 1. Burst shedding. Asking wikia for one
-                                               //    character's 30 images at once loses a few,
-                                               //    every one of which loads on its own a moment
-                                               //    later. A failed load is not cached, so
-                                               //    re-assigning the same src really re-requests
-                                               //    it.
-                                               // 2. Hotlink 404. A minority of wiki files are not
-                                               //    served at all to a request carrying a Referer,
-                                               //    and no delay will help. Dropping the Referer
-                                               //    fetches them - at full size, since the ~300px
-                                               //    variant is exactly what hotlinking buys - so
-                                               //    only these few pay that cost.
-                                               //
-                                               // Anything still failing after that is genuinely
-                                               // gone; hide it rather than leave a broken tile.
                                                const el = e.currentTarget;
                                                const tries = Number(el.dataset.tries ?? 0);
                                                if (tries >= 2) { el.style.display = "none"; return; }
                                                el.dataset.tries = String(tries + 1);
-                                               if (tries === 1) el.referrerPolicy = "no-referrer";
                                                const next = tries === 0 ? el.src : img.url;
                                                setTimeout(() => { el.src = next; }, 700 + Math.random() * 800);
                                             }}
@@ -2325,7 +2314,7 @@ export default function Home() {
              
              <div className="flex items-center justify-center gap-4 mb-6">
                 <div className="text-center">
-                   <img src={pendingReplace.oldChar.customImageUrl || pendingReplace.oldChar.images.jpg.image_url} 
+                   <img src={pendingReplace.oldChar.customImageUrl || pendingReplace.oldChar.images.jpg.image_url} referrerPolicy="no-referrer" 
                       alt={pendingReplace.oldChar.name}
                       className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-red-500/50"
                    />
@@ -2335,6 +2324,7 @@ export default function Home() {
                 <div className="text-center">
                    <img src={pendingReplace.newChar.customImageUrl || pendingReplace.newChar.images.jpg.image_url}
                       alt={pendingReplace.newChar.name}
+                      referrerPolicy="no-referrer"
                       className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-green-500/50"
                    />
                    <p className="text-xs text-zinc-400 truncate w-20">{pendingReplace.newChar.name}</p>
