@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFlashModel } from "@/lib/gemini";
+import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    // Same Gemini budget as /api/analyze - both are one model call per request.
+    const limited = await enforceRateLimit(request, LIMITS.suggest);
+    if (limited) return limited;
+
     const { characterNames } = await request.json();
 
     if (!characterNames || characterNames.length === 0) {

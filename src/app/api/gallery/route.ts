@@ -4,6 +4,7 @@ import { isGifUrl } from "@/lib/utils";
 import { ImageResult } from "@/types";
 import { safebooruImages } from "@/lib/image-sources/safebooru";
 import { fandomImages } from "@/lib/image-sources/fandom";
+import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 
 interface SerperImage {
   title: string;
@@ -76,6 +77,13 @@ function isAnimatedHost(url: string): boolean {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Looser than the Gemini routes: someone filling a 100-cell grid opens the
+    // picker once per character, and a fast worker should not hit a wall. It
+    // still stops a script from running the free sources - and any Serper
+    // top-up - flat out.
+    const limited = await enforceRateLimit(request, LIMITS.gallery);
+    if (limited) return limited;
+
     const { characterName, animeSource, malId, isGif, debug } = await request.json();
 
     if (!characterName) {
