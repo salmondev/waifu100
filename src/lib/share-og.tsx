@@ -75,9 +75,14 @@ async function loadFont(): Promise<ArrayBuffer | null> {
 
 const IMAGE_TIMEOUT_MS = 8000;
 const CONCURRENCY = 6;
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// People paste links to full-resolution art and long GIFs; the largest cell in
+// one real grid is 10.6MB. Anything past this is skipped rather than risk the
+// memory that once killed the function outright.
+const MAX_IMAGE_BYTES = 16 * 1024 * 1024;
 const SOURCE_PX = CELL * 2; // 2x the cell, so the card stays crisp
-const UA = 'waifu100-og/1.0 (+https://waifu100.vercel.app)';
+// Some CDNs (Reddit's preview host among them) refuse unknown clients outright.
+const UA =
+    'Mozilla/5.0 (compatible; waifu100-og/1.0; +https://waifu100.vercel.app)';
 
 /**
  * Fetches one image and shrinks it to cell size.
@@ -85,22 +90,30 @@ const UA = 'waifu100-og/1.0 (+https://waifu100.vercel.app)';
  * Shrinking here is not an optimisation, it is what keeps the function alive.
  * Handing originals to the card renderer killed it outright: the process died
  * with a bare platform 500 - no catchable error - because a single grid can
- * carry 83MB of source images, animated GIFs among them at up to 10MB each,
- * and every one of those gets base64'd and then decoded in full for a 48px
- * tile. A few KB per cell instead.
+ * carry 83MB of source images, and every one of those gets base64'd and then
+ * decoded in full for an 80px tile. A few KB per cell instead.
  */
-async function fetchCell(url: string): Promise<string | null> {
+async function fetchCell(url: string): Promise<{ data?: string; reason?: string }> {
     const res = await fetch(url, {
         signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
-        headers: { 'User-Agent': UA, Accept: 'image/*' },
+        headers: {
+            'User-Agent': UA,
+            Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            // Hotlink checks are usually happy with the image's own origin.
+            Referer: new URL(url).origin + '/',
+        },
+        redirect: 'follow',
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { reason: `http-${res.status}` };
 
     const type = res.headers.get('content-type') || '';
-    if (!type.startsWith('image/')) return null;
+    if (!type.startsWith('image/')) return { reason: `type-${type.split(';')[0] || 'none'}` };
 
     const buffer = await res.arrayBuffer();
-    if (buffer.byteLength > MAX_IMAGE_BYTES) return null;
+    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+        return { reason: `too-big-${Math.round(buffer.byteLength / 1048576)}mb` };
+    }
 
     // sharp arrives with Next (it powers the image optimizer), so this needs no
     // extra dependency. `animated` stays off on purpose: one frame is all a
@@ -111,28 +124,36 @@ async function fetchCell(url: string): Promise<string | null> {
         .jpeg({ quality: 72 })
         .toBuffer();
 
-    return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
+    return { data: `data:image/jpeg;base64,${jpeg.toString('base64')}` };
 }
 
 /** Resolves one cell. A dead link costs that cell, never the whole card. */
 async function toDataUrl(
+    index: number,
     url: string | null | undefined,
     stats: CellStats
 ): Promise<string | null> {
     if (!url) return null;
-    if (!/^https?:\/\//.test(url)) return null;
+    if (!/^https?:\/\//.test(url)) {
+        stats.failures.push({ index, url: String(url).slice(0, 120), reason: 'not-http' });
+        stats.failed++;
+        return null;
+    }
 
+    let reason = 'unknown';
     try {
-        const cell = await fetchCell(url);
-        if (cell) {
+        const result = await fetchCell(url);
+        if (result.data) {
             stats.loaded++;
-            return cell;
+            return result.data;
         }
-    } catch {
-        // fall through to a blank cell
+        reason = result.reason || 'empty';
+    } catch (e) {
+        reason = e instanceof Error ? e.name : 'error';
     }
 
     stats.failed++;
+    stats.failures.push({ index, url: url.slice(0, 120), reason });
     return null;
 }
 
@@ -140,6 +161,8 @@ export interface CellStats {
     loaded: number;
     failed: number;
     ms: number;
+    /** Which cells came back empty and why - a blank tile explains nothing on its own. */
+    failures: { index: number; url: string; reason: string }[];
 }
 
 /**
@@ -152,7 +175,7 @@ export async function resolveCells(
     images: (string | null | undefined)[]
 ): Promise<{ cells: (string | null)[]; stats: CellStats }> {
     const started = Date.now();
-    const stats: CellStats = { loaded: 0, failed: 0, ms: 0 };
+    const stats: CellStats = { loaded: 0, failed: 0, ms: 0, failures: [] };
 
     const total = COLUMNS * COLUMNS;
     const cells: (string | null)[] = Array(total).fill(null);
@@ -161,7 +184,7 @@ export async function resolveCells(
     const worker = async () => {
         while (next < total) {
             const i = next++;
-            cells[i] = await toDataUrl(images[i], stats);
+            cells[i] = await toDataUrl(i, images[i], stats);
         }
     };
 
