@@ -1,38 +1,85 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Calendar, User, ExternalLink } from "lucide-react";
-import { shareCardPath } from "@/lib/share-card";
+import { ArrowLeft, Loader2, Search, SlidersHorizontal, LayoutGrid, X } from "lucide-react";
+import { GridCard } from "@/components/community/GridCard";
+import type { ShareSummary } from "@/lib/share-summary";
+import { cn } from "@/lib/utils";
 
-interface CommunityGrid {
-  id: string;
-  title: string;
-  imageUrl: string | null;
-  createdAt: string;
-  hasGif?: boolean;
-}
+type SortOrder = "new" | "old";
+type Filter = "all" | "gif" | "complete";
+
+const PAGE_SIZE = 50;
 
 export default function CommunityFeed() {
-  const [grids, setGrids] = useState<CommunityGrid[]>([]);
+  const [grids, setGrids] = useState<ShareSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+
+  const [order, setOrder] = useState<SortOrder>("new");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
+
+  /**
+   * Sort is a server concern (it reorders the whole feed, not the loaded page),
+   * so changing it refetches from offset 0. Filter and search stay on the client
+   * for now, which is why `loadPage` doesn't know about them.
+   */
+  const loadPage = useCallback(async (offset: number, sortOrder: SortOrder) => {
+    const first = offset === 0;
+    if (first) setLoading(true);
+    else setLoadingMore(true);
+    setError(null);
+
+    try {
+      const res = await fetch(
+        `/api/community?offset=${offset}&limit=${PAGE_SIZE}&order=${sortOrder}`
+      );
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      const page: ShareSummary[] = data.grids ?? [];
+
+      setGrids((prev) => {
+        if (first) return page;
+        // Guard against a duplicate id slipping in if the feed shifted between
+        // pages (someone shared a grid while the visitor was reading).
+        const seen = new Set(prev.map((g) => g.id));
+        return [...prev, ...page.filter((g) => !seen.has(g.id))];
+      });
+      setNextOffset(data.nextOffset ?? null);
+    } catch (e) {
+      console.error("Failed to fetch community grids", e);
+      setError("Couldn't load the showcase. Try again in a moment.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchCommunity() {
-      try {
-        const res = await fetch("/api/community");
-        const data = await res.json();
-        if (data.grids) {
-          setGrids(data.grids);
-        }
-      } catch (e) {
-        console.error("Failed to fetch community grids", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchCommunity();
-  }, []);
+    loadPage(0, order);
+  }, [order, loadPage]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return grids.filter((g) => {
+      if (filter === "gif" && !g.hasGif) return false;
+      if (filter === "complete" && g.count < 100) return false;
+      if (needle && !g.title.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [grids, filter, query]);
+
+  const isFiltered = filter !== "all" || query.trim().length > 0;
+  const hasMore = nextOffset !== null;
+
+  const clearFilters = () => {
+    setFilter("all");
+    setQuery("");
+  };
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-purple-500/30">
@@ -44,11 +91,11 @@ export default function CommunityFeed() {
 
       <div className="relative z-10 container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-6">
+        <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
           <div className="flex items-center gap-4 self-start md:self-auto">
-            <Link 
+            <Link
               href="/"
-              className="p-2 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-full transition-all group"
+              className="p-2 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-full transition-all group shrink-0"
             >
               <ArrowLeft className="w-5 h-5 text-zinc-400 group-hover:text-white" />
             </Link>
@@ -61,7 +108,63 @@ export default function CommunityFeed() {
               </p>
             </div>
           </div>
+
+          <Link
+            href="/my-grids"
+            className="self-start md:self-auto inline-flex items-center gap-2 px-4 py-2 bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-sm text-zinc-300 transition-colors shrink-0"
+          >
+            <LayoutGrid className="w-4 h-4 text-purple-400" />
+            My Grids
+          </Link>
         </div>
+
+        {/* Controls. Search narrows what has been loaded; the filters and the
+            sort sit beside it so it reads as one toolbar on a phone too. */}
+        <div className="mb-8 flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 pointer-events-none" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search loaded grids by name..."
+              aria-label="Search grids by name"
+              className="w-full bg-zinc-900/60 border border-zinc-800 rounded-xl pl-9 pr-9 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent transition-all"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-600 ml-2 mr-1 shrink-0" />
+              <Chip active={filter === "all"} onClick={() => setFilter("all")}>All</Chip>
+              <Chip active={filter === "gif"} onClick={() => setFilter("gif")}>Has GIF</Chip>
+              <Chip active={filter === "complete"} onClick={() => setFilter("complete")}>
+                Full 100
+              </Chip>
+            </div>
+
+            <div className="flex items-center gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
+              <Chip active={order === "new"} onClick={() => setOrder("new")}>Newest</Chip>
+              <Chip active={order === "old"} onClick={() => setOrder("old")}>Oldest</Chip>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-6 px-4 py-3 rounded-xl border border-red-900/50 bg-red-950/30 text-red-300 text-sm">
+            {error}
+          </div>
+        )}
 
         {/* Grid */}
         {loading ? (
@@ -72,100 +175,99 @@ export default function CommunityFeed() {
         ) : grids.length === 0 ? (
           <div className="text-center py-20 bg-zinc-900/30 rounded-3xl border border-zinc-800/50">
             <p className="text-zinc-500 text-lg">No grids found yet. Be the first to share one!</p>
-            <Link 
+            <Link
               href="/"
               className="inline-flex items-center gap-2 mt-4 px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
             >
               Create a Grid
             </Link>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {grids.map((grid) => (
-              <Link 
-                key={grid.id} 
-                href={`/view/${grid.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative bg-zinc-900/40 border border-zinc-800/50 rounded-2xl overflow-hidden hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-900/20 transition-all duration-300 hover:-translate-y-1 block h-fit"
+        ) : visible.length === 0 ? (
+          /* Filtered down to nothing. Saying so - and offering the way out -
+             beats a blank page that reads as a broken feed. */
+          <div className="text-center py-20 bg-zinc-900/30 rounded-3xl border border-zinc-800/50 px-6">
+            <p className="text-zinc-400 text-lg">No grids match these filters.</p>
+            <p className="text-zinc-600 text-sm mt-2">
+              Searching {grids.length} loaded grid{grids.length === 1 ? "" : "s"}
+              {hasMore ? " — load more to widen the search." : "."}
+            </p>
+            <div className="flex flex-wrap justify-center gap-3 mt-6">
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-medium transition-colors"
               >
-                {/* Image Container */}
-                {/* A share whose thumbnail upload failed has no imageUrl; the OG
-                    route draws one from the grid data so the card is never blank. */}
-                <div className="aspect-square relative overflow-hidden bg-zinc-950">
-                    {(() => {
-                      const preview = grid.imageUrl || shareCardPath(grid.id);
-                      return (
-                        <>
-                           {/* Blur Backlayer */}
-                           <img
-                                src={preview}
-                                alt=""
-                                className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110"
-                           />
-                           {/* Main Image */}
-                           <img
-                                src={preview}
-                                alt={grid.title}
-                                className="relative w-full h-full object-contain z-10 transition-transform duration-500 group-hover:scale-105"
-                           />
-                        </>
-                      );
-                    })()}
-                    
-                    {/* Overlay Gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-60 group-hover:opacity-40 transition-opacity z-20" />
-                    
-                    {/* View Button Overlay on Hover */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 bg-black/20 backdrop-blur-[2px]">
-                        <span className="px-5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md rounded-full text-white font-medium flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 shadow-xl">
-                             View Grid <ExternalLink className="w-4 h-4" />
-                        </span>
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-4 relative z-20 bg-zinc-900/80 backdrop-blur-sm border-t border-white/5">
-                  <h3 className="font-bold text-lg text-white truncate group-hover:text-purple-300 transition-colors" title={grid.title}>
-                    {grid.title || "Untitled Grid"}
-                  </h3>
-                  
-                  <div className="flex items-center justify-between mt-3 text-xs text-zinc-500">
-                    <div className="flex items-center gap-1.5">
-                       <Calendar className="w-3.5 h-3.5" />
-                       <span>
-                       {new Date(grid.createdAt).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                       })}
-                       </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {/* Animated grids get a chip beside the id, in the GIF MODE
-                            palette so the toggle and the badge teach each other. */}
-                        {grid.hasGif && (
-                            <span
-                                title="This grid contains animated characters"
-                                className="gif-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest text-white"
-                            >
-                                <span className="h-1 w-1 rounded-full bg-white/90 animate-pulse" />
-                                GIF
-                            </span>
-                        )}
-
-                        {/* ID Badge */}
-                        <span className="font-mono bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] text-zinc-600 uppercase tracking-widest">
-                            {grid.id.slice(0, 5)}
-                        </span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                Clear filters
+              </button>
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => loadPage(nextOffset, order)}
+                  disabled={loadingMore}
+                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors disabled:opacity-60"
+                >
+                  {loadingMore ? "Loading..." : "Load more"}
+                </button>
+              )}
+            </div>
           </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {visible.map((grid) => (
+                <GridCard key={grid.id} grid={grid} />
+              ))}
+            </div>
+
+            <div className="flex flex-col items-center gap-3 mt-10">
+              {isFiltered && (
+                <p className="text-xs text-zinc-600">
+                  Showing {visible.length} of {grids.length} loaded grids.
+                </p>
+              )}
+              {hasMore ? (
+                <button
+                  type="button"
+                  onClick={() => loadPage(nextOffset, order)}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-2 px-8 py-3 bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 hover:border-purple-500/40 rounded-xl font-medium transition-colors disabled:opacity-60 disabled:cursor-wait"
+                >
+                  {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {loadingMore ? "Loading..." : "Load more grids"}
+                </button>
+              ) : (
+                <p className="text-xs text-zinc-700">That&apos;s every grid so far.</p>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors",
+        active
+          ? "bg-purple-600/25 text-purple-200 border border-purple-500/40"
+          : "text-zinc-500 hover:text-zinc-200 border border-transparent"
+      )}
+    >
+      {children}
+    </button>
   );
 }

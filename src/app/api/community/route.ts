@@ -1,64 +1,81 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRedis } from '@/lib/redis';
-import { isGifUrl } from '@/lib/utils';
+import { summarizeShare } from '@/lib/share-summary';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 
+const FEED_KEY = 'waifu100:feed';
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 50;
+
+function clampInt(raw: string | null, fallback: number, min: number, max: number): number {
+    const n = Number.parseInt(raw ?? '', 10);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(Math.max(n, min), max);
+}
+
+/**
+ * A page of the public showcase.
+ *
+ * `offset`/`limit` walk the feed sorted set directly, so "Load more" costs one
+ * ZRANGE plus one pipeline of GETs regardless of how deep the visitor has
+ * scrolled - the old hard-coded top 50 meant everything older was simply
+ * unreachable.
+ *
+ * `order=old` reads the same set forwards. Sorting has to happen here rather
+ * than in the browser: the client only ever holds the pages it has loaded, so
+ * client-side sorting would reorder a slice, not the feed.
+ */
 export async function GET(req: NextRequest) {
     try {
-        // 1. Fetch latest 50 IDs from feed (Sorted Set, Reverse Order by Time)
-        // range: 0 to 49
-        const ids = await withRedis((redis) => redis.zrevrange('waifu100:feed', 0, 49));
+        const params = req.nextUrl.searchParams;
+        const offset = clampInt(params.get('offset') ?? params.get('cursor'), 0, 0, 100_000);
+        const limit = clampInt(params.get('limit'), DEFAULT_LIMIT, 1, MAX_LIMIT);
+        const order = params.get('order') === 'old' ? 'old' : 'new';
+
+        const start = offset;
+        const stop = offset + limit - 1;
+
+        const [ids, total] = await withRedis(async (redis) => {
+            const page =
+                order === 'old'
+                    ? await redis.zrange(FEED_KEY, start, stop)
+                    : await redis.zrevrange(FEED_KEY, start, stop);
+            return [page, await redis.zcard(FEED_KEY)] as const;
+        });
 
         if (!ids || ids.length === 0) {
-            return NextResponse.json({ grids: [] });
+            return NextResponse.json({ grids: [], total, nextOffset: null, hasMore: false });
         }
 
-        // 2. Fetch Grid Metadata (Pipeline for efficiency)
+        // One pipelined GET per id. Everything the card shows is derived from
+        // these payloads server-side; the full grids never go over the wire.
         const results = await withRedis((redis) => {
             const pipeline = redis.pipeline();
-            ids.forEach((id) => {
-                pipeline.get(`waifu100:share:${id}`);
-            });
+            ids.forEach((id) => pipeline.get(`waifu100:share:${id}`));
             return pipeline.exec();
         });
 
-        // 3. Process Results
-        const grids = results?.map((result, index) => {
-            const [err, data] = result;
-            if (err || !data) return null;
+        const grids = (results ?? [])
+            .map((result, index) => {
+                const [err, data] = result;
+                if (err || !data) return null;
+                return summarizeShare(ids[index], data as string);
+            })
+            .filter((g) => g !== null);
 
-            try {
-                // We stored it as stringified JSON
-                 const parsed = JSON.parse(data as string);
-                 const title = parsed.meta?.title || "Untitled Grid";
-                 
-                 // FIX: Filter out grids that were saved with "Loading" title (likely due to a bug or race condition)
-                 // Broadened filter to catch "Loading...", "generating", etc.
-                 if (/loading|generating|captioning/i.test(title)) return null;
+        // hasMore counts feed positions, not returned cards: a page can come back
+        // short because some entries were filtered out, and that must not look
+        // like the end of the feed.
+        const nextOffset = offset + ids.length;
+        const hasMore = nextOffset < total;
 
-                 // Whether the grid holds any animated cells - the feed shows a
-                 // badge for it, and the full grid is far too heavy to send.
-                 const cells: unknown[] = Array.isArray(parsed) ? parsed : parsed.grid || [];
-                 const hasGif = cells.some((cell) => {
-                     const character = (cell as { character?: { customImageUrl?: string; images?: { jpg?: { image_url?: string } } } })?.character;
-                     return isGifUrl(character?.customImageUrl) || isGifUrl(character?.images?.jpg?.image_url);
-                 });
-
-                 return {
-                     id: ids[index],
-                     title: title,
-                     imageUrl: parsed.meta?.imageUrl || null, // Create thumbnail availability
-                     createdAt: parsed.meta?.createdAt,
-                     hasGif,
-                     // We don't send the full grid to list, just meta
-                 };
-            } catch (e) {
-                return null;
-            }
-        }).filter(Boolean); // Remove nulls
-
-        return NextResponse.json({ grids: grids || [] });
+        return NextResponse.json({
+            grids,
+            total,
+            nextOffset: hasMore ? nextOffset : null,
+            hasMore,
+        });
 
     } catch (e: unknown) {
         console.error("Community Feed Error:", e);
