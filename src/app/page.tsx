@@ -2148,10 +2148,20 @@ export default function Home() {
                                             src={char.customImageUrl}
                                             loading="lazy"
                                             onError={(e) => {
+                                               // Wikia sheds part of a burst this size: ask for
+                                               // one character's 30 wiki images at once and about
+                                               // four come back failed, yet every one of them
+                                               // loads on its own a moment later. A failed load
+                                               // is not cached, so re-assigning the same src
+                                               // re-requests it; the last attempt falls back to
+                                               // the full-size original, which is a different
+                                               // object for sources whose thumbnail is derived.
                                                const el = e.currentTarget;
-                                               if (el.dataset.retried || el.src === img.url) return;
-                                               el.dataset.retried = "1";
-                                               el.src = img.url;
+                                               const tries = Number(el.dataset.tries ?? 0);
+                                               if (tries >= 2) return;
+                                               el.dataset.tries = String(tries + 1);
+                                               const next = tries === 0 ? el.src : img.url;
+                                               setTimeout(() => { el.src = next; }, 700 + Math.random() * 800);
                                             }}
                                             className="w-full h-full object-cover pointer-events-none select-none"
                                          />
