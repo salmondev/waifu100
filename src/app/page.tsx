@@ -2148,18 +2148,29 @@ export default function Home() {
                                             src={char.customImageUrl}
                                             loading="lazy"
                                             onError={(e) => {
-                                               // Wikia sheds part of a burst this size: ask for
-                                               // one character's 30 wiki images at once and about
-                                               // four come back failed, yet every one of them
-                                               // loads on its own a moment later. A failed load
-                                               // is not cached, so re-assigning the same src
-                                               // re-requests it; the last attempt falls back to
-                                               // the full-size original, which is a different
-                                               // object for sources whose thumbnail is derived.
+                                               // Two different failures look identical here, so
+                                               // escalate through them rather than guessing.
+                                               //
+                                               // 1. Burst shedding. Asking wikia for one
+                                               //    character's 30 images at once loses a few,
+                                               //    every one of which loads on its own a moment
+                                               //    later. A failed load is not cached, so
+                                               //    re-assigning the same src really re-requests
+                                               //    it.
+                                               // 2. Hotlink 404. A minority of wiki files are not
+                                               //    served at all to a request carrying a Referer,
+                                               //    and no delay will help. Dropping the Referer
+                                               //    fetches them - at full size, since the ~300px
+                                               //    variant is exactly what hotlinking buys - so
+                                               //    only these few pay that cost.
+                                               //
+                                               // Anything still failing after that is genuinely
+                                               // gone; hide it rather than leave a broken tile.
                                                const el = e.currentTarget;
                                                const tries = Number(el.dataset.tries ?? 0);
-                                               if (tries >= 2) return;
+                                               if (tries >= 2) { el.style.display = "none"; return; }
                                                el.dataset.tries = String(tries + 1);
+                                               if (tries === 1) el.referrerPolicy = "no-referrer";
                                                const next = tries === 0 ? el.src : img.url;
                                                setTimeout(() => { el.src = next; }, 700 + Math.random() * 800);
                                             }}
