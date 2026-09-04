@@ -1444,7 +1444,9 @@ export default function Home() {
                        "group flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-all w-full",
                        selectedCharacter?.mal_id === char.mal_id ? "bg-purple-900/20 border-purple-500" : "bg-zinc-900/50 border-transparent hover:bg-zinc-800"
                      )}>
-                       <img src={char.images.jpg.image_url} alt={char.name} className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
+                       {/* referrerPolicy: see the gallery grid below - Fandom's
+                           CDN 404s any request that carries a Referer. */}
+                       <img src={char.images.jpg.image_url} alt={char.name} referrerPolicy="no-referrer" className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
                        <div className="flex-1 min-w-0">
                          <p className="font-medium truncate text-sm">{char.name}</p>
                          <p className="text-xs text-zinc-500 truncate">{char.source}</p>
@@ -1607,6 +1609,7 @@ export default function Home() {
                       <img 
                          src={selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url} 
                          alt={selectedCharacter.name}
+                         referrerPolicy="no-referrer"
                          className="w-full h-full object-cover pointer-events-none"
                       />
                   ) : (
@@ -1859,14 +1862,18 @@ export default function Home() {
 
                      {cell.character ? (
                         <>
-                            <img 
+                            {/* referrerPolicy: GIF cells skip /_next/image to keep
+                                animating, so they reach the origin directly and need
+                                the same no-Referer treatment as the picker. */}
+                            <img
                               src={(() => {
                                   const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
                                   if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif') || url.includes('vercel-storage.com')) return url;
                                   return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
                               })()} 
                               alt={cell.character.name}
-                              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" 
+                              referrerPolicy="no-referrer"
+                              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
                               loading="eager"
                             />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-1 pointer-events-none">
@@ -2136,7 +2143,14 @@ export default function Home() {
                                          "aspect-square relative group rounded-lg overflow-hidden border border-zinc-800 cursor-pointer hover:border-pink-500 transition-all bg-zinc-900 w-full",
                                          selectedCharacter?.customImageUrl === img.url && "ring-2 ring-pink-500 border-transparent"
                                       )}>
-                                         <img src={char.customImageUrl} className="w-full h-full object-cover pointer-events-none select-none"/>
+                                         {/* static.wikia.nocookie.net answers 404 to any request
+                                             carrying a Referer, so every Fandom thumbnail rendered
+                                             as a broken image while the same URL worked fine from
+                                             the server. These load straight from the origin rather
+                                             than through /_next/image - a picker shows dozens of
+                                             thumbnails per character, and proxying them all would
+                                             burn image-optimization quota on pictures nobody picks. */}
+                                         <img src={char.customImageUrl} referrerPolicy="no-referrer" className="w-full h-full object-cover pointer-events-none select-none"/>
                                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                                             <span className="text-[9px] text-white bg-black/50 px-1 rounded">{img.source}</span>
                                          </div>
@@ -2288,6 +2302,7 @@ export default function Home() {
                 <div className="text-center">
                    <img src={pendingReplace.oldChar.customImageUrl || pendingReplace.oldChar.images.jpg.image_url} 
                       alt={pendingReplace.oldChar.name}
+                      referrerPolicy="no-referrer"
                       className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-red-500/50"
                    />
                    <p className="text-xs text-zinc-400 truncate w-20">{pendingReplace.oldChar.name}</p>
@@ -2296,6 +2311,7 @@ export default function Home() {
                 <div className="text-center">
                    <img src={pendingReplace.newChar.customImageUrl || pendingReplace.newChar.images.jpg.image_url}
                       alt={pendingReplace.newChar.name}
+                      referrerPolicy="no-referrer"
                       className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-green-500/50"
                    />
                    <p className="text-xs text-zinc-400 truncate w-20">{pendingReplace.newChar.name}</p>
