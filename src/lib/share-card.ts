@@ -9,7 +9,7 @@
  * Bump whenever the card design changes. Cards are cached for a year, so
  * without this a redesign would never reach anything already rendered.
  */
-export const CARD_VERSION = 2;
+export const CARD_VERSION = 3;
 
 export function shareCardPath(id: string) {
     return `/api/share/image/${id}?v=${CARD_VERSION}`;
