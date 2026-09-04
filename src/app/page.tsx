@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import NextLink from "next/link";
-import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil, CheckSquare, MousePointer2, ArrowRight, Users } from "lucide-react";
+import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil, CheckSquare, MousePointer2, ArrowRight, Users, LayoutGrid } from "lucide-react";
 import { toBlob } from "html-to-image";
 import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartEvent, DragEndEvent, pointerWithin } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ import { ShareModal } from "@/components/share/ShareModal";
 
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { ensureUserId } from "@/lib/user-id";
 
 // --- Types ---
 interface Notification {
@@ -300,6 +301,14 @@ export default function Home() {
       // User likely wants to clear to see result fully, or keep to fill more? 
       // Let's clear for now to match "done" state.
   };
+
+  // Mint the anonymous owner id on the first visit rather than at share time,
+  // so a first-time visitor who shares immediately still owns what they made.
+  // It is a local handle for "my grids", never shown and never sent anywhere
+  // except this app's own delete/list endpoints.
+  useEffect(() => {
+    ensureUserId();
+  }, []);
 
   // --- Persistence ---
   useEffect(() => {
@@ -1483,7 +1492,19 @@ export default function Home() {
               <Users className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform"/>
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-300">Community Showcase</span>
            </NextLink>
-           
+
+           {/* Own the grids you shared: rename-by-resharing was the only tool
+               people had, and there was no way to take one down at all. */}
+           <NextLink
+              href="/my-grids"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2 mb-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg font-medium flex justify-center items-center gap-2 text-sm transition-colors"
+           >
+              <LayoutGrid className="w-4 h-4 text-purple-400"/>
+              My Grids
+           </NextLink>
+
            {/* Paste URL Button */}
            <button 
               onClick={() => setShowUrlModal(true)}

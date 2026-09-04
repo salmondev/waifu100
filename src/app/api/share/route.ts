@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from 'nanoid';
 import { withRedis } from '@/lib/redis';
+import { isValidUserId, userSharesKey } from '@/lib/user-id';
 
 export async function POST(req: NextRequest) {
     try {
@@ -35,7 +36,9 @@ export async function POST(req: NextRequest) {
 
         // 3. Versioning Logic (If userId is present)
         let finalTitle = customTitle || "Waifu100 Grid";
-        const { userId } = body;
+        // Anything that is not one of our minted UUIDs is treated as absent: an
+        // unvalidated value here would become part of a Redis key.
+        const userId = isValidUserId(body.userId) ? body.userId : null;
 
         if (userId && customTitle) {
             const userTitleKey = `waifu100:user:${userId}:titles`;
@@ -55,7 +58,9 @@ export async function POST(req: NextRequest) {
                 createdAt: new Date().toISOString(),
                 hasImage: !!imageUrl,
                 imageUrl: imageUrl,
-                userId: userId || undefined // Store userId in metadata if useful for debugging/future
+                // The owner of record. Delete authorises against this, so it has
+                // to be written even when there is no custom title to version.
+                userId: userId || undefined
             },
             grid: cleanGrid,
             verdict,
@@ -65,13 +70,20 @@ export async function POST(req: NextRequest) {
         // 4. Save to Redis + register in the Community Feed (Sorted Set:
         // Score = Timestamp) in a single round trip. Only the ID goes into the
         // feed to keep it lightweight; the community API hydrates the data.
-        const txResults = await withRedis((redis) =>
-            redis
+        // The owner index is written in the same transaction: scanning the whole
+        // feed to find one person's grids would get slower for everyone as the
+        // feed grows, so ownership gets its own sorted set from the start.
+        const createdAt = Date.now();
+        const txResults = await withRedis((redis) => {
+            const tx = redis
                 .multi()
                 .set(`waifu100:share:${id}`, JSON.stringify(fileData))
-                .zadd('waifu100:feed', Date.now(), id)
-                .exec()
-        );
+                .zadd('waifu100:feed', createdAt, id);
+            if (userId) {
+                tx.zadd(userSharesKey(userId), createdAt, id);
+            }
+            return tx.exec();
+        });
 
         // MULTI reports per-command failures inside the result array instead of
         // rejecting, so surface them rather than returning a broken share id.
