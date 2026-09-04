@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Sparkles, AlertCircle, Quote, Languages, Copy, ThumbsUp, ThumbsDown, Check, Image as ImageIcon, Download } from "lucide-react";
+import { X, Sparkles, AlertCircle, Quote, Languages, Copy, ThumbsUp, ThumbsDown, Check, Image as ImageIcon, Download, Share2 } from "lucide-react";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn } from "@/lib/utils";
 import { toBlob } from "html-to-image";
@@ -15,9 +15,32 @@ interface AnalysisModalProps {
   feedback: VerdictFeedback;
   onFeedback: (feedback: VerdictFeedback) => void;
   readonly?: boolean;
+  /** Public link to the grid this verdict belongs to, when it has one. */
+  shareUrl?: string;
+  /** The grid's name, used in the share text. */
+  gridTitle?: string;
 }
 
-export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedback, onFeedback, readonly = false }: AnalysisModalProps) {
+/**
+ * Renders the verdict card to a PNG, minus the action row - the same picture
+ * Copy Image and Save Image produce.
+ */
+async function renderVerdictCard(): Promise<Blob | null> {
+    const node = document.getElementById('ai-verdict-card');
+    if (!node) return null;
+    try {
+        return await toBlob(node, {
+            backgroundColor: '#09090b',
+            style: { padding: '20px', overflow: 'hidden' },
+            filter: (n) => n.id !== 'verdict-actions',
+        });
+    } catch (e) {
+        console.error(e);
+        return null;
+    }
+}
+
+export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedback, onFeedback, readonly = false, shareUrl, gridTitle }: AnalysisModalProps) {
   const [loading, setLoading] = useState(false);
   // Remove local result state
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +87,56 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Share the verdict outward.
+   *
+   * X cannot pull an image from a URL in an intent, so the tweet leans on the
+   * OG image of /view/<id> - which is exactly why the grid link matters more
+   * than the picture there. On a phone the Web Share sheet can carry the actual
+   * PNG, which lands far better, so that path is tried first.
+   *
+   * Rendering the card takes a moment, and Safari counts that against the user
+   * gesture that share() requires; a NotAllowedError therefore falls back to
+   * sharing text alone, and anything else falls back to the X intent.
+   */
+  const handleShare = async () => {
+    if (!result) return;
+
+    const verdictTitle = lang === 'en' ? result.en.title : result.th.title;
+    const named = gridTitle?.trim();
+    const text = named
+        ? `${result.emoji} AI verdict on my "${named}" grid: "${verdictTitle}"`
+        : `${result.emoji} My Waifu100 AI verdict: "${verdictTitle}"`;
+    const url = shareUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+
+    const canShareFiles = typeof navigator !== 'undefined'
+        && typeof navigator.canShare === 'function'
+        && typeof navigator.share === 'function';
+
+    if (canShareFiles) {
+        try {
+            const blob = await renderVerdictCard();
+            const file = blob
+                ? new File([blob], `waifu100-verdict-${Date.now()}.png`, { type: 'image/png' })
+                : null;
+
+            if (file && navigator.canShare({ files: [file] })) {
+                await navigator.share({ text, url, files: [file] });
+                return;
+            }
+            await navigator.share({ text, url });
+            return;
+        } catch (e) {
+            // The visitor dismissing the share sheet is not a failure to retry.
+            if (e instanceof DOMException && e.name === 'AbortError') return;
+            console.warn('Web Share unavailable, falling back to X:', e);
+        }
+    }
+
+    const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}&hashtags=Waifu100`;
+    window.open(intent, '_blank', 'noopener,noreferrer,width=600,height=400');
   };
 
   if (!isOpen) return null;
@@ -208,8 +281,15 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
                             )}
 
                             <ActionButton
-                                icon={Copy} 
-                                label="Copy Text" 
+                                icon={Share2}
+                                label="Share"
+                                onClick={handleShare}
+                                hoverColor="hover:text-sky-300 hover:border-sky-500/40 hover:bg-sky-900/20"
+                            />
+
+                            <ActionButton
+                                icon={Copy}
+                                label="Copy Text"
                                 onClick={() => {
                                     const text = `AI Verdict: "${lang === 'en' ? result.en.title : result.th.title}"\n\n${lang === 'en' ? result.en.content : result.th.content}\n\nVibe: ${result.emoji}\nTags: ${lang === 'en' ? result.en.tags.join(' ') : result.th.tags.join(' ')}`;
                                     navigator.clipboard.writeText(text);
@@ -220,19 +300,12 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
                                 icon={ImageIcon} 
                                 label="Copy Image" 
                                 onClick={async () => {
-                                    const node = document.getElementById('ai-verdict-card');
-                                    if (node) {
-                                        try {
-                                            const blob = await toBlob(node, { 
-                                                backgroundColor: '#09090b', 
-                                                style: { padding: '20px', overflow: 'hidden' },
-                                                filter: (node) => node.id !== 'verdict-actions' 
-                                            });
-                                            if (blob) {
-                                                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-                                            }
-                                        } catch (e) { console.error(e); }
-                                    }
+                                    try {
+                                        const blob = await renderVerdictCard();
+                                        if (blob) {
+                                            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                                        }
+                                    } catch (e) { console.error(e); }
                                 }}
                                 successIcon={Check}
                             />
@@ -240,24 +313,17 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
                                 icon={Download} 
                                 label="Save Image"
                                 onClick={async () => {
-                                    const node = document.getElementById('ai-verdict-card');
-                                    if (node) {
-                                        try {
-                                            const blob = await toBlob(node, { 
-                                                backgroundColor: '#09090b', 
-                                                style: { padding: '20px', overflow: 'hidden' },
-                                                filter: (node) => node.id !== 'verdict-actions'
-                                            });
-                                            if (blob) {
-                                                const url = URL.createObjectURL(blob);
-                                                const link = document.createElement('a');
-                                                link.download = `waifu100-verdict-${Date.now()}.png`;
-                                                link.href = url;
-                                                link.click();
-                                                URL.revokeObjectURL(url);
-                                            }
-                                        } catch (e) { console.error(e); }
-                                    }
+                                    try {
+                                        const blob = await renderVerdictCard();
+                                        if (blob) {
+                                            const url = URL.createObjectURL(blob);
+                                            const link = document.createElement('a');
+                                            link.download = `waifu100-verdict-${Date.now()}.png`;
+                                            link.href = url;
+                                            link.click();
+                                            URL.revokeObjectURL(url);
+                                        }
+                                    } catch (e) { console.error(e); }
                                 }}
                             />
                     </div>

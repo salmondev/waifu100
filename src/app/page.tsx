@@ -1955,6 +1955,7 @@ export default function Home() {
         onResult={setVerdict}
         feedback={verdictFeedback}
         onFeedback={setVerdictFeedback}
+        gridTitle={currentTitle}
       />
     </main>
       {/* 3. RIGHT SIDEBAR: Suggestions & Gallery */}
