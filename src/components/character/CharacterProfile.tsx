@@ -22,7 +22,13 @@ import type { CharacterProfile } from "@/lib/character-profile";
  *
  * The picture is always the one from the grid, never AniList's: the grid owner
  * chose that image, and swapping it for a stock portrait would make the card
- * feel like a different character. AniList fills in the words.
+ * feel like a different character. AniList fills in the words, and Gemini says
+ * them in Thai.
+ *
+ * The card is one fixed size whatever it holds. A tall portrait, a wide banner
+ * and a character with no blurb at all produced three differently shaped cards,
+ * which made the modal feel like it was resizing itself around its contents
+ * rather than being a card.
  *
  * A provider rather than local state in each component, because faces appear in
  * four places on the compare page alone (shared, both "only in" columns, the
@@ -45,23 +51,31 @@ export function useOpenCharacter(): OpenFn {
     return useContext(OpenContext) ?? (() => {});
 }
 
+interface Loaded {
+    profile: CharacterProfile | null;
+    th: string | null;
+}
+
 function Card({ character, onClose }: { character: CharacterRef; onClose: () => void }) {
-    const [profile, setProfile] = useState<CharacterProfile | null>(null);
+    const [data, setData] = useState<Loaded | null>(null);
     const [failed, setFailed] = useState(false);
     const [loading, setLoading] = useState(true);
+    // Thai first, like the AI verdict: it is the language this is read in, and
+    // the English original is one tap away.
+    const [lang, setLang] = useState<"th" | "en">("th");
 
     // No resetting on name change: the card is keyed by name where it is
     // rendered, so a different character mounts a fresh one.
     useEffect(() => {
         let alive = true;
 
-        fetch(`/api/character?name=${encodeURIComponent(character.name)}`)
+        fetch(`/api/character?name=${encodeURIComponent(character.name)}&lang=th`)
             .then(async (res) => {
                 if (!res.ok) throw new Error(String(res.status));
                 return res.json();
             })
-            .then((data) => {
-                if (alive) setProfile(data?.profile ?? null);
+            .then((body) => {
+                if (alive) setData({ profile: body?.profile ?? null, th: body?.th ?? null });
             })
             .catch(() => {
                 // A failed lookup is not the same answer as "AniList has never
@@ -86,17 +100,29 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
         return () => window.removeEventListener("keydown", onKey);
     }, [onClose]);
 
+    const profile = data?.profile ?? null;
+    const english = profile?.description ?? null;
+    const thai = data?.th ?? null;
+
     const series =
         profile?.series ||
         // The stored source is a fallback, not a first choice: it is a series
         // title only when the character came from a search.
-        (character.source && !/^(google|official|uploaded|imported|url|web search)/i.test(character.source)
+        (character.source &&
+        !/^(google|official|uploaded|imported|url|web search|myanimelist|anilist|shared|unknown)/i.test(
+            character.source
+        )
             ? character.source
             : null);
 
+    // Thai is the default, but a character whose translation is missing should
+    // show the English rather than an empty card.
+    const body = lang === "th" ? thai ?? english : english;
+    const showingFallbackLanguage = lang === "th" && !thai && !!english;
+
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+            className="fixed inset-0 z-[100] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-6"
             onClick={onClose}
             role="dialog"
             aria-modal="true"
@@ -104,32 +130,36 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                className="animate-in slide-in-from-bottom-4 duration-200 w-full max-w-md overflow-hidden rounded-t-3xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-purple-950/40 sm:rounded-3xl"
+                className={cn(
+                    "animate-in slide-in-from-bottom-4 duration-200 flex w-full flex-col overflow-hidden",
+                    "rounded-t-3xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-purple-950/40 sm:rounded-3xl",
+                    // One size for every character: picture area and text area
+                    // are both fixed, and a long blurb scrolls inside its own box.
+                    "h-[86vh] max-h-[680px] sm:h-[620px] sm:max-w-lg"
+                )}
             >
-                <div className="relative">
-                    <div className="relative h-56 w-full overflow-hidden bg-zinc-950 sm:h-64">
-                        {character.image ? (
-                            <>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={optimizedImageSrc(character.image, 640)}
-                                    alt=""
-                                    className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-xl"
-                                />
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={optimizedImageSrc(character.image, 640)}
-                                    alt={character.name}
-                                    className="relative h-full w-full object-contain"
-                                />
-                            </>
-                        ) : (
-                            <div className="flex h-full items-center justify-center text-zinc-700">
-                                no image
-                            </div>
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-zinc-900 to-transparent" />
-                    </div>
+                <div className="relative h-64 shrink-0 overflow-hidden bg-zinc-950 sm:h-72">
+                    {character.image ? (
+                        <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={optimizedImageSrc(character.image, 640)}
+                                alt=""
+                                className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-2xl"
+                            />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={optimizedImageSrc(character.image, 640)}
+                                alt={character.name}
+                                className="relative h-full w-full object-contain"
+                            />
+                        </>
+                    ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-zinc-700">
+                            no image
+                        </div>
+                    )}
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-zinc-900 to-transparent" />
 
                     <button
                         type="button"
@@ -141,36 +171,66 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                     </button>
                 </div>
 
-                {/* Lifted over the picture is only safe with a stacking
-                    context of its own - without it the name sat behind the
-                    image block and vanished. */}
-                <div className="relative z-10 -mt-6 px-5 pb-5">
-                    <h3 className="text-xl font-bold leading-tight text-white">
-                        {profile?.name || character.name}
-                    </h3>
+                {/* Lifted over the picture, which needs a stacking context of
+                    its own - without it the name sat behind the image block. */}
+                <div className="relative z-10 -mt-8 flex min-h-0 flex-1 flex-col px-6 pb-6">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <h3 className="text-2xl font-bold leading-tight text-white">
+                                {profile?.name || character.name}
+                            </h3>
+                            {series ? (
+                                <p className="mt-1 text-sm text-purple-300">{series}</p>
+                            ) : loading ? (
+                                <p className="mt-2 h-4 w-32 animate-pulse rounded bg-zinc-800" />
+                            ) : (
+                                <p className="mt-1 text-sm text-zinc-600">Series unknown</p>
+                            )}
+                        </div>
 
-                    {series ? (
-                        <p className="mt-1 text-sm text-purple-300">{series}</p>
-                    ) : loading ? (
-                        <p className="mt-1 h-4 w-32 animate-pulse rounded bg-zinc-800" />
-                    ) : (
-                        <p className="mt-1 text-sm text-zinc-600">Series unknown</p>
-                    )}
+                        {/* The same switch as the AI verdict, so the two cards
+                            read as one feature rather than two conventions. */}
+                        <div className="flex shrink-0 rounded-lg bg-zinc-800/80 p-0.5 text-xs font-medium">
+                            <button
+                                onClick={() => setLang("th")}
+                                className={cn(
+                                    "rounded-md px-2.5 py-1 transition-colors",
+                                    lang === "th"
+                                        ? "bg-gradient-to-r from-blue-600 to-red-600 text-white shadow-sm"
+                                        : "text-zinc-500 hover:text-zinc-300"
+                                )}
+                            >
+                                TH
+                            </button>
+                            <button
+                                onClick={() => setLang("en")}
+                                className={cn(
+                                    "rounded-md px-2.5 py-1 transition-colors",
+                                    lang === "en"
+                                        ? "bg-zinc-700 text-white shadow-sm"
+                                        : "text-zinc-500 hover:text-zinc-300"
+                                )}
+                            >
+                                EN
+                            </button>
+                        </div>
+                    </div>
 
-                    <div className="mt-3 max-h-56 overflow-y-auto pr-1">
+                    <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
                         {loading ? (
                             <div className="flex flex-col gap-2">
                                 <div className="h-3.5 w-full animate-pulse rounded bg-zinc-800/70" />
                                 <div className="h-3.5 w-11/12 animate-pulse rounded bg-zinc-800/70" />
+                                <div className="h-3.5 w-4/5 animate-pulse rounded bg-zinc-800/70" />
                                 <div className="h-3.5 w-2/3 animate-pulse rounded bg-zinc-800/70" />
                             </div>
                         ) : failed ? (
                             <p className="text-sm text-zinc-500">
                                 Could not load this profile just now. Close and tap again.
                             </p>
-                        ) : profile?.description ? (
-                            <p className="whitespace-pre-line text-sm leading-relaxed text-zinc-300">
-                                {profile.description}
+                        ) : body ? (
+                            <p className="whitespace-pre-line text-[15px] leading-relaxed text-zinc-300">
+                                {body}
                             </p>
                         ) : (
                             <p className="text-sm text-zinc-500">
@@ -180,8 +240,14 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                         )}
                     </div>
 
-                    {!loading && profile && !profile.unknown && (
-                        <p className="mt-3 text-[11px] text-zinc-600">Profile from AniList</p>
+                    {!loading && body && (
+                        <p className="mt-3 shrink-0 text-[11px] text-zinc-600">
+                            {showingFallbackLanguage
+                                ? "English only - no Thai version for this one yet."
+                                : lang === "th"
+                                  ? "AniList · แปลไทยโดย Gemini"
+                                  : "Profile from AniList"}
+                        </p>
                     )}
                 </div>
             </div>
@@ -217,9 +283,3 @@ export function CharacterProfileProvider({ children }: { children: ReactNode }) 
         </OpenContext.Provider>
     );
 }
-
-/** Shared styling for a face that opens its profile. */
-export const faceButtonClass = cn(
-    "group flex w-full flex-col gap-1.5 text-left",
-    "focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-xl"
-);

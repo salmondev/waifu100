@@ -164,7 +164,7 @@ function RowDetail({
 
     return (
         <div
-            className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"
+            className="fixed inset-0 z-[90] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-6"
             onClick={onClose}
             role="dialog"
             aria-modal="true"
@@ -172,11 +172,11 @@ function RowDetail({
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                className="animate-in slide-in-from-bottom-4 duration-200 max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl shadow-purple-950/40 sm:rounded-3xl"
+                className="animate-in slide-in-from-bottom-4 duration-200 h-[86vh] max-h-[760px] w-full max-w-3xl overflow-y-auto rounded-t-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-purple-950/40 sm:h-auto sm:rounded-3xl sm:p-7"
             >
                 <div className="mb-4 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                        <h3 className="truncate text-lg font-bold text-white">{row.name}</h3>
+                        <h3 className="truncate text-xl font-bold text-white sm:text-2xl">{row.name}</h3>
                         <p className="text-xs text-zinc-500">
                             {row.a + row.b} character{row.a + row.b === 1 ? "" : "s"} across
                             both grids
@@ -208,7 +208,7 @@ function RowDetail({
                                         {side.members.length}
                                     </span>
                                 </p>
-                                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
+                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 sm:gap-4">
                                     {side.members.map((character, i) => (
                                         <button
                                             type="button"
@@ -230,7 +230,7 @@ function RowDetail({
                                                     />
                                                 )}
                                             </div>
-                                            <p className="truncate text-center text-[11px] leading-tight text-zinc-400">
+                                            <p className="truncate text-center text-xs leading-tight text-zinc-400 group-hover:text-purple-300">
                                                 {character.name}
                                             </p>
                                         </button>
