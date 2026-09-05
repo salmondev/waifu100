@@ -426,31 +426,13 @@ export function SeriesBreakdown({
                 {rows.length === 0 ? (
                     /* An empty chart has two very different causes, and saying
                        the wrong one is a claim about someone's grid. */
-                    <div className="py-6 text-center">
-                        {upstreamDown ? (
-                            <>
-                                <p className="text-sm text-zinc-500">
-                                    ยังบอกไม่ได้ว่าตัวละครมาจากเรื่องอะไร
-                                </p>
-                                <p className="mt-1 text-xs text-zinc-600">
-                                    AniList ปิดให้บริการ API อยู่ชั่วคราว — กริดที่เก็บชื่อเรื่องไว้เองยังนับได้
-                                    ที่เหลือต้องรอ ลองใหม่อีกครั้งภายหลัง
-                                </p>
-                            </>
-                        ) : missingSeries ? (
-                            <>
-                                <p className="text-sm text-zinc-500">
-                                    ไม่รู้ว่าตัวละครส่วนใหญ่มาจากเรื่องอะไร
-                                </p>
-                                <p className="mt-1 text-xs text-zinc-600">
-                                    รูปที่อัปโหลดเองหรือค้นจาก Google ไม่ได้ติดชื่อเรื่องมาด้วย —
-                                    ยังเทียบไม่ได้ว่าซ้ำกันตรงไหน
-                                </p>
-                            </>
-                        ) : (
-                            <p className="text-sm text-zinc-600">No series in common here.</p>
-                        )}
-                    </div>
+                    <p className="py-6 text-center text-sm text-zinc-600">
+                        {upstreamDown
+                            ? "ยังระบุเรื่องไม่ได้ ลองใหม่ภายหลัง"
+                            : missingSeries
+                              ? "กริดนี้ไม่ได้ติดชื่อเรื่องมา เลยยังเทียบไม่ได้"
+                              : "No series in common here."}
+                    </p>
                 ) : (
                     <>
                         {tab === "shared" && (

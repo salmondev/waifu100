@@ -178,7 +178,6 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
      * which. The card shows its best guess - but as a guess, with the others
      * one tap away. Asserting it silently is what made these cards wrong.
      */
-    const hasAlternatives = (data?.alternatives.length ?? 0) > 0;
     /**
      * Shown whenever the answer was a guess, with or without runners-up to
      * offer. A web result found without any series to go on has no alternatives
@@ -306,7 +305,7 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                             </div>
                         ) : failed ? (
                             <p className="text-sm text-zinc-500">
-                                Could not load this profile just now. Close and tap again.
+                                โหลดไม่สำเร็จ ลองใหม่อีกครั้ง
                             </p>
                         ) : body ? (
                             <p className="whitespace-pre-line text-[15px] leading-relaxed text-zinc-300">
@@ -317,12 +316,11 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                                Saying which step is running beats a blank card
                                that looks like the final answer. */
                             <p className="text-sm text-zinc-500">
-                                AniList ไม่มีตัวนี้ กำลังค้นจากเว็บให้…
+                                กำลังค้นข้อมูล…
                             </p>
                         ) : (
                             <p className="text-sm text-zinc-500">
-                                No profile for this one - not every VTuber, idol or original
-                                character is written up anywhere we can check.
+                                ไม่พบข้อมูลตัวละครนี้
                             </p>
                         )}
 
@@ -333,11 +331,7 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                                room. */
                             <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
                                 <p className="text-[12px] leading-snug text-amber-200/90">
-                                    มีตัวละครชื่อนี้หลายตัว และกริดไม่ได้บอกว่าเป็นเรื่องไหน
-                                    — นี่คือตัวที่รู้จักกันมากที่สุด
-                                    {hasAlternatives
-                                        ? " ถ้าไม่ใช่ เลือกจากด้านล่าง"
-                                        : " ถ้าไม่ใช่ตัวนี้ ให้ระบุชื่อเรื่องไว้ในช่องนั้นตอนสร้างกริด"}
+                                    ชื่อนี้มีหลายตัวละคร นี่คือตัวที่ดังที่สุด
                                 </p>
                                 <div className="mt-2.5 flex flex-wrap gap-2">
                                     {data?.alternatives.map((alt) => (
@@ -365,7 +359,7 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                                 onClick={() => setPickedId(null)}
                                 className="mt-3 text-[11px] text-zinc-500 underline underline-offset-2 transition-colors hover:text-zinc-300"
                             >
-                                ← กลับไปผลลัพธ์เดิม
+                                ← ย้อนกลับ
                             </button>
                         )}
                     </div>
@@ -373,15 +367,15 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                     {!loading && body && (
                         <p className="mt-3 shrink-0 text-[11px] text-zinc-600">
                             {translationPending
-                                ? "กำลังแปลเป็นไทย… (แสดงต้นฉบับภาษาอังกฤษไปก่อน)"
+                                ? "กำลังแปล…"
                                 : showingFallbackLanguage
-                                ? "English only - no Thai version for this one yet."
+                                ? "ยังไม่มีฉบับแปลไทย"
                                 : fromWeb
                                   ? // Where a web-sourced blurb came from, named:
                                     // it is assembled from search results rather
                                     // than a maintained database, and the reader
                                     // should be able to weigh it accordingly.
-                                    `ค้นจากเว็บ (${data!.webSources.join(", ")}) · เรียบเรียงโดย Gemini`
+                                    `${data!.webSources[0]} · Gemini`
                                   : lang === "th"
                                     ? "AniList · แปลไทยโดย Gemini"
                                     : "Profile from AniList"}

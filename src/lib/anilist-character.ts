@@ -1,4 +1,5 @@
 import { matchKey, normalizeName } from "@/lib/character-match";
+import { assertUpstreamUp, reportUpstreamStatus } from "@/lib/upstream-health";
 
 /**
  * Deciding *which* character AniList just handed back.
@@ -27,6 +28,9 @@ import { matchKey, normalizeName } from "@/lib/character-match";
  */
 
 export const ANILIST_URL = "https://graphql.anilist.co";
+
+/** Name this service goes by in the circuit breaker. */
+export const ANILIST = "anilist";
 
 export interface AniListMediaEdge {
     characterRole?: string | null;
@@ -298,13 +302,18 @@ export function pickCharacter(
 /* -------------------------------------------------------------------------- */
 
 async function askAniList<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    assertUpstreamUp(ANILIST);
+
     const res = await fetch(ANILIST_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ query, variables }),
         signal: AbortSignal.timeout(9000),
     });
-    if (!res.ok) throw new Error(`AniList ${res.status}`);
+    if (!res.ok) {
+        reportUpstreamStatus(ANILIST, res.status);
+        throw new Error(`AniList ${res.status}`);
+    }
     const body = (await res.json()) as { data?: T };
     if (!body.data) throw new Error("AniList returned no data");
     return body.data;

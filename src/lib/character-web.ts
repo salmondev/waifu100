@@ -2,6 +2,7 @@ import { withRedis } from "@/lib/redis";
 import { matchKey, normalizeName } from "@/lib/character-match";
 import { usableSeriesHint } from "@/lib/anilist-character";
 import { getFlashModel } from "@/lib/gemini";
+import { assertUpstreamUp, reportUpstreamStatus } from "@/lib/upstream-health";
 
 /**
  * The answer for characters AniList does not have.
@@ -27,6 +28,9 @@ import { getFlashModel } from "@/lib/gemini";
  */
 
 const SERPER_URL = "https://google.serper.dev/search";
+
+/** Name this service goes by in the circuit breaker. */
+const SERPER = "serper";
 
 const HIT_TTL_SEC = 60 * 60 * 24 * 180;
 const MISS_TTL_SEC = 60 * 60 * 24 * 14;
@@ -101,13 +105,20 @@ async function retrieve(name: string, source: string | null | undefined): Promis
     const key = process.env.SERPER_API_KEY;
     if (!key) return [];
 
+    // An exhausted Serper quota answers every call the same way, and this is
+    // the budget that has actually run out here before.
+    assertUpstreamUp(SERPER);
+
     const res = await fetch(SERPER_URL, {
         method: "POST",
         headers: { "X-API-KEY": key, "Content-Type": "application/json" },
         body: JSON.stringify({ q: buildQuery(name, source), num: 8 }),
         signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) throw new Error(`Serper ${res.status}`);
+    if (!res.ok) {
+        reportUpstreamStatus(SERPER, res.status);
+        throw new Error(`Serper ${res.status}`);
+    }
 
     const body = (await res.json()) as SerperSearchResponse;
     const passages: Passage[] = [];
