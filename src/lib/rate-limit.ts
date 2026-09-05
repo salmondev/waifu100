@@ -163,4 +163,8 @@ export const LIMITS = {
   // the app, and sharing the series budget made a burst of taps look like
   // "no profile found", which is a different and wrong answer.
   profile: { name: "profile", limit: 40, windowSec: 60 } satisfies RateLimit,
+  // Consumed only when a profile has no Thai text yet, i.e. only when a Gemini
+  // call is actually about to happen. Reading one back costs nothing and is not
+  // counted here, so the budget means "new translations", not "card opens".
+  translate: { name: "translate", limit: 8, windowSec: 60 } satisfies RateLimit,
 };

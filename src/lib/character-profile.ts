@@ -1,6 +1,7 @@
 import { withRedis } from "@/lib/redis";
 import { matchKey } from "@/lib/character-match";
 import { ANILIST_URL, namesAgree, pickTitle, type AniListCharacter } from "@/lib/series-resolve";
+import { getFlashModel } from "@/lib/gemini";
 
 /**
  * One character's card: who they are, what they are from, a few lines about
@@ -156,4 +157,95 @@ export async function getCharacterProfile(name: string): Promise<CharacterProfil
     }
 
     return profile;
+}
+
+/**
+ * The Thai version of a profile's blurb.
+ *
+ * A machine translation of a wiki paragraph reads like a machine translation,
+ * so this asks Gemini for Thai that someone who actually knows the character
+ * would write - and forbids it from adding anything the English did not say,
+ * which is the failure mode that matters here. A bio people trust is worth more
+ * than a bio that flows.
+ *
+ * Cached in Redis for a year under its own key. Characters do not change, the
+ * cache is shared by every grid they appear in, and the whole point of paying
+ * for a translation once is never paying for it again.
+ */
+const THAI_TTL_SEC = 60 * 60 * 24 * 365;
+
+function thaiCacheKey(name: string): string {
+    return `waifu100:profile-th:${matchKey(name)}`;
+}
+
+/**
+ * The cached Thai text, or null when nobody has paid for it yet.
+ *
+ * Split from the generating call so the route can tell those two apart: a cache
+ * hit is free and unlimited, a miss costs a Gemini call and has to be budgeted.
+ */
+export async function readThaiDescription(name: string): Promise<string | null> {
+    const key = matchKey(name);
+    if (!key) return null;
+
+    try {
+        const cached = await withRedis((redis) => redis.get(thaiCacheKey(name)));
+        return cached ? cached : null;
+    } catch (e) {
+        console.error("Thai profile cache read failed:", e);
+        return null;
+    }
+}
+
+export async function getThaiDescription(
+    name: string,
+    english: string,
+    series: string | null
+): Promise<string | null> {
+    const key = matchKey(name);
+    if (!key || !english.trim()) return null;
+
+    const cached = await readThaiDescription(name);
+    if (cached) return cached;
+
+    if (!process.env.GEMINI_API_KEY) return null;
+
+    const prompt = `Translate this character description into Thai.
+
+Character: ${name}${series ? `\nFrom: ${series}` : ""}
+
+English:
+${english}
+
+Rules:
+- Write the way a Thai fan who actually knows this character would write, not like a translation. Natural word order, everyday words.
+- **Do not add anything.** No facts, no opinions, no flourishes that are not in the English. If the English is dry, the Thai is dry.
+- Keep proper nouns (names of people, places, guilds, weapons, series) in their original spelling.
+- Keep stat lines like "Height: 154 cm" as short Thai labels ("ส่วนสูง: 154 ซม.").
+- No exclamation marks. No emoji. Do not address the reader.
+- Same length or shorter than the English. Plain paragraphs, keep the line breaks.
+
+Return ONLY the Thai text.`;
+
+    let thai = "";
+    try {
+        const model = getFlashModel();
+        const result = await model.generateContent(prompt);
+        thai = (await result.response).text().trim();
+    } catch (e) {
+        console.error("Thai profile translation failed:", e);
+        // Not cached: a transient failure must not pin this character to English
+        // for a year.
+        return null;
+    }
+
+    if (!thai) return null;
+
+    try {
+        await withRedis((redis) => redis.set(thaiCacheKey(name), thai, "EX", THAI_TTL_SEC));
+    } catch (e) {
+        console.error("Thai profile cache write failed:", e);
+    }
+
+    return thai;
 }
