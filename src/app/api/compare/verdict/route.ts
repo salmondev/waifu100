@@ -1,44 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withRedis } from "@/lib/redis";
 import { getFlashModel } from "@/lib/gemini";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { readShares, isValidShareId } from "@/lib/share-store";
 import { compareGrids } from "@/lib/character-match";
 import { THAI_VOICE_RULES_FLAT } from "@/lib/verdict-tone";
+import {
+    readCachedVerdict,
+    writeCachedVerdict,
+    isVerdictShaped,
+} from "@/lib/compare-verdict-store";
 import { AnalysisResult } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Redis key for a pair, with the ids sorted.
- *
- * Sorting is the whole point: a comparison is symmetric, so `?a=x&b=y` and
- * `?a=y&b=x` must hit the same cache entry. Without it the same pair would pay
- * for two Gemini calls, and the two pages would disagree about the verdict.
- */
-export function comparePairKey(idA: string, idB: string): string {
-    const [lo, hi] = [idA, idB].sort();
-    return `waifu100:compare:${lo}:${hi}`;
-}
-
-// Neither grid can change after it is shared, so the verdict for a pair is
-// stable - the TTL is only there to stop dead pairs accumulating forever.
-const CACHE_TTL_SEC = 60 * 60 * 24 * 30;
 
 // How many names of each kind reach the prompt. The verdict is about a shape,
 // not an inventory, and 200 names is mostly tokens spent on the tail.
 const MAX_SHARED = 40;
 const MAX_UNIQUE = 20;
-
-interface CachedVerdict {
-    verdict: AnalysisResult;
-    createdAt: string;
-}
-
-function isVerdictShaped(value: unknown): value is AnalysisResult {
-    const v = value as AnalysisResult | null;
-    return !!v && !!v.en?.title && !!v.en?.content && !!v.th?.title && !!v.th?.content;
-}
 
 /**
  * The AI verdict on a pair of grids.
@@ -63,19 +41,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Two different grid ids are required." }, { status: 400 });
         }
 
-        const key = comparePairKey(a, b);
-
-        const cached = await withRedis((redis) => redis.get(key));
-        if (cached) {
-            try {
-                const parsed: CachedVerdict = JSON.parse(cached);
-                if (isVerdictShaped(parsed.verdict)) {
-                    return NextResponse.json({ verdict: parsed.verdict, cached: true });
-                }
-            } catch {
-                // A malformed entry just means regenerating it.
-            }
-        }
+        const cached = await readCachedVerdict(a, b);
+        if (cached) return NextResponse.json({ verdict: cached, cached: true });
 
         if (!process.env.GEMINI_API_KEY) {
             return NextResponse.json({ error: "GEMINI_API_KEY not configured" }, { status: 500 });
@@ -158,13 +125,7 @@ IMPORTANT: Return ONLY valid JSON in this exact format:
             return NextResponse.json({ error: "Failed to generate a verdict." }, { status: 500 });
         }
 
-        const payload: CachedVerdict = { verdict, createdAt: new Date().toISOString() };
-        // Cache failures must not lose a verdict already paid for.
-        try {
-            await withRedis((redis) => redis.set(key, JSON.stringify(payload), "EX", CACHE_TTL_SEC));
-        } catch (e) {
-            console.error("Compare verdict cache write failed:", e);
-        }
+        await writeCachedVerdict(a, b, verdict);
 
         return NextResponse.json({ verdict, cached: false });
     } catch (e) {

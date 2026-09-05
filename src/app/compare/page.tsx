@@ -3,6 +3,8 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { readShare, readShares } from "@/lib/share-store";
 import { compareGrids } from "@/lib/character-match";
+import { compareSeries } from "@/lib/series-stats";
+import { readCachedVerdict } from "@/lib/compare-verdict-store";
 import { compareCardPath, shareCardPath } from "@/lib/share-card";
 import { CompareView } from "@/components/compare/CompareView";
 import { ComparePicker } from "@/components/compare/ComparePicker";
@@ -132,6 +134,10 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
 
     const { shareA, shareB, result } = data;
 
+    // Read alongside the page: a pair someone has already compared shows its
+    // verdict with everything else - no request, no spinner, no button.
+    const verdict = await readCachedVerdict(shareA.id, shareB.id);
+
     return (
         <CompareView
             a={{
@@ -150,6 +156,8 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
             shared={result.shared}
             onlyA={result.onlyA}
             onlyB={result.onlyB}
+            series={compareSeries(shareA.grid, shareB.grid)}
+            verdict={verdict}
         />
     );
 }
