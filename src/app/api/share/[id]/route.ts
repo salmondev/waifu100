@@ -3,6 +3,7 @@ import { withRedis } from "@/lib/redis";
 import { isAdminRequest } from "@/lib/admin-auth";
 import { shareOwnerId } from "@/lib/share-summary";
 import { userIdFromRequest, userSharesKey } from "@/lib/user-id";
+import { dropSummary } from "@/lib/share-summary-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,10 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
             }
             return tx.exec();
         });
+
+        // The cached card for this grid outlives the payload otherwise, and a
+        // listing would go on showing a grid that no longer exists.
+        await dropSummary(id);
 
         return NextResponse.json({ ok: true, id });
     } catch (e: unknown) {

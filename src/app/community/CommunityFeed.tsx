@@ -1,24 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Search, SlidersHorizontal, LayoutGrid, X } from "lucide-react";
 import { GridCard } from "@/components/community/GridCard";
 import { CompareBar, type CompareSlot } from "@/components/compare/CompareBar";
 import type { ShareSummary } from "@/lib/share-summary";
+import { FEED_PAGE_SIZE, type FeedPage } from "@/lib/feed-page";
 import { cn } from "@/lib/utils";
 
 type SortOrder = "new" | "old";
 type Filter = "all" | "gif" | "complete";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = FEED_PAGE_SIZE;
 
-export default function CommunityFeed() {
-  const [grids, setGrids] = useState<ShareSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+interface CommunityFeedProps {
+  /** The newest page, rendered on the server. See app/community/page.tsx. */
+  initialPage: FeedPage;
+  /** The server could not reach Redis, so the browser has to fetch after all. */
+  initialFailed: boolean;
+}
+
+export default function CommunityFeed({ initialPage, initialFailed }: CommunityFeedProps) {
+  const [grids, setGrids] = useState<ShareSummary[]>(initialPage.grids);
+  const [loading, setLoading] = useState(initialFailed);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [nextOffset, setNextOffset] = useState<number | null>(initialPage.nextOffset);
 
   const [order, setOrder] = useState<SortOrder>("new");
   const [filter, setFilter] = useState<Filter>("all");
@@ -97,9 +105,40 @@ export default function CommunityFeed() {
     }
   }, []);
 
+  /**
+   * The first page is already in the HTML, so mounting must not fetch it again
+   * - that would undo the point of rendering it on the server. Only a later
+   * change of sort, or a server render that could not reach Redis, loads page 0.
+   */
+  const seeded = useRef(!initialFailed);
   useEffect(() => {
+    if (seeded.current) {
+      seeded.current = false;
+      return;
+    }
     loadPage(0, order);
   }, [order, loadPage]);
+
+  /**
+   * Load the next page when the sentinel below the grid comes within a screen
+   * of the viewport. The button stays: it is the fallback when there is no
+   * IntersectionObserver, and it is what a keyboard reaches.
+   */
+  const sentinel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || nextOffset === null || loadingMore || loading) return;
+    if (typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) loadPage(nextOffset, order);
+      },
+      { rootMargin: "800px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nextOffset, loadingMore, loading, order, loadPage]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -267,15 +306,20 @@ export default function CommunityFeed() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {visible.map((grid) => (
+              {visible.map((grid, index) => (
                 <GridCard
                   key={grid.id}
                   grid={grid}
                   selected={slotOf(grid.id)}
                   onSelect={toggleSelect}
+                  // The top row is on screen immediately; every card below it
+                  // waits until the visitor scrolls near it.
+                  priority={index < 4}
                 />
               ))}
             </div>
+
+            <div ref={sentinel} aria-hidden className="h-px w-full" />
 
             <div className="flex flex-col items-center gap-3 mt-10">
               {isFiltered && (

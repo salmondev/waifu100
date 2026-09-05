@@ -19,6 +19,13 @@ interface GridCardProps {
      */
     selected?: "a" | "b" | null;
     onSelect?: (grid: ShareSummary) => void;
+    /**
+     * Set on the handful of cards that are on screen before any scrolling.
+     * Everything else loads lazily - a page of these is a page of full-size
+     * grid renders, and fetching them all at once is what made the showcase
+     * crawl on a phone.
+     */
+    priority?: boolean;
 }
 
 /**
@@ -32,6 +39,7 @@ export function GridCard({
     deleting = false,
     selected = null,
     onSelect,
+    priority = false,
 }: GridCardProps) {
     // A share whose thumbnail upload failed has no imageUrl; the OG route draws
     // one from the grid data so the card is never blank.
@@ -51,16 +59,23 @@ export function GridCard({
             >
                 {/* Image Container */}
                 <div className="aspect-square relative overflow-hidden bg-zinc-950">
-                    {/* Blur Backlayer */}
+                    {/* Blur Backlayer. Same src as the main image, so it is the
+                        same download - the browser paints it from cache. */}
                     <img
                         src={preview}
                         alt=""
+                        aria-hidden
+                        loading={priority ? "eager" : "lazy"}
+                        decoding="async"
                         className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110"
                     />
                     {/* Main Image */}
                     <img
                         src={preview}
                         alt={grid.title}
+                        loading={priority ? "eager" : "lazy"}
+                        decoding="async"
+                        fetchPriority={priority ? "high" : "low"}
                         className="relative w-full h-full object-contain z-10 transition-transform duration-500 group-hover:scale-105"
                     />
 

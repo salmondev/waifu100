@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRedis } from "@/lib/redis";
-import { summarizeShare } from "@/lib/share-summary";
+import { summariesFor } from "@/lib/share-summary-cache";
 import { userIdFromRequest, userSharesKey } from "@/lib/user-id";
 
 export const dynamic = "force-dynamic";
@@ -33,28 +33,12 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ grids: [] });
         }
 
-        const results = await withRedis((redis) => {
-            const pipeline = redis.pipeline();
-            ids.forEach((id) => pipeline.get(`waifu100:share:${id}`));
-            return pipeline.exec();
-        });
-
-        // A share whose payload is gone (deleted straight from Redis, or expired)
-        // leaves a dangling id in the index; collect those to prune. Note this is
-        // narrower than "not listed": a grid dropped by summarizeShare still
-        // exists, so its index entry stays.
-        const missing: string[] = [];
-        const grids = (results ?? [])
-            .map((result, index) => {
-                const [err, data] = result;
-                if (err) return null;
-                if (!data) {
-                    missing.push(ids[index]);
-                    return null;
-                }
-                return summarizeShare(ids[index], data as string);
-            })
-            .filter((g) => g !== null);
+        // Cards come from the summary hash, so listing someone's grids no longer
+        // pulls a hundred full payloads across the wire. `missing` is the ids
+        // whose payload is gone (deleted straight from Redis, or expired),
+        // leaving a dangling index entry to prune - narrower than "not listed",
+        // since a grid dropped by summarizeShare still exists.
+        const { grids, missing } = await summariesFor(ids);
 
         if (missing.length > 0) {
             await withRedis((redis) => redis.zrem(userSharesKey(userId), ...missing));
