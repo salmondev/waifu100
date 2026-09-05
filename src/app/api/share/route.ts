@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from 'nanoid';
 import { withRedis } from '@/lib/redis';
 import { isValidUserId, userSharesKey } from '@/lib/user-id';
+import { cacheSummary } from '@/lib/share-summary-cache';
 
 export async function POST(req: NextRequest) {
     try {
@@ -74,10 +75,11 @@ export async function POST(req: NextRequest) {
         // feed to find one person's grids would get slower for everyone as the
         // feed grows, so ownership gets its own sorted set from the start.
         const createdAt = Date.now();
+        const payload = JSON.stringify(fileData);
         const txResults = await withRedis((redis) => {
             const tx = redis
                 .multi()
-                .set(`waifu100:share:${id}`, JSON.stringify(fileData))
+                .set(`waifu100:share:${id}`, payload)
                 .zadd('waifu100:feed', createdAt, id);
             if (userId) {
                 tx.zadd(userSharesKey(userId), createdAt, id);
@@ -89,6 +91,10 @@ export async function POST(req: NextRequest) {
         // rejecting, so surface them rather than returning a broken share id.
         const txError = txResults?.find(([err]) => err)?.[0];
         if (txError) throw txError;
+
+        // The listings read summaries, not payloads, so write this grid's one
+        // now rather than making the first visitor who sees it pay for it.
+        await cacheSummary(id, payload);
         
         // Trim feed to keep only last 1000 items (optional maintenance)
         // await redis.zremrangebyrank('waifu100:feed', 0, -1001);
