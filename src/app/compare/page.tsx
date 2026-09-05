@@ -3,7 +3,8 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { readShare, readShares } from "@/lib/share-store";
 import { compareGrids } from "@/lib/character-match";
-import { compareSeries } from "@/lib/series-stats";
+import { charactersOf } from "@/lib/series-stats";
+import { readCachedSeries } from "@/lib/series-resolve";
 import { readCachedVerdict } from "@/lib/compare-verdict-store";
 import { compareCardPath, shareCardPath } from "@/lib/share-card";
 import { CompareView } from "@/components/compare/CompareView";
@@ -134,9 +135,23 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
 
     const { shareA, shareB, result } = data;
 
+    const charactersA = charactersOf(shareA.grid);
+    const charactersB = charactersOf(shareB.grid);
+
     // Read alongside the page: a pair someone has already compared shows its
-    // verdict with everything else - no request, no spinner, no button.
-    const verdict = await readCachedVerdict(shareA.id, shareB.id);
+    // verdict with everything else - no request, no spinner, no button. The
+    // series lookups already in the cache come along for the same reason; the
+    // browser asks about whatever is left, so a cold cache costs a slower chart
+    // rather than a slower page.
+    const [verdict, cachedSeries] = await Promise.all([
+        readCachedVerdict(shareA.id, shareB.id),
+        readCachedSeries([...charactersA, ...charactersB].map((c) => c.name)),
+    ]);
+
+    const resolvedSeries: Record<string, string> = {};
+    for (const [key, value] of Object.entries(cachedSeries)) {
+        if (value !== null) resolvedSeries[key] = value;
+    }
 
     return (
         <CompareView
@@ -156,7 +171,9 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
             shared={result.shared}
             onlyA={result.onlyA}
             onlyB={result.onlyB}
-            series={compareSeries(shareA.grid, shareB.grid)}
+            charactersA={charactersA}
+            charactersB={charactersB}
+            resolvedSeries={resolvedSeries}
             verdict={verdict}
         />
     );

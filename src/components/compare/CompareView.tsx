@@ -7,7 +7,7 @@ import { cn, optimizedImageSrc } from "@/lib/utils";
 import type { CompareCharacter, ComparePair } from "@/lib/character-match";
 import { CompareVerdict } from "@/components/compare/CompareVerdict";
 import { SeriesBreakdown } from "@/components/compare/SeriesBreakdown";
-import type { SeriesStats } from "@/lib/series-stats";
+import type { SeriesInput, SeriesResolution } from "@/lib/series-stats";
 import type { AnalysisResult } from "@/types";
 
 export interface CompareSide {
@@ -26,8 +26,11 @@ export interface CompareViewProps {
      *  any two grids can be compared, so nothing here assumes that. */
     onlyA: CompareCharacter[];
     onlyB: CompareCharacter[];
-    /** Which series each side draws from, counted server-side. */
-    series: SeriesStats;
+    /** Every character on each side, for the series count. */
+    charactersA: SeriesInput[];
+    charactersB: SeriesInput[];
+    /** Series lookups the server already had cached. */
+    resolvedSeries: SeriesResolution;
     /** A verdict already in the cache, so the page can show one immediately. */
     verdict: AnalysisResult | null;
 }
@@ -187,7 +190,9 @@ export function CompareView({
     shared,
     onlyA,
     onlyB,
-    series,
+    charactersA,
+    charactersB,
+    resolvedSeries,
     verdict,
 }: CompareViewProps) {
     const [copied, setCopied] = useState(false);
@@ -286,7 +291,13 @@ export function CompareView({
                     </section>
                 )}
 
-                <SeriesBreakdown stats={series} titleA={a.title} titleB={b.title} />
+                <SeriesBreakdown
+                    charactersA={charactersA}
+                    charactersB={charactersB}
+                    titleA={a.title}
+                    titleB={b.title}
+                    initialResolved={resolvedSeries}
+                />
 
                 {/* What each side is missing. Two columns on desktop so the
                     asymmetry is visible at a glance; stacked on a phone, with
