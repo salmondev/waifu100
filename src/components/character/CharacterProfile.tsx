@@ -11,7 +11,15 @@ import {
 } from "react";
 import { X } from "lucide-react";
 import { cn, optimizedImageSrc } from "@/lib/utils";
-import type { CharacterProfile } from "@/lib/character-profile";
+import {
+    characterKey,
+    cachedCharacter,
+    loadCharacter,
+    enrichCharacter,
+    translateCharacter,
+    type LoadedCharacter,
+} from "@/lib/character-cache";
+import { usableSeriesHint } from "@/lib/anilist-character";
 
 /**
  * The card that opens when a character's picture is tapped.
@@ -51,46 +59,101 @@ export function useOpenCharacter(): OpenFn {
     return useContext(OpenContext) ?? (() => {});
 }
 
-interface Loaded {
-    profile: CharacterProfile | null;
-    th: string | null;
-}
+type Loaded = LoadedCharacter;
 
 function Card({ character, onClose }: { character: CharacterRef; onClose: () => void }) {
-    const [data, setData] = useState<Loaded | null>(null);
+    /**
+     * Which AniList character this card is showing. Null means "whoever the
+     * name and the grid's source resolve to"; a number means the reader looked
+     * at the answer, said it was the wrong person, and picked from the others
+     * who share the name.
+     */
+    const [pickedId, setPickedId] = useState<number | null>(null);
+
+    const query = useMemo(
+        () => ({ name: character.name, source: character.source, id: pickedId }),
+        [character.name, character.source, pickedId]
+    );
+
+    // A character opened before - or hovered a moment ago - is already known,
+    // and the card opens with its text rather than a skeleton.
+    const known = cachedCharacter(query);
+    const [data, setData] = useState<Loaded | null>(known ?? null);
     const [failed, setFailed] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!known);
+    // A web lookup running behind a card that is already showing something.
+    const [researching, setResearching] = useState(false);
     // Thai first, like the AI verdict: it is the language this is read in, and
     // the English original is one tap away.
     const [lang, setLang] = useState<"th" | "en">("th");
 
-    // No resetting on name change: the card is keyed by name where it is
-    // rendered, so a different character mounts a fresh one.
+    /**
+     * Picking one of the alternatives asks a different question, so the first
+     * answer has to go - leaving it up would show one character's bio under
+     * another's name for as long as the second lookup takes. Done during render
+     * rather than in an effect: React applies it before anything paints, so
+     * there is no frame where the two disagree.
+     */
+    const queryKey = characterKey(query);
+    const [shownKey, setShownKey] = useState(queryKey);
+    if (shownKey !== queryKey) {
+        const cached = cachedCharacter(query);
+        setShownKey(queryKey);
+        setData(cached ?? null);
+        setFailed(false);
+        setLoading(!cached);
+    }
+
     useEffect(() => {
         let alive = true;
 
-        fetch(`/api/character?name=${encodeURIComponent(character.name)}&lang=th`)
-            .then(async (res) => {
-                if (!res.ok) throw new Error(String(res.status));
-                return res.json();
-            })
-            .then((body) => {
-                if (alive) setData({ profile: body?.profile ?? null, th: body?.th ?? null });
+        loadCharacter(query)
+            .then((loaded) => {
+                if (!alive) return;
+                setData(loaded);
+                setLoading(false);
+
+                // Nobody has paid for this character's Thai yet. Ask for it in
+                // the background: the English is already on screen, so this is
+                // an upgrade rather than something the reader waits on.
+                if (loaded.translatable) {
+                    translateCharacter(query).then((th) => {
+                        if (alive && th) setData((prev) => (prev ? { ...prev, th } : prev));
+                    });
+                }
+
+                /**
+                 * AniList had nothing, or could not tell which character this
+                 * is. That is the normal answer for a game character, and the
+                 * web usually can - so ask, behind the card rather than in
+                 * front of it. Whatever comes back replaces what is showing,
+                 * including its own Thai.
+                 */
+                if (loaded.enrichable) {
+                    setResearching(true);
+                    enrichCharacter(query)
+                        .then((better) => {
+                            if (alive && better) setData(better);
+                        })
+                        .finally(() => {
+                            if (alive) setResearching(false);
+                        });
+                }
             })
             .catch(() => {
                 // A failed lookup is not the same answer as "AniList has never
                 // heard of them", and saying so would be a lie about the
                 // character rather than about the network.
-                if (alive) setFailed(true);
-            })
-            .finally(() => {
-                if (alive) setLoading(false);
+                if (alive) {
+                    setFailed(true);
+                    setLoading(false);
+                }
             });
 
         return () => {
             alive = false;
         };
-    }, [character.name]);
+    }, [query]);
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -108,17 +171,34 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
         profile?.series ||
         // The stored source is a fallback, not a first choice: it is a series
         // title only when the character came from a search.
-        (character.source &&
-        !/^(google|official|uploaded|imported|url|web search|myanimelist|anilist|shared|unknown)/i.test(
-            character.source
-        )
-            ? character.source
-            : null);
+        (usableSeriesHint(character.source) ? character.source : null);
+
+    /**
+     * Several characters answer to this name and the grid said nothing about
+     * which. The card shows its best guess - but as a guess, with the others
+     * one tap away. Asserting it silently is what made these cards wrong.
+     */
+    const hasAlternatives = (data?.alternatives.length ?? 0) > 0;
+    /**
+     * Shown whenever the answer was a guess, with or without runners-up to
+     * offer. A web result found without any series to go on has no alternatives
+     * to list, but it is no more certain for that - it is simply whoever
+     * dominates the search results, and saying nothing would be the same silent
+     * confidence this card is meant to have stopped having.
+     */
+    const ambiguous =
+        !loading && !failed && !researching && data?.confidence === "low" && !!english;
+
+    /** The text came from search results rather than AniList; the card says so. */
+    const fromWeb = (data?.webSources.length ?? 0) > 0;
 
     // Thai is the default, but a character whose translation is missing should
     // show the English rather than an empty card.
     const body = lang === "th" ? thai ?? english : english;
     const showingFallbackLanguage = lang === "th" && !thai && !!english;
+    // The English is up while Gemini writes the Thai. Saying so is the
+    // difference between "still working" and "there is no Thai for this one".
+    const translationPending = showingFallbackLanguage && !!data?.translatable;
 
     return (
         <div
@@ -232,21 +312,79 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                             <p className="whitespace-pre-line text-[15px] leading-relaxed text-zinc-300">
                                 {body}
                             </p>
+                        ) : researching ? (
+                            /* AniList had nothing and the web is being asked.
+                               Saying which step is running beats a blank card
+                               that looks like the final answer. */
+                            <p className="text-sm text-zinc-500">
+                                AniList ไม่มีตัวนี้ กำลังค้นจากเว็บให้…
+                            </p>
                         ) : (
                             <p className="text-sm text-zinc-500">
-                                No profile for this one - AniList doesn&apos;t have every
-                                VTuber, idol or original character.
+                                No profile for this one - not every VTuber, idol or original
+                                character is written up anywhere we can check.
                             </p>
+                        )}
+
+                        {ambiguous && (
+                            /* Inside the scrolling area rather than pinned to
+                               the card: it belongs to the text it is qualifying,
+                               and a long blurb should not have to fight it for
+                               room. */
+                            <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                                <p className="text-[12px] leading-snug text-amber-200/90">
+                                    มีตัวละครชื่อนี้หลายตัว และกริดไม่ได้บอกว่าเป็นเรื่องไหน
+                                    — นี่คือตัวที่รู้จักกันมากที่สุด
+                                    {hasAlternatives
+                                        ? " ถ้าไม่ใช่ เลือกจากด้านล่าง"
+                                        : " ถ้าไม่ใช่ตัวนี้ ให้ระบุชื่อเรื่องไว้ในช่องนั้นตอนสร้างกริด"}
+                                </p>
+                                <div className="mt-2.5 flex flex-wrap gap-2">
+                                    {data?.alternatives.map((alt) => (
+                                        <button
+                                            key={alt.id}
+                                            type="button"
+                                            onClick={() => setPickedId(alt.id)}
+                                            className="rounded-lg border border-zinc-700 bg-zinc-800/60 px-2.5 py-1.5 text-left text-[11px] text-zinc-300 transition-colors hover:border-amber-400/50 hover:text-white"
+                                        >
+                                            <span className="font-medium">{alt.name}</span>
+                                            {alt.series && (
+                                                <span className="block text-zinc-500">
+                                                    {alt.series}
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {pickedId !== null && !loading && (
+                            <button
+                                type="button"
+                                onClick={() => setPickedId(null)}
+                                className="mt-3 text-[11px] text-zinc-500 underline underline-offset-2 transition-colors hover:text-zinc-300"
+                            >
+                                ← กลับไปผลลัพธ์เดิม
+                            </button>
                         )}
                     </div>
 
                     {!loading && body && (
                         <p className="mt-3 shrink-0 text-[11px] text-zinc-600">
-                            {showingFallbackLanguage
+                            {translationPending
+                                ? "กำลังแปลเป็นไทย… (แสดงต้นฉบับภาษาอังกฤษไปก่อน)"
+                                : showingFallbackLanguage
                                 ? "English only - no Thai version for this one yet."
-                                : lang === "th"
-                                  ? "AniList · แปลไทยโดย Gemini"
-                                  : "Profile from AniList"}
+                                : fromWeb
+                                  ? // Where a web-sourced blurb came from, named:
+                                    // it is assembled from search results rather
+                                    // than a maintained database, and the reader
+                                    // should be able to weigh it accordingly.
+                                    `ค้นจากเว็บ (${data!.webSources.join(", ")}) · เรียบเรียงโดย Gemini`
+                                  : lang === "th"
+                                    ? "AniList · แปลไทยโดย Gemini"
+                                    : "Profile from AniList"}
                         </p>
                     )}
                 </div>

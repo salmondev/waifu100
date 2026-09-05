@@ -10,6 +10,7 @@ import {
     CharacterProfileProvider,
     useOpenCharacter,
 } from "@/components/character/CharacterProfile";
+import { prefetchCharacter } from "@/lib/character-cache";
 import { SeriesBreakdown } from "@/components/compare/SeriesBreakdown";
 import type { SeriesInput, SeriesResolution } from "@/lib/series-stats";
 import type { AnalysisResult } from "@/types";
@@ -110,6 +111,10 @@ function Face({
                     source: character.source,
                 })
             }
+            // Start the lookup while the pointer is still on the way down, so
+            // the card opens with its text instead of a skeleton.
+            onPointerEnter={() => prefetchCharacter({ name: character.name, source: character.source })}
+            onFocus={() => prefetchCharacter({ name: character.name, source: character.source })}
             title={`Who is ${character.name}?`}
             className={cn("group flex flex-col gap-1.5 text-left", className)}
         >

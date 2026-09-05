@@ -12,6 +12,7 @@ import {
   CharacterProfileProvider,
   useOpenCharacter,
 } from "@/components/character/CharacterProfile";
+import { prefetchCharacter } from "@/lib/character-cache";
 
 interface ViewGridProps {
   grid: GridCell[];
@@ -43,6 +44,17 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
   // where most of these links are opened - meant they could not be read at all.
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const selected = selectedIdx !== null ? grid[selectedIdx]?.character ?? null : null;
+
+  /**
+   * Selecting a cell puts the name bar up, and the bar is the only way into the
+   * profile card - so the lookup can start now instead of when it is pressed.
+   * By the time a finger travels from a cell to the bar the answer is usually
+   * already here, and the card opens with text in it.
+   */
+  useEffect(() => {
+    if (selected?.name)
+      prefetchCharacter({ name: selected.name, source: selected.source });
+  }, [selected?.name, selected?.source]);
 
   // Esc closes the name bar, same as tapping the cell again.
   useEffect(() => {

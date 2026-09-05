@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Library, Loader2, X } from "lucide-react";
 import {
     compareSeries,
+    seriesOf,
     unresolvedNames,
     type SeriesInput,
     type SeriesResolution,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/series-stats";
 import { cn, optimizedImageSrc } from "@/lib/utils";
 import { useOpenCharacter } from "@/components/character/CharacterProfile";
+import { prefetchCharacter } from "@/lib/character-cache";
 
 /**
  * Where the two grids draw from.
@@ -214,6 +216,8 @@ function RowDetail({
                                             type="button"
                                             key={`${character.name}-${i}`}
                                             onClick={() => openCharacter(character)}
+                                            onPointerEnter={() => prefetchCharacter({ name: character.name, source: character.source })}
+                                            onFocus={() => prefetchCharacter({ name: character.name, source: character.source })}
                                             className="group flex flex-col gap-1.5 text-left"
                                         >
                                             <div className="relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
@@ -294,10 +298,23 @@ export function SeriesBreakdown({
                     const missing = unresolvedNames(everyone, known);
                     if (missing.length === 0) break;
 
+                    // What these grids are already known to contain. A name
+                    // shared by several characters is nearly always the one
+                    // from a series the grid is already full of, and this is
+                    // the only thing that can say so - it grows every round as
+                    // more names resolve.
+                    const context = [
+                        ...new Set(
+                            everyone
+                                .map((character) => seriesOf(character, known))
+                                .filter((s): s is string => !!s)
+                        ),
+                    ];
+
                     const res = await fetch("/api/series", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ names: missing }),
+                        body: JSON.stringify({ names: missing, context }),
                     });
                     if (!res.ok) break;
 
