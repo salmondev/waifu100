@@ -174,8 +174,15 @@ export async function getCharacterProfile(name: string): Promise<CharacterProfil
  */
 const THAI_TTL_SEC = 60 * 60 * 24 * 365;
 
+/**
+ * Versioned, because a prompt fix cannot reach translations already written and
+ * a year-long cache would go on serving them. Bump it whenever the prompt
+ * changes in a way that changes the output.
+ */
+const THAI_PROMPT_VERSION = 2;
+
 function thaiCacheKey(name: string): string {
-    return `waifu100:profile-th:${matchKey(name)}`;
+    return `waifu100:profile-th:v${THAI_PROMPT_VERSION}:${matchKey(name)}`;
 }
 
 /**
@@ -210,12 +217,20 @@ export async function getThaiDescription(
 
     if (!process.env.GEMINI_API_KEY) return null;
 
-    const prompt = `Translate this character description into Thai.
+    // The passage is fenced and the context is labelled as context: the first
+    // version simply put the name and series above the text, and Gemini
+    // dutifully translated those two lines into the card as well.
+    const prompt = `You are translating one character description into Thai.
 
-Character: ${name}${series ? `\nFrom: ${series}` : ""}
+Context - for your understanding only. Do NOT translate or repeat these lines:
+- Character: ${name}
+- Series: ${series ?? "unknown"}
 
-English:
+Translate ONLY the text between the markers.
+
+<<<TEXT
 ${english}
+TEXT>>>
 
 Rules:
 - Write the way a Thai fan who actually knows this character would write, not like a translation. Natural word order, everyday words.
@@ -225,7 +240,7 @@ Rules:
 - No exclamation marks. No emoji. Do not address the reader.
 - Same length or shorter than the English. Plain paragraphs, keep the line breaks.
 
-Return ONLY the Thai text.`;
+Return ONLY the Thai translation of the fenced text. No markers, no headings, no character name line, no series line.`;
 
     let thai = "";
     try {
@@ -238,6 +253,15 @@ Return ONLY the Thai text.`;
         // for a year.
         return null;
     }
+
+    // Belt and braces for the same failure the prompt now guards against: strip
+    // the fence and any echoed context header before it can be cached.
+    thai = thai
+        .replace(/<<<TEXT/g, "")
+        .replace(/TEXT>>>/g, "")
+        .replace(/^\s*(ตัวละคร|ชื่อ|จาก|เรื่อง|ซีรีส์|Character|Series)\s*[:：].*$/gim, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
 
     if (!thai) return null;
 
