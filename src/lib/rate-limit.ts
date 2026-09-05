@@ -156,4 +156,7 @@ export const LIMITS = {
   // in front of it means a repeat view of the same pair never gets here at all,
   // so this budget only ever counts genuinely new pairs.
   compareVerdict: { name: "compare-verdict", limit: 6, windowSec: 60 } satisfies RateLimit,
+  // AniList costs nothing but is a shared community API with a per-minute
+  // ceiling; one visitor must not be able to spend everyone else's share of it.
+  series: { name: "series", limit: 12, windowSec: 60 } satisfies RateLimit,
 };

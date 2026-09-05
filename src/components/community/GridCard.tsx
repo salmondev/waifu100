@@ -136,33 +136,34 @@ export function GridCard({
 
             {/* Compare, like delete, sits outside the Link - it is a different
                 action, and a nested <a> would be invalid markup anyway.
-                With a compare bar above the list this fills a slot; without one
-                it links out, and then only for a browser that owns a grid. */}
-            <div className="absolute bottom-[4.75rem] right-3 z-40">
-                {onSelect ? (
-                    <button
-                        type="button"
-                        onClick={() => onSelect(grid)}
-                        aria-pressed={!!selected}
-                        aria-label={
-                            selected
-                                ? `Remove "${grid.title}" from the comparison`
-                                : `Add "${grid.title}" to the comparison`
-                        }
-                        className={cn(
-                            "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-medium backdrop-blur-sm transition-colors",
-                            selected
-                                ? "gif-badge text-white"
-                                : "border border-white/10 bg-black/70 text-purple-200 hover:bg-purple-600/70 hover:text-white"
-                        )}
-                    >
-                        <GitCompareArrows className="h-3.5 w-3.5 shrink-0" />
-                        {selected ? `Grid ${selected.toUpperCase()}` : "Compare"}
-                    </button>
-                ) : (
+                A full-width strip along the bottom, because the small chip that
+                used to float over the thumbnail was dark on dark art in the one
+                corner nobody looks at, and people could not find it. */}
+            {onSelect ? (
+                <button
+                    type="button"
+                    onClick={() => onSelect(grid)}
+                    aria-pressed={!!selected}
+                    aria-label={
+                        selected
+                            ? `Remove "${grid.title}" from the comparison`
+                            : `Add "${grid.title}" to the comparison`
+                    }
+                    className={cn(
+                        "flex w-full items-center justify-center gap-2 border-t py-2.5 text-xs font-medium transition-colors",
+                        selected
+                            ? "gif-badge border-transparent text-white"
+                            : "border-zinc-800/70 bg-zinc-900/60 text-purple-300 hover:bg-purple-600/20 hover:text-purple-200"
+                    )}
+                >
+                    <GitCompareArrows className="h-4 w-4 shrink-0" />
+                    {selected ? `Picked as Grid ${selected.toUpperCase()}` : "Compare this grid"}
+                </button>
+            ) : (
+                <div className="absolute bottom-[4.75rem] right-3 z-40">
                     <CompareWithMine shareId={grid.id} variant="card" />
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Delete sits outside the Link so it is never a stray click on the
                 way to opening a grid. */}
