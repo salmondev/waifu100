@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnalysisResult } from "@/types";
@@ -8,14 +8,29 @@ import { AnalysisResult } from "@/types";
 /**
  * The AI's read on the pair.
  *
- * Behind a button rather than generated with the page: every press that reaches
- * the API costs a Gemini call, and a compare link is the kind of thing a
- * hundred people open at once from one Discord message. The API caches the
- * answer per sorted pair, so only the first of them pays - but the button is
- * still what decides whether the call happens at all.
+ * It arrives on its own now. A verdict that already exists is rendered with the
+ * page (`initial`), so the common case costs no request and no waiting; a pair
+ * nobody has run yet is fetched once on mount.
+ *
+ * What keeps that affordable: the API caches per sorted pair, so the hundred
+ * people who open one Discord link share a single Gemini call, and only a
+ * genuinely new pairing ever spends anything. The per-IP limit still stands
+ * behind it for someone flipping through pairs.
  */
-export function CompareVerdict({ a, b }: { a: string; b: string }) {
-    const [verdict, setVerdict] = useState<AnalysisResult | null>(null);
+export function CompareVerdict({
+    a,
+    b,
+    initial = null,
+    autoGenerate = false,
+}: {
+    a: string;
+    b: string;
+    /** A verdict that was already cached, rendered with the page. */
+    initial?: AnalysisResult | null;
+    /** Ask for one on mount when there is none. */
+    autoGenerate?: boolean;
+}) {
+    const [verdict, setVerdict] = useState<AnalysisResult | null>(initial);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     // Thai first, like the grid verdict: the Thai text is written for the
@@ -41,7 +56,35 @@ export function CompareVerdict({ a, b }: { a: string; b: string }) {
         }
     };
 
+    // One request per mount, whatever React does around it: the effect runs
+    // twice in development's strict mode, and this one spends money.
+    const asked = useRef(false);
+    useEffect(() => {
+        if (!autoGenerate || verdict || asked.current) return;
+        asked.current = true;
+        generate();
+        // generate is stable enough for this one-shot; re-running it is the bug.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoGenerate, verdict]);
+
     if (!verdict) {
+        // While it is being written, hold the shape the verdict will take rather
+        // than collapsing the page and pushing everything up when it lands.
+        if (loading || (autoGenerate && !error)) {
+            return (
+                <div className="mt-8 rounded-2xl border border-yellow-600/20 bg-gradient-to-b from-yellow-950/20 to-zinc-900/40 p-5 sm:p-6">
+                    <div className="flex items-center gap-2 text-sm text-yellow-600/80">
+                        <Loader2 size={16} className="animate-spin" />
+                        Reading both grids...
+                    </div>
+                    <div className="mt-4 h-5 w-2/5 animate-pulse rounded bg-zinc-800/80" />
+                    <div className="mt-3 h-3.5 w-full animate-pulse rounded bg-zinc-800/60" />
+                    <div className="mt-2 h-3.5 w-11/12 animate-pulse rounded bg-zinc-800/60" />
+                    <div className="mt-2 h-3.5 w-3/5 animate-pulse rounded bg-zinc-800/60" />
+                </div>
+            );
+        }
+
         return (
             <div className="mt-8 flex flex-col items-center gap-2">
                 <button
@@ -52,12 +95,8 @@ export function CompareVerdict({ a, b }: { a: string; b: string }) {
                         loading && "cursor-wait opacity-70"
                     )}
                 >
-                    {loading ? (
-                        <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                        <Sparkles size={18} />
-                    )}
-                    {loading ? "Reading both grids..." : "✨ AI Verdict on this pair"}
+                    <Sparkles size={18} />
+                    {error ? "Try again" : "✨ AI Verdict on this pair"}
                 </button>
                 {error && <p className="text-xs text-red-400">{error}</p>}
             </div>

@@ -6,6 +6,9 @@ import { ArrowLeft, Check, GitCompareArrows, Grid3x3, Link2, Users } from "lucid
 import { cn, optimizedImageSrc } from "@/lib/utils";
 import type { CompareCharacter, ComparePair } from "@/lib/character-match";
 import { CompareVerdict } from "@/components/compare/CompareVerdict";
+import { SeriesBreakdown } from "@/components/compare/SeriesBreakdown";
+import type { SeriesStats } from "@/lib/series-stats";
+import type { AnalysisResult } from "@/types";
 
 export interface CompareSide {
     id: string;
@@ -23,6 +26,10 @@ export interface CompareViewProps {
      *  any two grids can be compared, so nothing here assumes that. */
     onlyA: CompareCharacter[];
     onlyB: CompareCharacter[];
+    /** Which series each side draws from, counted server-side. */
+    series: SeriesStats;
+    /** A verdict already in the cache, so the page can show one immediately. */
+    verdict: AnalysisResult | null;
 }
 
 const COLUMNS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
@@ -173,7 +180,16 @@ function OnlyColumn({
  * because that list is the reason to keep scrolling and the reason to go build
  * a grid of your own.
  */
-export function CompareView({ a, b, similarity, shared, onlyA, onlyB }: CompareViewProps) {
+export function CompareView({
+    a,
+    b,
+    similarity,
+    shared,
+    onlyA,
+    onlyB,
+    series,
+    verdict,
+}: CompareViewProps) {
     const [copied, setCopied] = useState(false);
 
     const handleCopyLink = () => {
@@ -254,7 +270,7 @@ export function CompareView({ a, b, similarity, shared, onlyA, onlyB }: CompareV
                     </p>
                 </div>
 
-                <CompareVerdict a={a.id} b={b.id} />
+                <CompareVerdict a={a.id} b={b.id} initial={verdict} autoGenerate />
 
                 {/* Shared */}
                 {shared.length > 0 && (
@@ -269,6 +285,8 @@ export function CompareView({ a, b, similarity, shared, onlyA, onlyB }: CompareV
                         </div>
                     </section>
                 )}
+
+                <SeriesBreakdown stats={series} titleA={a.title} titleB={b.title} />
 
                 {/* What each side is missing. Two columns on desktop so the
                     asymmetry is visible at a glance; stacked on a phone, with
