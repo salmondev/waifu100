@@ -60,6 +60,8 @@ function seriesKey(name: string): string {
 export interface SeriesInput {
     name: string;
     source?: string | null;
+    /** Carried so the chart can show the faces behind a row when it is opened. */
+    image?: string | null;
 }
 
 /** Resolved series by normalised character name; "" means "asked, unknown". */
@@ -99,6 +101,9 @@ export interface SeriesRow {
     name: string;
     a: number;
     b: number;
+    /** The characters behind the numbers, for the row detail. */
+    charactersA: SeriesInput[];
+    charactersB: SeriesInput[];
 }
 
 export interface SeriesStats {
@@ -114,18 +119,24 @@ export interface SeriesStats {
     countB: number;
 }
 
+/**
+ * Groups one side's characters by series.
+ *
+ * The characters ride along with the count because the chart's rows open: a
+ * number nobody can unpack is a dead end, and the faces are already in hand.
+ */
 function tally(
     characters: SeriesInput[],
     resolved: SeriesResolution
-): Map<string, { name: string; n: number }> {
-    const counts = new Map<string, { name: string; n: number }>();
+): Map<string, { name: string; members: SeriesInput[] }> {
+    const counts = new Map<string, { name: string; members: SeriesInput[] }>();
     characters.forEach((character) => {
         const series = seriesOf(character, resolved);
         if (!series) return;
         const key = seriesKey(series);
         const existing = counts.get(key);
-        if (existing) existing.n += 1;
-        else counts.set(key, { name: series, n: 1 });
+        if (existing) existing.members.push(character);
+        else counts.set(key, { name: series, members: [character] });
     });
     return counts;
 }
@@ -134,7 +145,14 @@ function tally(
 export function charactersOf(grid: GridCell[]): SeriesInput[] {
     return grid
         .filter((cell) => cell?.character)
-        .map((cell) => ({ name: cell.character!.name, source: cell.character!.source }));
+        .map((cell) => ({
+            name: cell.character!.name,
+            source: cell.character!.source,
+            image:
+                cell.character!.customImageUrl ||
+                cell.character!.images?.jpg?.image_url ||
+                null,
+        }));
 }
 
 /**
@@ -153,11 +171,23 @@ export function compareSeries(
     const b = tally(bChars, resolved);
 
     const rows = new Map<string, SeriesRow>();
-    for (const [key, { name, n }] of a) rows.set(key, { name, a: n, b: 0 });
-    for (const [key, { name, n }] of b) {
+    for (const [key, { name, members }] of a) {
+        rows.set(key, {
+            name,
+            a: members.length,
+            b: 0,
+            charactersA: members,
+            charactersB: [],
+        });
+    }
+    for (const [key, { name, members }] of b) {
         const existing = rows.get(key);
-        if (existing) existing.b = n;
-        else rows.set(key, { name, a: 0, b: n });
+        if (existing) {
+            existing.b = members.length;
+            existing.charactersB = members;
+        } else {
+            rows.set(key, { name, a: 0, b: members.length, charactersA: [], charactersB: members });
+        }
     }
 
     const all = [...rows.values()];
@@ -172,8 +202,8 @@ export function compareSeries(
     const aOnly = all.filter((row) => row.a > 0).sort((x, y) => y.a - x.a);
     const bOnly = all.filter((row) => row.b > 0).sort((x, y) => y.b - x.b);
 
-    const sum = (m: Map<string, { n: number }>) =>
-        [...m.values()].reduce((total, entry) => total + entry.n, 0);
+    const sum = (m: Map<string, { members: SeriesInput[] }>) =>
+        [...m.values()].reduce((total, entry) => total + entry.members.length, 0);
 
     return {
         shared,

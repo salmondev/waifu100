@@ -159,4 +159,8 @@ export const LIMITS = {
   // AniList costs nothing but is a shared community API with a per-minute
   // ceiling; one visitor must not be able to spend everyone else's share of it.
   series: { name: "series", limit: 12, windowSec: 60 } satisfies RateLimit,
+  // One name per request and one tap per request: this is the cheapest call in
+  // the app, and sharing the series budget made a burst of taps look like
+  // "no profile found", which is a different and wrong answer.
+  profile: { name: "profile", limit: 40, windowSec: 60 } satisfies RateLimit,
 };

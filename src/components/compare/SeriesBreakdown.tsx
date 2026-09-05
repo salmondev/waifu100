@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Library, Loader2 } from "lucide-react";
+import { Library, Loader2, X } from "lucide-react";
 import {
     compareSeries,
     unresolvedNames,
@@ -9,7 +9,8 @@ import {
     type SeriesResolution,
     type SeriesRow,
 } from "@/lib/series-stats";
-import { cn } from "@/lib/utils";
+import { cn, optimizedImageSrc } from "@/lib/utils";
+import { useOpenCharacter } from "@/components/character/CharacterProfile";
 
 /**
  * Where the two grids draw from.
@@ -32,16 +33,24 @@ function Bars({
     rows,
     mode,
     max,
+    onPick,
 }: {
     rows: SeriesRow[];
     mode: Tab;
     max: number;
+    onPick: (row: SeriesRow) => void;
 }) {
     if (mode === "shared") {
         return (
             <div className="flex flex-col gap-2">
                 {rows.map((row) => (
-                    <div key={row.name} className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        key={row.name}
+                        onClick={() => onPick(row)}
+                        title={`See the characters from ${row.name}`}
+                        className="flex items-center gap-2 rounded-lg px-1 py-0.5 transition-colors hover:bg-white/5"
+                    >
                         <div className="flex flex-1 justify-end">
                             <div
                                 className="h-6 rounded-l-md bg-gradient-to-l from-purple-500 to-purple-600/70"
@@ -66,7 +75,7 @@ function Bars({
                                 style={{ width: `${(row.b / max) * 100}%` }}
                             />
                         </div>
-                    </div>
+                    </button>
                 ))}
             </div>
         );
@@ -80,7 +89,13 @@ function Bars({
             {rows.map((row) => {
                 const value = side === "a" ? row.a : row.b;
                 return (
-                    <div key={row.name} className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        key={row.name}
+                        onClick={() => onPick(row)}
+                        title={`See the characters from ${row.name}`}
+                        className="flex items-center gap-3 rounded-lg px-1 py-0.5 text-left transition-colors hover:bg-white/5"
+                    >
                         <div
                             className="w-[38%] shrink-0 truncate text-right text-[11px] text-zinc-300 sm:w-[30%] sm:text-xs"
                             title={row.name}
@@ -106,9 +121,125 @@ function Bars({
                                 {value}
                             </span>
                         </div>
-                    </div>
+                    </button>
                 );
             })}
+        </div>
+    );
+}
+
+/**
+ * The characters behind one bar.
+ *
+ * Same faces-with-names layout as the rest of the compare page, so a row opens
+ * into something already familiar - and each face still opens its own profile,
+ * because the question after "who is in Fairy Tail here" is usually "who is
+ * that one".
+ */
+function RowDetail({
+    row,
+    titleA,
+    titleB,
+    onClose,
+}: {
+    row: SeriesRow;
+    titleA: string;
+    titleB: string;
+    onClose: () => void;
+}) {
+    const openCharacter = useOpenCharacter();
+
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [onClose]);
+
+    const sides: { title: string; members: SeriesInput[]; tint: string }[] = [
+        { title: titleA, members: row.charactersA, tint: "text-purple-300" },
+        { title: titleB, members: row.charactersB, tint: "text-pink-300" },
+    ];
+
+    return (
+        <div
+            className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"
+            onClick={onClose}
+            role="dialog"
+            aria-modal="true"
+            aria-label={row.name}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="animate-in slide-in-from-bottom-4 duration-200 max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl shadow-purple-950/40 sm:rounded-3xl"
+            >
+                <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <h3 className="truncate text-lg font-bold text-white">{row.name}</h3>
+                        <p className="text-xs text-zinc-500">
+                            {row.a + row.b} character{row.a + row.b === 1 ? "" : "s"} across
+                            both grids
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close"
+                        className="shrink-0 rounded-full p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <div className="flex flex-col gap-5">
+                    {sides
+                        .filter((side) => side.members.length > 0)
+                        .map((side) => (
+                            <div key={side.title}>
+                                <p
+                                    className={cn(
+                                        "mb-2 truncate text-xs font-bold uppercase tracking-widest",
+                                        side.tint
+                                    )}
+                                >
+                                    {side.title}
+                                    <span className="ml-2 text-zinc-600">
+                                        {side.members.length}
+                                    </span>
+                                </p>
+                                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
+                                    {side.members.map((character, i) => (
+                                        <button
+                                            type="button"
+                                            key={`${character.name}-${i}`}
+                                            onClick={() => openCharacter(character)}
+                                            className="group flex flex-col gap-1.5 text-left"
+                                        >
+                                            <div className="relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+                                                {character.image && (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img
+                                                        src={optimizedImageSrc(
+                                                            character.image,
+                                                            256
+                                                        )}
+                                                        alt={character.name}
+                                                        loading="lazy"
+                                                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                                    />
+                                                )}
+                                            </div>
+                                            <p className="truncate text-center text-[11px] leading-tight text-zinc-400">
+                                                {character.name}
+                                            </p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                </div>
+            </div>
         </div>
     );
 }
@@ -135,6 +266,8 @@ export function SeriesBreakdown({
     );
     const [tab, setTab] = useState<Tab>("shared");
     const [expanded, setExpanded] = useState(false);
+    // Which bar was tapped, i.e. which characters to show behind it.
+    const [openRow, setOpenRow] = useState<SeriesRow | null>(null);
 
     const everyone = useMemo(
         () => [...charactersA, ...charactersB],
@@ -229,7 +362,7 @@ export function SeriesBreakdown({
                     stored source or from an AniList lookup by name, and some
                     characters - original art, VTuber alts - are neither. */}
                 Series known for {stats.knownA} of {stats.countA} and {stats.knownB} of{" "}
-                {stats.countB} characters.
+                {stats.countB} characters. Tap a bar to see who they are.
             </p>
 
             <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-3 sm:p-4">
@@ -268,7 +401,7 @@ export function SeriesBreakdown({
                                 <span className="truncate text-pink-300/80">{titleB}</span>
                             </div>
                         )}
-                        <Bars rows={visible} mode={tab} max={max} />
+                        <Bars rows={visible} mode={tab} max={max} onPick={setOpenRow} />
                         {hidden > 0 && (
                             <button
                                 onClick={() => setExpanded(true)}
@@ -280,6 +413,15 @@ export function SeriesBreakdown({
                     </>
                 )}
             </div>
+
+            {openRow && (
+                <RowDetail
+                    row={openRow}
+                    titleA={titleA}
+                    titleB={titleB}
+                    onClose={() => setOpenRow(null)}
+                />
+            )}
         </section>
     );
 }

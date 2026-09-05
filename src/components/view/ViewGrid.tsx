@@ -8,6 +8,10 @@ import { ArrowLeft, Check, Sparkles, Loader2, Grid3x3, Link2, X } from "lucide-r
 import { useEffect, useState } from "react";
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 import { CompareWithMine } from "@/components/compare/CompareWithMine";
+import {
+  CharacterProfileProvider,
+  useOpenCharacter,
+} from "@/components/character/CharacterProfile";
 
 interface ViewGridProps {
   grid: GridCell[];
@@ -20,7 +24,17 @@ interface ViewGridProps {
 // Column labels A-J
 const COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
-export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId }: ViewGridProps) {
+export function ViewGrid(props: ViewGridProps) {
+  // The name bar and every cell open the same profile card.
+  return (
+    <CharacterProfileProvider>
+      <ViewGridInner {...props} />
+    </CharacterProfileProvider>
+  );
+}
+
+function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId }: ViewGridProps) {
+  const openCharacter = useOpenCharacter();
   const [copied, setCopied] = useState(false);
   const [showVerdict, setShowVerdict] = useState(false);
   const [localVerdict, setLocalVerdict] = useState<AnalysisResult | null>(verdict ?? null);
@@ -300,25 +314,43 @@ export function ViewGrid({ grid, title = "Waifu100 Grid", verdict, verdictFeedba
             className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 pointer-events-none animate-in slide-in-from-bottom-4 duration-200"
          >
             <div className="pointer-events-auto mx-auto max-w-[560px] flex items-center gap-3 rounded-2xl border border-purple-500/30 bg-zinc-900/95 backdrop-blur px-3 py-2.5 shadow-2xl shadow-purple-900/40">
-               <img
-                  src={selected.customImageUrl || selected.images.jpg.image_url}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                  className="w-11 h-11 rounded-xl object-cover shrink-0 bg-zinc-800"
-               />
-               <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-white leading-tight break-words">
-                     {selected.name}
-                  </p>
-                  <p className="text-[11px] text-zinc-500 truncate">
-                     {selected.source || "Unknown source"}
-                     {selectedIdx !== null && (
-                        <span className="ml-2 font-mono text-zinc-600">
-                           {COLUMNS[selectedIdx % 10]}{Math.floor(selectedIdx / 10) + 1}
-                        </span>
-                     )}
-                  </p>
-               </div>
+               {/* The bar answers "who is that" instantly and with no network;
+                   pressing it asks for the rest - series, a few lines - which
+                   needs a lookup. Two steps on purpose: the fast answer must
+                   never wait on a fetch. */}
+               <button
+                  type="button"
+                  onClick={() =>
+                     openCharacter({
+                        name: selected.name,
+                        image: selected.customImageUrl || selected.images.jpg.image_url,
+                        source: selected.source,
+                     })
+                  }
+                  aria-label={`Who is ${selected.name}?`}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+               >
+                  <img
+                     src={selected.customImageUrl || selected.images.jpg.image_url}
+                     alt=""
+                     referrerPolicy="no-referrer"
+                     className="w-11 h-11 rounded-xl object-cover shrink-0 bg-zinc-800"
+                  />
+                  <div className="min-w-0 flex-1">
+                     <p className="text-sm font-bold text-white leading-tight break-words">
+                        {selected.name}
+                     </p>
+                     <p className="text-[11px] text-zinc-500 truncate">
+                        {selected.source || "Unknown source"}
+                        {selectedIdx !== null && (
+                           <span className="ml-2 font-mono text-zinc-600">
+                              {COLUMNS[selectedIdx % 10]}{Math.floor(selectedIdx / 10) + 1}
+                           </span>
+                        )}
+                     </p>
+                     <p className="text-[11px] text-purple-400">Tap for profile</p>
+                  </div>
+               </button>
                <button
                   type="button"
                   onClick={() => setSelectedIdx(null)}

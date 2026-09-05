@@ -6,6 +6,10 @@ import { ArrowLeft, Check, GitCompareArrows, Grid3x3, Link2, Users } from "lucid
 import { cn, optimizedImageSrc } from "@/lib/utils";
 import type { CompareCharacter, ComparePair } from "@/lib/character-match";
 import { CompareVerdict } from "@/components/compare/CompareVerdict";
+import {
+    CharacterProfileProvider,
+    useOpenCharacter,
+} from "@/components/character/CharacterProfile";
 import { SeriesBreakdown } from "@/components/compare/SeriesBreakdown";
 import type { SeriesInput, SeriesResolution } from "@/lib/series-stats";
 import type { AnalysisResult } from "@/types";
@@ -95,8 +99,20 @@ function Face({
     character: CompareCharacter;
     className?: string;
 }) {
+    const openCharacter = useOpenCharacter();
     return (
-        <div className={cn("group flex flex-col gap-1.5", className)}>
+        <button
+            type="button"
+            onClick={() =>
+                openCharacter({
+                    name: character.name,
+                    image: character.image,
+                    source: character.source,
+                })
+            }
+            title={`Who is ${character.name}?`}
+            className={cn("group flex flex-col gap-1.5 text-left", className)}
+        >
             <div className="relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
                 {character.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -115,10 +131,10 @@ function Face({
                     {cellLabel(character.index)}
                 </span>
             </div>
-            <p className="truncate text-center text-[11px] leading-tight text-zinc-400">
+            <p className="w-full truncate text-center text-[11px] leading-tight text-zinc-400 transition-colors group-hover:text-purple-300">
                 {character.name}
             </p>
-        </div>
+        </button>
     );
 }
 
@@ -208,6 +224,9 @@ export function CompareView({
     };
 
     return (
+        // Every face on this page opens the same profile card, so the provider
+        // wraps the lot rather than each list carrying its own copy.
+        <CharacterProfileProvider>
         <div className="min-h-screen bg-zinc-950 py-6 text-white sm:py-10">
             <div className="mx-auto w-full max-w-[1000px] px-3 sm:px-4">
                 {/* Nav */}
@@ -330,5 +349,6 @@ export function CompareView({
                 </div>
             </div>
         </div>
+        </CharacterProfileProvider>
     );
 }
