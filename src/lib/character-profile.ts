@@ -1,15 +1,37 @@
 import { withRedis } from "@/lib/redis";
-import { matchKey } from "@/lib/character-match";
-import { ANILIST_URL, namesAgree, pickTitle, type AniListCharacter } from "@/lib/series-resolve";
+import { matchKey, normalizeName } from "@/lib/character-match";
+import {
+    agreesWithHint,
+    characterById,
+    pickCharacter,
+    searchCandidates,
+    usableSeriesHint,
+    bestKnownSeries,
+    type AniListCandidate,
+    type MatchConfidence,
+} from "@/lib/anilist-character";
+import { researchCharacter } from "@/lib/character-web";
 import { getFlashModel } from "@/lib/gemini";
 
 /**
  * One character's card: who they are, what they are from, a few lines about
  * them.
  *
- * Same source and the same caching rules as the series lookup next door - the
- * profile is just a richer answer to the same question, so it reuses the name
- * check that keeps "Eula" from coming back as an unrelated "Seul-A".
+ * Which character AniList meant is decided in anilist-character.ts, using the
+ * series the grid stored alongside the name. This file is the caching around
+ * that decision, and the caching is where the old version did the most damage:
+ * the profile was stored under the character's *name*, so every Rin in every
+ * grid shared one entry for six months. One bad lookup became everyone's
+ * answer, and a fixed matcher would still have served the poisoned copy.
+ *
+ * So there are two caches now, and the split is the point:
+ *
+ *   cmatch:<name>|<series hint>  ->  which AniList character this is
+ *   char:<anilist id>            ->  what that character is
+ *
+ * The first is per question asked, the second is per actual character. Two
+ * different "Rin" questions get two different answers; two spellings of the
+ * same character share one profile and one paid-for translation.
  *
  * A miss is cached too. Plenty of grids are full of VTubers and original art
  * that AniList has never heard of, and re-asking on every tap would spend the
@@ -17,6 +39,8 @@ import { getFlashModel } from "@/lib/gemini";
  */
 
 export interface CharacterProfile {
+    /** AniList's id, and the handle for "no, I meant the other one". */
+    id: number | null;
     /** As AniList spells it, which is often nicer than the grid's spelling. */
     name: string | null;
     series: string | null;
@@ -28,10 +52,45 @@ export interface CharacterProfile {
     unknown: boolean;
 }
 
+/** One of the other characters who share this name. */
+export interface CharacterAlternative {
+    id: number;
+    name: string;
+    series: string | null;
+    image: string | null;
+}
+
+export interface ProfileAnswer {
+    profile: CharacterProfile;
+    /**
+     * "low" means several characters share this name and nothing in the grid
+     * said which one. The card must show that rather than assert the guess.
+     */
+    confidence: MatchConfidence;
+    alternatives: CharacterAlternative[];
+    /** The Thai blurb, when one has already been written. */
+    th: string | null;
+    /**
+     * AniList either had nothing or could not tell which character this is, so
+     * a web lookup is worth a try. The card asks for it in a second request -
+     * it costs a search and a generation, and nothing should wait on it.
+     */
+    enrichable: boolean;
+    /** Set when the text came from the web rather than AniList. */
+    webSources: string[];
+}
+
 const HIT_TTL_SEC = 60 * 60 * 24 * 180;
 const MISS_TTL_SEC = 60 * 60 * 24 * 14;
+/**
+ * For an answer written while AniList was unreachable. Long enough to carry an
+ * outage, short enough that the real matcher gets its say soon after.
+ */
+const PROVISIONAL_TTL_SEC = 60 * 60 * 24 * 3;
+const THAI_TTL_SEC = 60 * 60 * 24 * 365;
 
-const EMPTY: CharacterProfile = {
+export const EMPTY_PROFILE: CharacterProfile = {
+    id: null,
     name: null,
     series: null,
     image: null,
@@ -39,8 +98,61 @@ const EMPTY: CharacterProfile = {
     unknown: true,
 };
 
-function cacheKey(name: string): string {
-    return `waifu100:profile:${matchKey(name)}`;
+const EMPTY_ANSWER: ProfileAnswer = {
+    profile: EMPTY_PROFILE,
+    confidence: "high",
+    alternatives: [],
+    th: null,
+    // Nothing found is exactly the case the web is for - most of all for games,
+    // which AniList does not index at all.
+    enrichable: true,
+    webSources: [],
+};
+
+/**
+ * Cache version. Everything written by the name-only matcher is suspect -
+ * silently wrong in a way no reader could detect - so it is abandoned rather
+ * than trusted. scripts/prune-cache.mjs deletes the old keys outright.
+ */
+const V = "v3";
+
+/**
+ * One question, one key, one round trip.
+ *
+ * The whole answer is stored here - which character, the profile, the Thai, the
+ * runners-up - because the previous shape needed two sequential GETs to a Redis
+ * that is not in the same datacentre, and a warm card was paying for both
+ * before it could render. The Thai also lives under its own id-keyed entry,
+ * which is the copy shared between two spellings of one character; this one is
+ * a snapshot that heals itself when it turns out to be behind.
+ */
+function answerCacheKey(name: string, source: string | null | undefined): string {
+    const hint = usableSeriesHint(source)
+        ? normalizeName(source).sort().join(" ")
+        : "";
+    return `waifu100:cmatch:${V}:${matchKey(name)}|${hint}`;
+}
+
+/** The same store, for a character the reader picked by id. */
+function idCacheKey(id: number): string {
+    return `waifu100:cmatch:${V}:id:${id}`;
+}
+
+/**
+ * The Thai blurb, keyed by character rather than by name so the two spellings
+ * of one character never pay Gemini twice.
+ *
+ * Versioned separately, because a prompt fix cannot reach translations already
+ * written and a year-long cache would go on serving them. Bump it whenever the
+ * prompt changes in a way that changes the output.
+ */
+const THAI_PROMPT_VERSION = 3;
+
+function thaiCacheKey(id: number): string {
+    // Deliberately outside `V`: this is keyed by AniList id and prompt, which is
+    // already exact. A translation is the one thing here that costs real money,
+    // so a future change to how questions are cached must not throw it away.
+    return `waifu100:char-th:p${THAI_PROMPT_VERSION}:${id}`;
 }
 
 /**
@@ -73,90 +185,315 @@ function cleanDescription(raw: string | null | undefined): string | null {
     return (stop > MAX * 0.5 ? cut.slice(0, stop + 1) : cut.trimEnd() + "…").trim();
 }
 
-const QUERY = `query ($search: String) {
-  Page(perPage: 1) {
-    characters(search: $search) {
-      name { full native }
-      image { large medium }
-      description(asHtml: false)
-      media(sort: POPULARITY_DESC, perPage: 6) {
-        edges { characterRole node { title { english romaji } } }
-      }
-    }
-  }
-}`;
-
-interface FullCharacter extends AniListCharacter {
-    image?: { large?: string | null; medium?: string | null } | null;
-    description?: string | null;
-}
-
-async function askAniList(name: string): Promise<CharacterProfile> {
-    const res = await fetch(ANILIST_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ query: QUERY, variables: { search: name } }),
-        signal: AbortSignal.timeout(9000),
-    });
-    if (!res.ok) throw new Error(`AniList ${res.status}`);
-
-    const body = (await res.json()) as {
-        data?: { Page?: { characters?: FullCharacter[] | null } | null } | null;
-    };
-    const character = body.data?.Page?.characters?.[0];
-
-    const agrees =
-        namesAgree(name, character?.name?.full) || namesAgree(name, character?.name?.native);
-    if (!character || !agrees) return EMPTY;
-
+function toProfile(candidate: AniListCandidate, series: string | null): CharacterProfile {
     return {
-        name: character.name?.full ?? null,
-        series: pickTitle(character),
-        image: character.image?.large || character.image?.medium || null,
-        description: cleanDescription(character.description),
+        id: candidate.id ?? null,
+        name: candidate.name?.full ?? null,
+        series: series ?? bestKnownSeries(candidate),
+        image: candidate.image?.large || candidate.image?.medium || null,
+        description: cleanDescription(candidate.description),
         unknown: false,
     };
 }
 
-/**
- * The profile for one name: from Redis when it has been asked before, from
- * AniList otherwise. Never throws - a failed lookup is an "unknown" card.
- */
-export async function getCharacterProfile(name: string): Promise<CharacterProfile> {
-    const key = matchKey(name);
-    if (!key) return EMPTY;
+/* -------------------------------------------------------------------------- */
+/* Cache plumbing - every read and write here is best-effort by design          */
+/* -------------------------------------------------------------------------- */
 
+interface CachedAnswer {
+    /** null means "AniList had nobody", which is still an answer worth caching. */
+    id: number | null;
+    confidence: MatchConfidence;
+    alternatives: CharacterAlternative[];
+    profile: CharacterProfile;
+    /** Snapshot of the translation; the id-keyed entry is the shared original. */
+    th: string | null;
+    /** Sites the text came from, when it came from the web rather than AniList. */
+    webSources?: string[];
+    /** The web has already been asked about this one; asking again is waste. */
+    researched?: boolean;
+}
+
+async function readCache(key: string): Promise<string | null> {
     try {
-        const raw = await withRedis((redis) => redis.get(cacheKey(name)));
-        if (raw) return JSON.parse(raw) as CharacterProfile;
+        return await withRedis((redis) => redis.get(key));
     } catch (e) {
         console.error("Profile cache read failed:", e);
+        return null;
     }
+}
 
-    let profile = EMPTY;
+async function writeCache(key: string, value: string, ttl: number): Promise<void> {
     try {
-        profile = await askAniList(name);
+        await withRedis((redis) => redis.set(key, value, "EX", ttl));
+    } catch (e) {
+        console.error("Profile cache write failed:", e);
+    }
+}
+
+async function readAnswer(key: string): Promise<CachedAnswer | null> {
+    const raw = await readCache(key);
+    if (!raw) return null;
+    try {
+        return JSON.parse(raw) as CachedAnswer;
+    } catch {
+        return null;
+    }
+}
+
+function saveAnswer(key: string, answer: CachedAnswer, ttl?: number): Promise<void> {
+    return writeCache(
+        key,
+        JSON.stringify(answer),
+        ttl ??
+            (answer.id === null && !answer.profile.description ? MISS_TTL_SEC : HIT_TTL_SEC)
+    );
+}
+
+/** The cached shape as the route wants it. */
+function toAnswer(cached: CachedAnswer): ProfileAnswer {
+    const profile = cached.profile ?? EMPTY_PROFILE;
+    return {
+        profile,
+        confidence: cached.confidence,
+        alternatives: cached.alternatives ?? [],
+        th: cached.th ?? null,
+        // Worth a web lookup only if one has not already happened: an unknown
+        // character stays unknown, and a second search would just spend the
+        // Serper budget to learn that again.
+        enrichable: !cached.researched && (profile.unknown || cached.confidence === "low"),
+        webSources: cached.webSources ?? [],
+    };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Lookups                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The profile for one name, given whatever the grid knew about it.
+ *
+ * `source` is the cell's stored source. When it names a series it decides
+ * between same-name characters; when it is "Uploaded" or a Pinterest URL it is
+ * ignored, and the answer comes back marked `low` with the other candidates
+ * attached. Never throws - a failed lookup is an "unknown" card.
+ *
+ * A warm answer is one Redis GET, deliberately: this fires from a tap.
+ */
+export async function getCharacterProfile(
+    name: string,
+    source?: string | null
+): Promise<ProfileAnswer> {
+    if (!matchKey(name)) return EMPTY_ANSWER;
+
+    const key = answerCacheKey(name, source);
+    const cached = await readAnswer(key);
+    if (cached) return toAnswer(cached);
+
+    let candidates: AniListCandidate[] = [];
+    try {
+        candidates = await searchCandidates(name, true);
     } catch (e) {
         console.error("AniList profile lookup failed:", e instanceof Error ? e.message : e);
         // Not cached: a network blip should not pin this character as unknown
         // for a fortnight.
-        return EMPTY;
+        return EMPTY_ANSWER;
     }
 
+    const match = pickCharacter(name, source, candidates);
+
+    if (!match || !match.best.candidate.id) {
+        const miss: CachedAnswer = {
+            id: null,
+            confidence: "high",
+            alternatives: [],
+            profile: EMPTY_PROFILE,
+            th: null,
+        };
+        await saveAnswer(key, miss);
+        return toAnswer(miss);
+    }
+
+    const profile = toProfile(match.best.candidate, match.best.series);
+    const alternatives: CharacterAlternative[] = match.alternatives
+        .filter((a) => a.candidate.id)
+        .map((a) => ({
+            id: a.candidate.id!,
+            name: a.candidate.name?.full || name,
+            series: a.series,
+            image: a.candidate.image?.large || a.candidate.image?.medium || null,
+        }));
+
+    // A character resolved under another spelling may already have been
+    // translated; picking that up costs one GET and saves a Gemini call.
+    const th = profile.id ? await readThaiDescription(profile.id) : null;
+
+    const answer: CachedAnswer = {
+        id: profile.id,
+        confidence: match.confidence,
+        alternatives,
+        profile,
+        th,
+    };
+    await saveAnswer(key, answer);
+    return toAnswer(answer);
+}
+
+/**
+ * One exact character, by AniList id - what the card asks for when the reader
+ * says the guess was wrong. No matching involved, so nothing to be unsure of.
+ */
+export async function getProfileById(id: number): Promise<ProfileAnswer> {
+    const key = idCacheKey(id);
+    const cached = await readAnswer(key);
+    if (cached) return toAnswer(cached);
+
+    let candidate: AniListCandidate | null = null;
     try {
-        await withRedis((redis) =>
-            redis.set(
-                cacheKey(name),
-                JSON.stringify(profile),
-                "EX",
-                profile.unknown ? MISS_TTL_SEC : HIT_TTL_SEC
-            )
-        );
+        candidate = await characterById(id, true);
     } catch (e) {
-        console.error("Profile cache write failed:", e);
+        console.error("AniList id lookup failed:", e instanceof Error ? e.message : e);
+        return EMPTY_ANSWER;
+    }
+    if (!candidate) return EMPTY_ANSWER;
+
+    const profile = toProfile(candidate, null);
+    const answer: CachedAnswer = {
+        id: profile.id,
+        confidence: "high",
+        alternatives: [],
+        profile,
+        th: profile.id ? await readThaiDescription(profile.id) : null,
+    };
+    await saveAnswer(key, answer);
+    return toAnswer(answer);
+}
+
+/**
+ * Records a translation against the question that asked for it, so the next
+ * reader gets it from the same single GET as everything else on the card.
+ */
+export async function attachThai(
+    name: string,
+    source: string | null | undefined,
+    id: number | null,
+    th: string
+): Promise<void> {
+    const key = id ? idCacheKey(id) : answerCacheKey(name, source);
+    const cached = await readAnswer(key);
+    if (!cached) return;
+    await saveAnswer(key, { ...cached, th });
+}
+
+/**
+ * The web fallback, for the characters AniList is wrong about or has never
+ * heard of - which, for a grid full of game characters, is most of them.
+ *
+ * Search results only get to replace AniList on terms this app already trusts:
+ * either AniList had nothing at all, or it was unsure *and* nothing it offered
+ * fits the series the grid itself recorded. A more confident-sounding paragraph
+ * is not evidence, and letting one win on tone is how the wrong answers got
+ * here in the first place.
+ */
+export async function enrichFromWeb(
+    name: string,
+    source: string | null | undefined
+): Promise<ProfileAnswer> {
+    if (!matchKey(name)) return EMPTY_ANSWER;
+
+    const key = answerCacheKey(name, source);
+    let cached = await readAnswer(key);
+
+    /**
+     * Nothing cached means AniList never answered at all - it has been known to
+     * return 403 across the board for hours ("temporarily disabled due to
+     * severe stability issues"), and a lookup that failed is deliberately not
+     * cached. That is precisely when this fallback is worth the most, so it
+     * runs anyway, against an empty profile.
+     *
+     * The result is held briefly rather than for six months: it was written
+     * without AniList having a say, and once AniList is back it should get one.
+     */
+    const provisional = !cached;
+    if (!cached) {
+        cached = {
+            id: null,
+            confidence: "high",
+            alternatives: [],
+            profile: EMPTY_PROFILE,
+            th: null,
+        };
     }
 
-    return profile;
+    const current = toAnswer(cached);
+    if (!current.enrichable) return current;
+
+    const web = await researchCharacter(name, source);
+
+    // Remember that the web was asked even when it had nothing, so the next
+    // reader does not spend another Serper credit on the same dead end.
+    if (!web.description) {
+        const marked: CachedAnswer = { ...cached, researched: true };
+        await saveAnswer(key, marked, provisional ? PROVISIONAL_TTL_SEC : undefined);
+        return toAnswer(marked);
+    }
+
+    const anilistFitsTheGrid = agreesWithHint(source, cached.profile?.series);
+    const webFitsTheGrid = agreesWithHint(source, web.series);
+    const replace =
+        cached.profile.unknown ||
+        (!anilistFitsTheGrid && (webFitsTheGrid || !usableSeriesHint(source)));
+
+    if (!replace) {
+        const marked: CachedAnswer = { ...cached, researched: true };
+        await saveAnswer(key, marked, provisional ? PROVISIONAL_TTL_SEC : undefined);
+        return toAnswer(marked);
+    }
+
+    const profile: CharacterProfile = {
+        // No id: this character is not an AniList record, and pretending
+        // otherwise would file its translation under someone else's id.
+        id: null,
+        name: cached.profile.name ?? null,
+        series: web.series,
+        image: cached.profile.unknown ? null : cached.profile.image,
+        description: web.description,
+        unknown: false,
+    };
+
+    const answer: CachedAnswer = {
+        id: null,
+        /**
+         * A web answer is only certain when the grid said what the character is
+         * from. Without that, the search returns whoever dominates the results:
+         * "Asuna" comes back as Sword Art Online's, which is right most of the
+         * time and silently wrong for the Blue Archive grid that prompted this
+         * work. The card is told it is a guess so it can say so.
+         */
+        confidence: usableSeriesHint(source) ? "high" : "low",
+        alternatives: [],
+        profile,
+        th: web.th,
+        webSources: web.sources,
+        researched: true,
+    };
+    await saveAnswer(key, answer, provisional ? PROVISIONAL_TTL_SEC : undefined);
+    return toAnswer(answer);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Thai                                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The cached Thai text, or null when nobody has paid for it yet.
+ *
+ * Split from the generating call so the route can tell those two apart: a cache
+ * hit is free and unlimited, a miss costs a Gemini call and has to be budgeted.
+ */
+export async function readThaiDescription(id: number): Promise<string | null> {
+    const cached = await readCache(thaiCacheKey(id));
+    return cached ? cached : null;
 }
 
 /**
@@ -168,51 +505,17 @@ export async function getCharacterProfile(name: string): Promise<CharacterProfil
  * which is the failure mode that matters here. A bio people trust is worth more
  * than a bio that flows.
  *
- * Cached in Redis for a year under its own key. Characters do not change, the
- * cache is shared by every grid they appear in, and the whole point of paying
- * for a translation once is never paying for it again.
+ * Keyed by AniList id for the same reason the profile is: a translation of the
+ * wrong character's bio, cached for a year under a shared name, was the most
+ * expensive way this app could be wrong.
  */
-const THAI_TTL_SEC = 60 * 60 * 24 * 365;
-
-/**
- * Versioned, because a prompt fix cannot reach translations already written and
- * a year-long cache would go on serving them. Bump it whenever the prompt
- * changes in a way that changes the output.
- */
-const THAI_PROMPT_VERSION = 2;
-
-function thaiCacheKey(name: string): string {
-    return `waifu100:profile-th:v${THAI_PROMPT_VERSION}:${matchKey(name)}`;
-}
-
-/**
- * The cached Thai text, or null when nobody has paid for it yet.
- *
- * Split from the generating call so the route can tell those two apart: a cache
- * hit is free and unlimited, a miss costs a Gemini call and has to be budgeted.
- */
-export async function readThaiDescription(name: string): Promise<string | null> {
-    const key = matchKey(name);
-    if (!key) return null;
-
-    try {
-        const cached = await withRedis((redis) => redis.get(thaiCacheKey(name)));
-        return cached ? cached : null;
-    } catch (e) {
-        console.error("Thai profile cache read failed:", e);
-        return null;
-    }
-}
-
 export async function getThaiDescription(
-    name: string,
-    english: string,
-    series: string | null
+    profile: CharacterProfile
 ): Promise<string | null> {
-    const key = matchKey(name);
-    if (!key || !english.trim()) return null;
+    const { id, name, series, description } = profile;
+    if (!id || !description?.trim()) return null;
 
-    const cached = await readThaiDescription(name);
+    const cached = await readThaiDescription(id);
     if (cached) return cached;
 
     if (!process.env.GEMINI_API_KEY) return null;
@@ -223,13 +526,13 @@ export async function getThaiDescription(
     const prompt = `You are translating one character description into Thai.
 
 Context - for your understanding only. Do NOT translate or repeat these lines:
-- Character: ${name}
+- Character: ${name ?? "unknown"}
 - Series: ${series ?? "unknown"}
 
 Translate ONLY the text between the markers.
 
 <<<TEXT
-${english}
+${description}
 TEXT>>>
 
 Rules:
@@ -265,11 +568,6 @@ Return ONLY the Thai translation of the fenced text. No markers, no headings, no
 
     if (!thai) return null;
 
-    try {
-        await withRedis((redis) => redis.set(thaiCacheKey(name), thai, "EX", THAI_TTL_SEC));
-    } catch (e) {
-        console.error("Thai profile cache write failed:", e);
-    }
-
+    await writeCache(thaiCacheKey(id), thai, THAI_TTL_SEC);
     return thai;
 }

@@ -85,14 +85,26 @@ async function redisConsume(
 ): Promise<RateLimitResult> {
   // INCR then EXPIRE on first hit: a fixed window, which lets a burst straddle
   // a window boundary and briefly reach 2x the limit. That is fine here - the
-  // goal is stopping runaway loops, not precise fairness - and it costs one
-  // round trip instead of the sorted-set bookkeeping a sliding window needs.
+  // goal is stopping runaway loops, not precise fairness - and it costs far
+  // less than the sorted-set bookkeeping a sliding window needs.
+  //
+  // INCR and TTL go in one pipeline. As three sequential awaits this was three
+  // round trips to a Redis that is not in the same datacentre, paid by every
+  // single request before any real work started - which on the profile card
+  // was a visible part of the wait.
   const [count, ttl] = await withRedis(async (redis) => {
-    const c = await redis.incr(key);
-    if (c === 1) await redis.expire(key, windowSec);
-    const t = await redis.ttl(key);
-    return [c, t] as const;
+    const results = await redis.pipeline().incr(key).ttl(key).exec();
+    return [
+      (results?.[0]?.[1] as number | undefined) ?? 1,
+      (results?.[1]?.[1] as number | undefined) ?? -1,
+    ] as const;
   });
+
+  // Only a brand new key needs its window set, so the extra round trip happens
+  // once per window rather than once per request.
+  if (ttl < 0) {
+    await withRedis((redis) => redis.expire(key, windowSec));
+  }
 
   const retryAfter = ttl > 0 ? ttl : windowSec;
   return { allowed: count <= limit, retryAfter, remaining: Math.max(0, limit - count) };
@@ -167,4 +179,9 @@ export const LIMITS = {
   // call is actually about to happen. Reading one back costs nothing and is not
   // counted here, so the budget means "new translations", not "card opens".
   translate: { name: "translate", limit: 8, windowSec: 60 } satisfies RateLimit,
+  // A web lookup costs a Serper credit and a Gemini call, and Serper credit is
+  // the one budget here that has actually run out before. Consumed only when
+  // AniList could not answer, and the answer - including "nothing found" - is
+  // cached, so this counts genuinely new characters.
+  research: { name: "research", limit: 5, windowSec: 60 } satisfies RateLimit,
 };

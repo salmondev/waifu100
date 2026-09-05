@@ -41,9 +41,23 @@ export async function POST(req: NextRequest) {
             .map((n) => n.slice(0, 120))
             .slice(0, MAX_LOOKUPS * 2);
 
+        /**
+         * The series this grid is already known to contain. It is what decides
+         * between the several characters who share a name - "which Rin?" has an
+         * obvious answer in a grid that is thirty per cent Fate - and it is the
+         * only context available here, since a cell that knows its own series is
+         * never one of the names being asked about.
+         */
+        const context = Array.isArray(body?.context)
+            ? (body.context as unknown[])
+                  .filter((t): t is string => typeof t === "string" && t.trim().length > 1)
+                  .map((t) => t.slice(0, 120))
+                  .slice(0, 50)
+            : [];
+
         const cached = await readCachedSeries(wanted);
         const unknown = wanted.filter((name) => cached[matchKey(name)] == null);
-        const fresh = unknown.length > 0 ? await resolveSeries(unknown) : {};
+        const fresh = unknown.length > 0 ? await resolveSeries(unknown, context) : {};
 
         const series: Record<string, string> = {};
         for (const [key, value] of Object.entries(cached)) {
