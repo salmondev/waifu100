@@ -191,10 +191,22 @@ async function askAniList(names: string[], context: string[]): Promise<Resolved>
  * cache read: normalised name -> series (or the empty string for "AniList
  * doesn't know this one").
  */
+export interface ResolveResult {
+    /** Normalised name -> series, or "" for "asked, and nobody knows". */
+    series: Record<string, string>;
+    /**
+     * The lookup could not be made at all - AniList has been known to answer
+     * 403 across the board for hours. An empty result then means "we could not
+     * ask", which is a different thing from "these characters have no series",
+     * and the chart is required to say so rather than draw the second.
+     */
+    upstreamFailed: boolean;
+}
+
 export async function resolveSeries(
     names: string[],
     context: string[] = []
-): Promise<Record<string, string>> {
+): Promise<ResolveResult> {
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const name of names) {
@@ -204,7 +216,7 @@ export async function resolveSeries(
         unique.push(name);
         if (unique.length >= MAX_LOOKUPS) break;
     }
-    if (unique.length === 0) return {};
+    if (unique.length === 0) return { series: {}, upstreamFailed: false };
 
     // Distinct titles only, and a bounded number of them: this list is tried
     // per name, and a grid of a hundred different shows would turn one lookup
@@ -216,6 +228,7 @@ export async function resolveSeries(
 
     const resolved: Record<string, string> = {};
     const cacheable: Record<string, string> = {};
+    let upstreamFailed = false;
 
     // Sequential batches on purpose: AniList's limit is per minute and shared by
     // everyone using it, and a page that resolves slightly slower is much better
@@ -228,10 +241,11 @@ export async function resolveSeries(
             Object.assign(cacheable, certain);
         } catch (e) {
             console.error("AniList lookup failed:", e instanceof Error ? e.message : e);
+            upstreamFailed = true;
             break;
         }
     }
 
     await writeCachedSeries(cacheable);
-    return resolved;
+    return { series: resolved, upstreamFailed };
 }

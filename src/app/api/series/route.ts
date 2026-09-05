@@ -57,15 +57,22 @@ export async function POST(req: NextRequest) {
 
         const cached = await readCachedSeries(wanted);
         const unknown = wanted.filter((name) => cached[matchKey(name)] == null);
-        const fresh = unknown.length > 0 ? await resolveSeries(unknown, context) : {};
+        const fresh =
+            unknown.length > 0
+                ? await resolveSeries(unknown, context)
+                : { series: {}, upstreamFailed: false };
 
         const series: Record<string, string> = {};
         for (const [key, value] of Object.entries(cached)) {
             if (value !== null) series[key] = value;
         }
-        Object.assign(series, fresh);
+        Object.assign(series, fresh.series);
 
-        return NextResponse.json({ series });
+        // Passed on so the chart can tell "nobody knows what these characters
+        // are from" apart from "we could not ask" - AniList disables its API
+        // outright for hours at a time, and an empty chart that blames the
+        // grids is a lie about the grids.
+        return NextResponse.json({ series, upstreamFailed: fresh.upstreamFailed });
     } catch (e) {
         console.error("Series resolve error:", e);
         return NextResponse.json({ series: {} });

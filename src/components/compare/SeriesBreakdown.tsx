@@ -268,6 +268,13 @@ export function SeriesBreakdown({
     const [looking, setLooking] = useState(
         () => unresolvedNames([...charactersA, ...charactersB], initialResolved).length > 0
     );
+    /**
+     * The lookup could not be made - AniList disables its API outright for
+     * hours at a time. Worth its own state because the chart looks identical
+     * either way, and the two mean opposite things: one says these grids have
+     * nothing in common, the other says we do not know what half of them are.
+     */
+    const [upstreamDown, setUpstreamDown] = useState(false);
     const [tab, setTab] = useState<Tab>("shared");
     const [expanded, setExpanded] = useState(false);
     // Which bar was tapped, i.e. which characters to show behind it.
@@ -319,6 +326,8 @@ export function SeriesBreakdown({
                     if (!res.ok) break;
 
                     const data = await res.json();
+                    if (data?.upstreamFailed && alive) setUpstreamDown(true);
+
                     const series = data?.series;
                     if (!series || Object.keys(series).length === 0) break;
 
@@ -351,6 +360,14 @@ export function SeriesBreakdown({
     // empty box. While lookups are in flight it stays, so it does not pop in
     // and shove the page around a second later.
     if (empty && !looking) return null;
+
+    /**
+     * One grid's characters are nearly all unidentified. "Nothing in common"
+     * would be a statement about the two grids; the truth is a statement about
+     * what the app was able to find out, and the two read very differently to
+     * the person whose grid it is.
+     */
+    const missingSeries = stats.knownA === 0 || stats.knownB === 0;
 
     const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS);
     const hidden = rows.length - visible.length;
@@ -407,9 +424,33 @@ export function SeriesBreakdown({
                 </div>
 
                 {rows.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-zinc-600">
-                        No series in common here.
-                    </p>
+                    /* An empty chart has two very different causes, and saying
+                       the wrong one is a claim about someone's grid. */
+                    <div className="py-6 text-center">
+                        {upstreamDown ? (
+                            <>
+                                <p className="text-sm text-zinc-500">
+                                    ยังบอกไม่ได้ว่าตัวละครมาจากเรื่องอะไร
+                                </p>
+                                <p className="mt-1 text-xs text-zinc-600">
+                                    AniList ปิดให้บริการ API อยู่ชั่วคราว — กริดที่เก็บชื่อเรื่องไว้เองยังนับได้
+                                    ที่เหลือต้องรอ ลองใหม่อีกครั้งภายหลัง
+                                </p>
+                            </>
+                        ) : missingSeries ? (
+                            <>
+                                <p className="text-sm text-zinc-500">
+                                    ไม่รู้ว่าตัวละครส่วนใหญ่มาจากเรื่องอะไร
+                                </p>
+                                <p className="mt-1 text-xs text-zinc-600">
+                                    รูปที่อัปโหลดเองหรือค้นจาก Google ไม่ได้ติดชื่อเรื่องมาด้วย —
+                                    ยังเทียบไม่ได้ว่าซ้ำกันตรงไหน
+                                </p>
+                            </>
+                        ) : (
+                            <p className="text-sm text-zinc-600">No series in common here.</p>
+                        )}
+                    </div>
                 ) : (
                     <>
                         {tab === "shared" && (
