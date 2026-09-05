@@ -19,7 +19,7 @@ import { matchKey } from "@/lib/character-match";
  * turns up in next.
  */
 
-const ANILIST_URL = "https://graphql.anilist.co";
+export const ANILIST_URL = "https://graphql.anilist.co";
 
 /** Series titles don't change. Misses expire sooner in case AniList adds one. */
 const HIT_TTL_SEC = 60 * 60 * 24 * 365;
@@ -83,14 +83,14 @@ async function writeCachedSeries(entries: Record<string, string>): Promise<void>
     }
 }
 
-interface AniListEdge {
+export interface AniListEdge {
     characterRole?: string | null;
     node?: {
         title?: { romaji?: string | null; english?: string | null } | null;
     } | null;
 }
 
-interface AniListCharacter {
+export interface AniListCharacter {
     name?: { full?: string | null; native?: string | null } | null;
     media?: { edges?: AniListEdge[] | null } | null;
 }
@@ -104,7 +104,7 @@ interface AniListCharacter {
  * matches ("Hatsune Miku" -> "Miku Hatsune", token order ignored) and drops the
  * near-misses.
  */
-function namesAgree(query: string, found: string | null | undefined): boolean {
+export function namesAgree(query: string, found: string | null | undefined): boolean {
     if (!found) return false;
     const queryKey = matchKey(query);
     const foundKey = matchKey(found);
@@ -121,7 +121,7 @@ function namesAgree(query: string, found: string | null | undefined): boolean {
  * A main role wins over a more popular cameo: sorting by popularity alone filed
  * Hatsune Miku under a Sayonara Zetsubou-Sensei episode she appears in.
  */
-function pickTitle(character: AniListCharacter | null | undefined): string | null {
+export function pickTitle(character: AniListCharacter | null | undefined): string | null {
     const edges = character?.media?.edges ?? [];
     const edge = edges.find((e) => e?.characterRole === "MAIN") ?? edges[0];
     const title = edge?.node?.title;
