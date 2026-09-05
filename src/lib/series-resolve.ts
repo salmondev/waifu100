@@ -1,12 +1,14 @@
 import { withRedis } from "@/lib/redis";
 import { matchKey, normalizeName } from "@/lib/character-match";
 import {
+    ANILIST,
     ANILIST_URL,
     CANDIDATES_PER_NAME,
     candidateFields,
     pickCharacter,
     type AniListCandidate,
 } from "@/lib/anilist-character";
+import { assertUpstreamUp, reportUpstreamStatus } from "@/lib/upstream-health";
 
 /**
  * Looking up which series a character is from, by name.
@@ -129,6 +131,10 @@ interface Resolved {
 }
 
 async function askAniList(names: string[], context: string[]): Promise<Resolved> {
+    // Nothing to gain from asking a service that just told us it is offline;
+    // one compare page could otherwise fire eighteen doomed requests.
+    assertUpstreamUp(ANILIST);
+
     const res = await fetch(ANILIST_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -140,6 +146,7 @@ async function askAniList(names: string[], context: string[]): Promise<Resolved>
         // 429 included: back off by simply returning nothing. The names stay
         // uncached, so the next visitor asks again rather than us storing a
         // wrong answer.
+        reportUpstreamStatus(ANILIST, res.status);
         throw new Error(`AniList ${res.status}`);
     }
 
