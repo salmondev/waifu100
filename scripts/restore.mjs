@@ -34,9 +34,12 @@ if (!dir) {
     process.exit(1);
 }
 
-const file = path.join(dir, 'redis.json');
+// Either a backup directory or a snapshot file straight off the download: the
+// daily job writes the same shape to Blob, and needing to wrap it in a folder
+// first is friction at exactly the wrong moment.
+const file = dir.endsWith('.json') ? dir : path.join(dir, 'redis.json');
 if (!fs.existsSync(file)) {
-    console.error(`No redis.json in ${dir}`);
+    console.error(`No backup at ${file}`);
     process.exit(1);
 }
 
@@ -141,7 +144,7 @@ for (const entry of wanted) {
 }
 
 console.log(`\nrestored ${written} keys, skipped ${skipped}`);
-console.log('Uploaded images are not restored: blob URLs point at Vercel and');
-console.log(`the files are in ${path.join(dir, 'assets')} if they need re-uploading.`);
+console.log('Uploaded images are not restored: blob URLs point at Vercel, and');
+console.log('a full backup keeps copies in its assets/ folder if they need re-uploading.');
 
 await redis.quit();
