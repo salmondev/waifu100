@@ -7,6 +7,8 @@ import { GridCard } from "@/components/community/GridCard";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import type { ShareSummary } from "@/lib/share-summary";
 import { USER_ID_HEADER, ensureUserId } from "@/lib/user-id";
+import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
+import { cn } from "@/lib/utils";
 
 export default function MyGridsFeed() {
     const [grids, setGrids] = useState<ShareSummary[]>([]);
@@ -95,9 +97,12 @@ export default function MyGridsFeed() {
 
                     <Link
                         href="/community"
-                        className="self-start md:self-auto inline-flex items-center gap-2 px-4 py-2 bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-sm text-zinc-300 transition-colors"
+                        className={cn(
+                            "self-start md:self-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm",
+                            SHOWCASE_LINK_CLASS
+                        )}
                     >
-                        <Users className="w-4 h-4 text-indigo-400" />
+                        <Users className="w-4 h-4" />
                         Community Showcase
                     </Link>
                 </div>

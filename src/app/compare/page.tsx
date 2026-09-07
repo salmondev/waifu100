@@ -10,6 +10,8 @@ import { readCachedVerdict } from "@/lib/compare-verdict-store";
 import { compareCardPath, shareCardPath } from "@/lib/share-card";
 import { CompareView } from "@/components/compare/CompareView";
 import { ComparePicker } from "@/components/compare/ComparePicker";
+import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
+import { cn } from "@/lib/utils";
 import type { ShareSummary } from "@/lib/share-summary";
 
 interface ComparePageProps {
@@ -76,7 +78,7 @@ function Empty({ heading, body }: { heading: string; body: string }) {
             <div className="mt-4 flex gap-2">
                 <Link
                     href="/community"
-                    className="rounded-lg bg-purple-600/20 px-4 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-600/30"
+                    className={cn("rounded-lg px-4 py-2 text-sm", SHOWCASE_LINK_CLASS)}
                 >
                     Browse the showcase
                 </Link>

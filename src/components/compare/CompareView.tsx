@@ -12,6 +12,7 @@ import {
 } from "@/components/character/CharacterProfile";
 import { prefetchCharacter } from "@/lib/character-cache";
 import { SeriesBreakdown } from "@/components/compare/SeriesBreakdown";
+import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
 import type { SeriesInput, SeriesResolution } from "@/lib/series-stats";
 import type { AnalysisResult } from "@/types";
 
@@ -238,7 +239,10 @@ export function CompareView({
                 <div className="mb-6 flex flex-wrap items-center gap-2">
                     <Link
                         href="/community"
-                        className="flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+                        className={cn(
+                            "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
+                            SHOWCASE_LINK_CLASS
+                        )}
                     >
                         <ArrowLeft size={18} className="shrink-0" />
                         <span>Community Showcase</span>
