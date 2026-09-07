@@ -1,10 +1,35 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, GitCompareArrows } from "lucide-react";
+import { ChevronDown, GitCompareArrows, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMyGrids } from "@/lib/my-grids";
+
+/**
+ * The compare icon, or a spinner once its link has been followed.
+ *
+ * `useLinkStatus` only reports on the Link it is rendered inside, which is why
+ * this is a component rather than a hook call up in the parent: these are real
+ * navigations to a page that reads two grids from Redis, and without this the
+ * tap looks like it missed.
+ */
+function CompareIcon({ size }: { size: number }) {
+    const { pending } = useLinkStatus();
+    return pending ? (
+        <Loader2 size={size} className="shrink-0 animate-spin" />
+    ) : (
+        <GitCompareArrows size={size} className="shrink-0" />
+    );
+}
+
+/** Occupies no space until its row is the one being navigated to. */
+function MenuSpinner() {
+    const { pending } = useLinkStatus();
+    return pending ? (
+        <Loader2 size={14} className="shrink-0 animate-spin text-purple-300" />
+    ) : null;
+}
 
 /**
  * The way into a comparison, from someone else's grid.
@@ -68,7 +93,7 @@ export function CompareWithMine({
                 title="Compare this grid with another"
                 className={className}
             >
-                <GitCompareArrows size={iconSize} className="shrink-0" />
+                <CompareIcon size={iconSize} />
                 <span className="truncate">{isCard ? "Compare" : "Compare with another grid"}</span>
             </Link>
         );
@@ -85,7 +110,7 @@ export function CompareWithMine({
                 title={`Compare with "${grids[0].title}"`}
                 className={className}
             >
-                <GitCompareArrows size={iconSize} className="shrink-0" />
+                <CompareIcon size={iconSize} />
                 <span className="truncate">{label}</span>
             </Link>
         );
@@ -100,6 +125,8 @@ export function CompareWithMine({
                 aria-haspopup="menu"
                 className={className}
             >
+                {/* Not a CompareIcon: this one only opens the menu, and there is
+                    nothing to wait for until a grid in it is chosen. */}
                 <GitCompareArrows size={iconSize} className="shrink-0" />
                 <span className="truncate">{label}</span>
                 <ChevronDown
@@ -123,10 +150,18 @@ export function CompareWithMine({
                             key={grid.id}
                             role="menuitem"
                             href={`/compare?a=${grid.id}&b=${shareId}`}
-                            className="block rounded-lg px-3 py-2 text-left transition-colors hover:bg-zinc-800"
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-zinc-800"
                         >
-                            <p className="truncate text-sm text-white">{grid.title}</p>
-                            <p className="text-[11px] text-zinc-500">{grid.count} characters</p>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm text-white">{grid.title}</p>
+                                <p className="text-[11px] text-zinc-500">
+                                    {grid.count} characters
+                                </p>
+                            </div>
+                            {/* The menu stays open while the page loads, so the
+                                chosen row is the only thing that can show which
+                                one is on its way. */}
+                            <MenuSpinner />
                         </Link>
                     ))}
 
