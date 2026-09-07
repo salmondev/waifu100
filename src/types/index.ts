@@ -26,6 +26,8 @@ export interface AnalysisResult {
   emoji: string;
   en: { title: string; content: string; tags: string[] };
   th: { title: string; content: string; tags: string[] };
+  /** Which tone revision wrote this. Absent on verdicts predating the stamp. */
+  styleVersion?: number;
 }
 
 export type VerdictFeedback = 'agree' | 'disagree' | null;

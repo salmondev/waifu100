@@ -20,3 +20,75 @@ export const THAI_VOICE_RULES = "            - **Voice**: a calm, kind friend si
 export const THAI_VOICE_RULES_FLAT = THAI_VOICE_RULES.split("\n")
     .map((line) => line.replace(/^ {12}/, ""))
     .join("\n");
+
+/**
+ * Bumped whenever the tone rules above change in a way that makes verdicts
+ * written under the old rules look wrong next to new ones.
+ *
+ * A verdict is stored inside its share and never regenerated, so a tone fix
+ * only reaches grids shared after it. The stamp is what lets
+ * `scripts/migrate-verdicts.mjs` tell an old verdict from a current one -
+ * anything without it predates the calm Thai voice.
+ *
+ * v2 = the THAI_VOICE_RULES above (calm, no exclamation marks, no hype words).
+ */
+export const GRID_VERDICT_STYLE_VERSION = 2;
+
+/**
+ * The prompt behind a grid's AI verdict.
+ *
+ * It lives here, next to the voice rules, so the migration script can build the
+ * exact same prompt the route builds. The script runs under plain `node`, which
+ * is why this file has no imports of its own - keep it that way.
+ */
+export function buildGridVerdictPrompt(characterNames: string[]): string {
+    return `You are an observant, warm expert in Anime, Manga, Games, and VTubers.
+    You are judging a user's "10x10 Favorite Characters Grid".
+    You write in two voices: English is playful, Thai is calm and gentle. They are not translations of each other.
+    
+    User's characters:
+    ${characterNames.map((name, i) => `${i + 1}. ${name}`).join("\n")}
+    
+    Your task:
+    1.  **Analyze**: Look for patterns (e.g., "Wholesome Slice-of-Life", "Shonen Powerhouses", "Strategy & Mind Games", "Nostalgic Classics").
+    3.  **Generate a Verdict**:
+        - **English**: A short, punchy title, a 3-4 sentence fun/insightful analysis, and 3-4 short hashtags. **Use simple, conversational English.**
+        - **Thai**: **DO NOT TRANSLATE FROM ENGLISH.** Write a completely new Thai analysis. The Thai voice is NOT the English one - it is quieter.
+${THAI_VOICE_RULES}
+        - **Tone (English only - the Thai voice follows its own guidance above)**: Playful and appreciative. **ABSOLUTELY NO meaningful insults, mean-spirited sarcasm, or medical/health metaphors.**
+        - **NEGATIVE CONSTRAINTS**: Do NOT use words like "diabetes", "insulin", "heart attack", "stroke", "addiction", "overdose", or "filling a void". Instead use phrases like "levels of sweetness", "heart-melting", "pure joy", "maximum comfiness".
+    4.  **Vibe Check**: 
+        - Choose a single **Emoji** that best represents their grid.
+    
+    IMPORTANT: Return ONLY valid JSON in this exact format:
+    {
+      "emoji": "💀",
+      "en": {
+        "title": "The Edgelord",
+        "content": "You love suffering and tragic backstories...",
+        "tags": ["#Emo", "#Tragedy", "#DarkFantasies"]
+      },
+      "th": {
+        "title": "คนที่ชอบเรื่องเงียบ ๆ",
+        "content": "เลือกแต่ตัวละครที่แบกอะไรไว้ในใจเยอะเลยนะ ดูเป็นคนที่อ่านคนเก่ง และชอบเรื่องที่ค่อย ๆ เล่ามากกว่าเรื่องที่ตะโกนใส่ ใครได้คุยด้วยคงสบายใจน่าดู",
+        "tags": ["#สายดาร์กอบอุ่น", "#ชอบเรื่องลึก", "#ใจดีแบบเงียบ ๆ"]
+      }
+    }`;
+}
+
+/**
+ * Parses the model's reply. Gemini wraps JSON in a ```json fence often enough
+ * that stripping it is part of reading the answer, not error handling.
+ */
+export function parseVerdictJson(text: string): Record<string, unknown> | null {
+    try {
+        const cleaned = text
+            .replace(/```(?:json)?\s*/gi, "")
+            .replace(/\s*```$/g, "")
+            .trim();
+        const parsed = JSON.parse(cleaned);
+        return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+        return null;
+    }
+}
