@@ -8,6 +8,7 @@ import type { ShareSummary } from "@/lib/share-summary";
 import { shareCardPath } from "@/lib/share-card";
 import { useMyGrids } from "@/lib/my-grids";
 import { cn } from "@/lib/utils";
+import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
 
 /**
  * Choosing the two grids to compare.
@@ -227,7 +228,8 @@ export function ComparePicker({
                 <div className="mb-6 flex items-center gap-3">
                     <Link
                         href="/community"
-                        className="rounded-full border border-zinc-800 bg-zinc-900/50 p-2 text-zinc-400 transition-colors hover:text-white"
+                        aria-label="Back to the Community Showcase"
+                        className={cn("rounded-full p-2", SHOWCASE_LINK_CLASS)}
                     >
                         <ArrowLeft size={18} />
                     </Link>

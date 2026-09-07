@@ -13,6 +13,7 @@ import {
   useOpenCharacter,
 } from "@/components/character/CharacterProfile";
 import { prefetchCharacter } from "@/lib/character-cache";
+import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
 
 interface ViewGridProps {
   grid: GridCell[];
@@ -137,7 +138,10 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
                  impossible without the browser's own back button. */}
              <Link
                 href="/community"
-                className="flex flex-1 lg:flex-none items-center justify-center lg:justify-start gap-2 px-3 sm:px-4 py-2 bg-zinc-900 rounded-lg text-sm sm:text-base text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors lg:min-w-[190px]"
+                className={cn(
+                    "flex flex-1 lg:flex-none items-center justify-center lg:justify-start gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base lg:min-w-[190px]",
+                    SHOWCASE_LINK_CLASS
+                )}
              >
                 <ArrowLeft size={18} className="shrink-0" />
                 <span className="truncate">Community Showcase</span>
