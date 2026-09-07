@@ -1,7 +1,8 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { GitCompareArrows, X } from "lucide-react";
+import { GitCompareArrows, Loader2, X } from "lucide-react";
 import type { ShareSummary } from "@/lib/share-summary";
 import { shareCardPath } from "@/lib/share-card";
 import { cn } from "@/lib/utils";
@@ -112,6 +113,15 @@ export function CompareBar({ a, b, active, onFocus, onClear }: CompareBarProps) 
     const router = useRouter();
     const ready = !!a && !!b && a.id !== b.id;
 
+    /**
+     * Navigating to /compare reads two grids out of Redis before the browser
+     * gets anything to paint, and until it does the visitor is still looking at
+     * this page with this button apparently unpressed. The route has a skeleton
+     * of its own now, but the first acknowledgement has to be here, on the thing
+     * they actually touched.
+     */
+    const [navigating, startNavigating] = useTransition();
+
     return (
         <div className="sticky top-0 z-30 -mx-4 mb-6 border-b border-zinc-800/60 bg-black/80 px-4 py-3 backdrop-blur-md">
             <div className="flex items-center gap-2 sm:gap-3">
@@ -133,8 +143,12 @@ export function CompareBar({ a, b, active, onFocus, onClear }: CompareBarProps) 
 
                 <button
                     type="button"
-                    disabled={!ready}
-                    onClick={() => ready && router.push(`/compare?a=${a.id}&b=${b.id}`)}
+                    disabled={!ready || navigating}
+                    aria-busy={navigating}
+                    onClick={() =>
+                        ready &&
+                        startNavigating(() => router.push(`/compare?a=${a.id}&b=${b.id}`))
+                    }
                     className={cn(
                         "flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all sm:px-5",
                         ready
@@ -142,15 +156,27 @@ export function CompareBar({ a, b, active, onFocus, onClear }: CompareBarProps) 
                               // the app has one "this is the lively thing" treatment
                               // rather than a new accent per feature.
                               "gif-badge text-white hover:brightness-110"
-                            : "cursor-not-allowed bg-zinc-900 text-zinc-600"
+                            : "cursor-not-allowed bg-zinc-900 text-zinc-600",
+                        navigating && "cursor-wait"
                     )}
                 >
-                    <GitCompareArrows className="h-4 w-4 shrink-0" />
+                    {/* The spinner takes the icon's place rather than being
+                        added beside it, so the button does not change width and
+                        shove the slots along at the moment it is pressed. */}
+                    {navigating ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                    ) : (
+                        <GitCompareArrows className="h-4 w-4 shrink-0" />
+                    )}
                     {/* The word "compare" stays on the button in both states -
                         the disabled label used to read "Pick two grids", which
                         never said what picking them was for. */}
                     <span className="hidden sm:inline">
-                        {ready ? "Compare these two" : "Compare two grids"}
+                        {navigating
+                            ? "Comparing…"
+                            : ready
+                              ? "Compare these two"
+                              : "Compare two grids"}
                     </span>
                 </button>
             </div>

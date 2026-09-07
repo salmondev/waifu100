@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { readShare, readShares } from "@/lib/share-store";
@@ -23,7 +24,7 @@ interface ComparePageProps {
  * an order of magnitude more bytes than the result does - the same reason the
  * showcase summarises its cards server-side.
  */
-async function load(idA: string, idB: string) {
+const load = cache(async function load(idA: string, idB: string) {
     try {
         const [shareA, shareB] = await readShares([idA, idB]);
         if (!shareA || !shareB) return null;
@@ -34,7 +35,10 @@ async function load(idA: string, idB: string) {
         console.error("Compare read error:", e);
         return null;
     }
-}
+    // Memoised for the request: generateMetadata and the page both need this,
+    // and as two plain calls it read both grids out of Redis twice - doubling
+    // the wait the visitor sits through after pressing Compare.
+});
 
 export async function generateMetadata({ searchParams }: ComparePageProps): Promise<Metadata> {
     const { a = "", b = "" } = await searchParams;

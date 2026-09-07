@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, GitCompareArrows, Loader2, Search, X } from "lucide-react";
@@ -136,6 +136,9 @@ export function ComparePicker({
     initialB?: ShareSummary | null;
 }) {
     const router = useRouter();
+    // Same reason as the showcase bar: the route reads two grids before it can
+    // paint anything, and the press has to be acknowledged where it happened.
+    const [navigating, startNavigating] = useTransition();
     const mine = useMyGrids();
 
     const [a, setA] = useState<ShareSummary | null>(initialA);
@@ -267,17 +270,30 @@ export function ComparePicker({
 
                 <button
                     type="button"
-                    disabled={!ready}
-                    onClick={() => ready && router.push(`/compare?a=${a.id}&b=${b.id}`)}
+                    disabled={!ready || navigating}
+                    aria-busy={navigating}
+                    onClick={() =>
+                        ready &&
+                        startNavigating(() => router.push(`/compare?a=${a.id}&b=${b.id}`))
+                    }
                     className={cn(
                         "mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-medium transition-all",
                         ready
                             ? "bg-purple-600 text-white hover:bg-purple-500"
-                            : "cursor-not-allowed bg-zinc-900 text-zinc-600"
+                            : "cursor-not-allowed bg-zinc-900 text-zinc-600",
+                        navigating && "cursor-wait"
                     )}
                 >
-                    <GitCompareArrows size={18} />
-                    {ready ? "Compare these two" : "Pick two grids to compare"}
+                    {navigating ? (
+                        <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                        <GitCompareArrows size={18} />
+                    )}
+                    {navigating
+                        ? "Comparing…"
+                        : ready
+                          ? "Compare these two"
+                          : "Pick two grids to compare"}
                 </button>
 
                 {/* Search over what is loaded, same as the showcase does. */}
