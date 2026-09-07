@@ -4,8 +4,8 @@ import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn, isGifUrl, optimizedImageSrc } from "@/lib/utils";
 
 import Link from "next/link";
-import { ArrowLeft, Check, Sparkles, Loader2, Grid3x3, Link2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, Check, Sparkles, Loader2, Grid3x3, Link2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 import { CompareWithMine } from "@/components/compare/CompareWithMine";
 import {
@@ -26,7 +26,8 @@ interface ViewGridProps {
 const COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
 export function ViewGrid(props: ViewGridProps) {
-  // The name bar and every cell open the same profile card.
+  // Every cell opens the same profile card, so the provider wraps the grid
+  // rather than each cell carrying its own copy.
   return (
     <CharacterProfileProvider>
       <ViewGridInner {...props} />
@@ -40,31 +41,26 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
   const [showVerdict, setShowVerdict] = useState(false);
   const [localVerdict, setLocalVerdict] = useState<AnalysisResult | null>(verdict ?? null);
   const [isGenerating, setIsGenerating] = useState(false);
-  // Which cell the visitor tapped. Names were hover-only, which on a phone -
-  // where most of these links are opened - meant they could not be read at all.
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const selected = selectedIdx !== null ? grid[selectedIdx]?.character ?? null : null;
-
   /**
-   * Selecting a cell puts the name bar up, and the bar is the only way into the
-   * profile card - so the lookup can start now instead of when it is pressed.
-   * By the time a finger travels from a cell to the bar the answer is usually
-   * already here, and the card opens with text in it.
+   * Tapping a cell opens that character's card.
+   *
+   * It used to open a bar along the bottom that had to be pressed a second time
+   * to get the profile - the reasoning being that the name is instant and the
+   * profile needs a lookup, so the fast answer should not wait on the slow one.
+   * In practice the bar was a step that said "Tap for profile" and made people
+   * tap twice for the thing they wanted the first time. The card shows the name
+   * immediately anyway, from what the grid already knows, and fills in the rest
+   * around it - so the second tap was buying nothing.
    */
-  useEffect(() => {
-    if (selected?.name)
-      prefetchCharacter({ name: selected.name, source: selected.source });
-  }, [selected?.name, selected?.source]);
-
-  // Esc closes the name bar, same as tapping the cell again.
-  useEffect(() => {
-    if (selectedIdx === null) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelectedIdx(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedIdx]);
+  const showCharacter = useCallback(
+    (character: NonNullable<GridCell["character"]>) =>
+      openCharacter({
+        name: character.name,
+        image: character.customImageUrl || character.images.jpg.image_url,
+        source: character.source,
+      }),
+    [openCharacter]
+  );
 
   // Read at render time rather than from window.location.href so the share text
   // never carries whatever query string the visitor arrived with.
@@ -255,23 +251,37 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
           {grid.map((cell, idx) => (
             <div
               key={idx}
-              onClick={() => cell.character && setSelectedIdx(selectedIdx === idx ? null : idx)}
+              onClick={() => cell.character && showCharacter(cell.character)}
+              // The lookup starts while the pointer is on its way down, so the
+              // card usually opens with its text already in it.
+              onPointerEnter={() =>
+                cell.character &&
+                prefetchCharacter({
+                  name: cell.character.name,
+                  source: cell.character.source,
+                })
+              }
               role={cell.character ? "button" : undefined}
               tabIndex={cell.character ? 0 : undefined}
-              aria-label={cell.character?.name}
-              aria-pressed={cell.character ? selectedIdx === idx : undefined}
+              aria-label={cell.character ? `Who is ${cell.character.name}?` : undefined}
+              onFocus={() =>
+                cell.character &&
+                prefetchCharacter({
+                  name: cell.character.name,
+                  source: cell.character.source,
+                })
+              }
               onKeyDown={(e) => {
                 if (!cell.character) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setSelectedIdx(selectedIdx === idx ? null : idx);
+                  showCharacter(cell.character);
                 }
               }}
               className={cn(
                 "relative min-w-0 min-h-0 bg-zinc-900/50 border border-zinc-900/50 overflow-hidden group",
-                cell.character && "cursor-pointer focus:outline-none",
-                selectedIdx === idx &&
-                  "ring-2 ring-inset ring-purple-400 z-10 shadow-[0_0_18px_rgba(168,85,247,0.6)]"
+                cell.character &&
+                  "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-purple-400 focus-visible:z-10"
               )}
             >
               {cell.character ? (
@@ -284,12 +294,12 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
                       referrerPolicy="no-referrer"
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                    />
-                   {/* Hover caption. It survives untouched on desktop; a phone
-                       cell is ~35px wide, so this is unreadable there and the
-                       tap opens the readable bar below instead. */}
+                   {/* Hover caption, desktop only: a phone cell is ~35px wide,
+                       so this would be unreadable there - a tap opens the card,
+                       which is readable at any size. */}
                    <div className={cn(
                       "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 transition-opacity duration-200 pointer-events-none hidden sm:block",
-                      selectedIdx === idx ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      "opacity-0 group-hover:opacity-100"
                    )}>
                       <p className="text-[10px] font-bold truncate text-white text-center leading-tight">
                           {cell.character.name}
@@ -315,67 +325,7 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
          Made with <Link href="/" className="text-purple-400 hover:underline">Waifu100</Link>
       </div>
 
-      {/* The tapped character, read out at a size a phone can actually show.
-          A bar pinned to the bottom edge rather than a popover over the cell:
-          the grid stays fully visible, so the visitor can keep tapping around
-          it without the answer covering the thing they are looking at. */}
-      {selected && (
-         <div
-            role="status"
-            aria-live="polite"
-            className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 pointer-events-none animate-in slide-in-from-bottom-4 duration-200"
-         >
-            <div className="pointer-events-auto mx-auto max-w-[560px] flex items-center gap-3 rounded-2xl border border-purple-500/30 bg-zinc-900/95 backdrop-blur px-3 py-2.5 shadow-2xl shadow-purple-900/40">
-               {/* The bar answers "who is that" instantly and with no network;
-                   pressing it asks for the rest - series, a few lines - which
-                   needs a lookup. Two steps on purpose: the fast answer must
-                   never wait on a fetch. */}
-               <button
-                  type="button"
-                  onClick={() =>
-                     openCharacter({
-                        name: selected.name,
-                        image: selected.customImageUrl || selected.images.jpg.image_url,
-                        source: selected.source,
-                     })
-                  }
-                  aria-label={`Who is ${selected.name}?`}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-               >
-                  <img
-                     src={selected.customImageUrl || selected.images.jpg.image_url}
-                     alt=""
-                     referrerPolicy="no-referrer"
-                     className="w-11 h-11 rounded-xl object-cover shrink-0 bg-zinc-800"
-                  />
-                  <div className="min-w-0 flex-1">
-                     <p className="text-sm font-bold text-white leading-tight break-words">
-                        {selected.name}
-                     </p>
-                     <p className="text-[11px] text-zinc-500 truncate">
-                        {selected.source || "Unknown source"}
-                        {selectedIdx !== null && (
-                           <span className="ml-2 font-mono text-zinc-600">
-                              {COLUMNS[selectedIdx % 10]}{Math.floor(selectedIdx / 10) + 1}
-                           </span>
-                        )}
-                     </p>
-                     <p className="text-[11px] text-purple-400">Tap for profile</p>
-                  </div>
-               </button>
-               <button
-                  type="button"
-                  onClick={() => setSelectedIdx(null)}
-                  aria-label="Close"
-                  className="shrink-0 p-2 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
-               >
-                  <X size={16} />
-               </button>
-            </div>
-         </div>
-      )}
-
-      <AnalysisModal 
+      <AnalysisModal
          isOpen={showVerdict}
          onClose={() => setShowVerdict(false)}
          grid={grid}

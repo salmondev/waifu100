@@ -464,13 +464,17 @@ export async function enrichFromWeb(
     const answer: CachedAnswer = {
         id: null,
         /**
-         * A web answer is only certain when the grid said what the character is
-         * from. Without that, the search returns whoever dominates the results:
-         * "Asuna" comes back as Sword Art Online's, which is right most of the
-         * time and silently wrong for the Blue Archive grid that prompted this
-         * work. The card is told it is a guess so it can say so.
+         * The doubt is about the *name*, not about the web.
+         *
+         * A bare "Asuna" comes back as Sword Art Online's, which is right most
+         * of the time and silently wrong for the Blue Archive grid that
+         * prompted this work - so with nothing else to go on that answer is a
+         * guess and the card says so. "Asuna Ichinose" is not that: a full name
+         * picks one character out, and warning about it would be noise on a
+         * card that is right.
          */
-        confidence: usableSeriesHint(source) ? "high" : "low",
+        confidence:
+            usableSeriesHint(source) || normalizeName(name).length >= 2 ? "high" : "low",
         alternatives: [],
         profile,
         th: web.th,
