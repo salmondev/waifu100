@@ -9,10 +9,11 @@ import { isPublicHttpsUrl } from "@/lib/url-safety";
 
 export const STORY_BRAND = "Story100";
 
-/** Grid sizes a story grid may have. 9 is the 3x3 board. */
-export const STORY_SIZES = [9, 10, 50, 100] as const;
+/** Grid sizes a story grid may have. 9 is the 3x3 board, 25 the 5x5 one. */
+export const STORY_SIZES = [9, 10, 25, 50, 100] as const;
 export type StorySize = (typeof STORY_SIZES)[number];
-export const DEFAULT_STORY_SIZE: StorySize = 10;
+/** New boards start as 3x3 (2026-10-14). Saved drafts and shares keep their own size. */
+export const DEFAULT_STORY_SIZE: StorySize = 9;
 
 export function isStorySize(value: unknown): value is StorySize {
     return typeof value === "number" && (STORY_SIZES as readonly number[]).includes(value);
@@ -21,13 +22,14 @@ export function isStorySize(value: unknown): value is StorySize {
 /** Columns used to lay a grid of this size out (page and OG card). */
 export function storyColumns(size: number): number {
     if (size === 9) return 3;
-    if (size === 10) return 5;
+    if (size === 10 || size === 25) return 5;
     return 10;
 }
 
 export const STORY_SIZE_LABELS: Record<StorySize, string> = {
     9: "3×3",
     10: "Top 10",
+    25: "5×5",
     50: "Top 50",
     100: "Top 100",
 };

@@ -43,13 +43,27 @@ export interface ShareOgInput {
     size?: number;
 }
 
-/** Card geometry for a grid of `size` slots. Exported for tests. */
+/** Story covers are portrait (AniList / MAL are ~2:3), so story cells are 2:3 too. */
+export const STORY_CELL_RATIO = 1.5;
+
+/**
+ * Card geometry for a grid of `size` slots. Exported for tests. Waifu cells are
+ * square (cellH === cell); story cells are 2:3 portrait so a cover fits whole
+ * instead of losing its top and bottom to a square crop.
+ */
 export function ogLayout(kind: 'waifu' | 'story' = 'waifu', size = 100) {
-    const columns = kind === 'story' ? storyColumns(size) : COLUMNS;
-    const total = kind === 'story' ? size : COLUMNS * COLUMNS;
+    if (kind === 'story') {
+        const columns = storyColumns(size);
+        const rows = Math.ceil(size / columns);
+        const cell = Math.floor(Math.min(GRID_SIZE / columns, GRID_SIZE / (rows * STORY_CELL_RATIO)));
+        const cellH = Math.floor(cell * STORY_CELL_RATIO);
+        return { columns, rows, total: size, cell, cellH, width: columns * cell, height: rows * cellH };
+    }
+    const columns = COLUMNS;
+    const total = COLUMNS * COLUMNS;
     const rows = Math.ceil(total / columns);
     const cell = Math.floor(GRID_SIZE / Math.max(columns, rows));
-    return { columns, rows, total, cell, width: columns * cell, height: rows * cell };
+    return { columns, rows, total, cell, cellH: cell, width: columns * cell, height: rows * cell };
 }
 
 // --- Font -------------------------------------------------------------------
@@ -102,11 +116,13 @@ const SOURCE_PX = CELL * 2; // 2x the cell, so the card stays crisp
 async function fetchCell(
     url: string,
     px: number,
-    allow?: (u: string) => boolean
+    allow?: (u: string) => boolean,
+    whole = false
 ): Promise<{ data?: string; reason?: string }> {
     // T-0009 A: server-rendered cards use the same moderated, hash-checked
     // pipeline as the browser proxy; a blocked or unverified cell stays empty.
-    const result = await getModeratedImage(url, px, { square: true, allow });
+    // `whole` (story only): keep the image's own shape (fit inside, no crop).
+    const result = await getModeratedImage(url, px, whole ? { allow } : { square: true, allow });
     if (!result.ok) return { reason: result.reason };
     // Cards are CDN-cached for a long time: an unchecked cell (Gemini gave no answer) stays empty.
     if (!result.checked) return { reason: 'unchecked' };
@@ -119,7 +135,8 @@ async function toDataUrl(
     url: string | null | undefined,
     stats: CellStats,
     px: number,
-    allow?: (u: string) => boolean
+    allow?: (u: string) => boolean,
+    whole = false
 ): Promise<string | null> {
     if (!url) return null;
     if (!/^https?:\/\//.test(url)) {
@@ -130,7 +147,7 @@ async function toDataUrl(
 
     let reason = 'unknown';
     try {
-        const result = await fetchCell(url, px, allow);
+        const result = await fetchCell(url, px, allow, whole);
         if (result.data) {
             stats.loaded++;
             return result.data;
@@ -162,7 +179,8 @@ export interface CellStats {
 export async function resolveImages(
     images: (string | null | undefined)[],
     px: number,
-    allow?: (u: string) => boolean
+    allow?: (u: string) => boolean,
+    whole = false
 ): Promise<{ cells: (string | null)[]; stats: CellStats }> {
     const started = Date.now();
     const stats: CellStats = { loaded: 0, failed: 0, ms: 0, failures: [] };
@@ -174,7 +192,7 @@ export async function resolveImages(
     const worker = async () => {
         while (next < total) {
             const i = next++;
-            cells[i] = await toDataUrl(i, images[i], stats, px, allow);
+            cells[i] = await toDataUrl(i, images[i], stats, px, allow, whole);
         }
     };
 
@@ -189,12 +207,14 @@ export async function resolveCells(
     images: (string | null | undefined)[],
     total: number = COLUMNS * COLUMNS,
     px: number = SOURCE_PX,
-    allow?: (url: string) => boolean
+    allow?: (url: string) => boolean,
+    whole = false
 ): Promise<{ cells: (string | null)[]; stats: CellStats }> {
     return resolveImages(
         Array.from({ length: total }, (_, i) => images[i]),
         px,
-        allow
+        allow,
+        whole
     );
 }
 
@@ -206,12 +226,13 @@ export async function renderShareOg({ title, images, count, kind = 'waifu', size
     const [font, resolved] = await Promise.all([
         loadOgFont(),
         story
-            ? resolveCells(images, layout.total, Math.min(layout.cell * 2, 400), isAllowedCoverUrl)
+            ? resolveCells(images, layout.total, Math.min(layout.cell * 2, 400), isAllowedCoverUrl, true)
             : resolveCells(images),
     ]);
     const cells = resolved.cells;
     const cellW = layout.cell;
-    // Covers are portrait; story cells keep a 2:3 crop inside the square slot.
+    // Story: 2:3 slots, and the whole cover is shown (contain), never cropped.
+    const cellH = layout.cellH;
 
     return new ImageResponse(
         (
@@ -254,7 +275,7 @@ export async function renderShareOg({ title, images, count, kind = 'waifu', size
                         width: layout.width,
                         height: layout.height,
                         background: '#000000',
-                        marginTop: story ? Math.max(0, (GRID_SIZE - layout.height) / 2 - 20) : 0,
+                        marginTop: story ? Math.max(0, Math.floor((GRID_SIZE - layout.height) / 2) - 20) : 0,
                     }}
                 >
                     {cells.map((src, i) => (
@@ -264,18 +285,28 @@ export async function renderShareOg({ title, images, count, kind = 'waifu', size
                                 display: 'flex',
                                 flexShrink: 0,
                                 width: cellW,
-                                height: cellW,
+                                height: story ? cellH : cellW,
                                 background: '#09090b',
                             }}
                         >
                             {src ? (
-                                <img
-                                    src={src}
-                                    width={cellW}
-                                    height={cellW}
-                                    alt=""
-                                    style={{ width: cellW, height: cellW, objectFit: 'cover' }}
-                                />
+                                story ? (
+                                    <img
+                                        src={src}
+                                        width={cellW}
+                                        height={cellH}
+                                        alt=""
+                                        style={{ width: cellW, height: cellH, objectFit: 'contain' }}
+                                    />
+                                ) : (
+                                    <img
+                                        src={src}
+                                        width={cellW}
+                                        height={cellW}
+                                        alt=""
+                                        style={{ width: cellW, height: cellW, objectFit: 'cover' }}
+                                    />
+                                )
                             ) : null}
                         </div>
                     ))}

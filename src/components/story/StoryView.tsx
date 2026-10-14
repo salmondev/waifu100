@@ -72,7 +72,7 @@ export function StoryView({ id, title, size, items, titleStyle = DEFAULT_TITLE_S
             </div>
 
             <div className="w-full max-w-[1000px] px-3 sm:px-4 lg:px-6">
-                <div className={cn("relative w-full mx-auto", size === 9 ? "max-w-md" : size === 10 ? "max-w-3xl" : "max-w-[950px]")}>
+                <div className={cn("relative w-full mx-auto", size === 9 ? "max-w-md" : size === 10 || size === 25 ? "max-w-3xl" : "max-w-[950px]")}>
                     {labels && (
                         <>
                             <div className="hidden lg:grid absolute -top-6 inset-x-0 grid-cols-10">
