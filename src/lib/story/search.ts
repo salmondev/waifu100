@@ -40,10 +40,15 @@ export class SearchError extends Error {
     }
 }
 
-/** T-0010: one search over anime AND manga (no type filter); results carry a badge. */
-const MEDIA_QUERY = `query ($search: String, $perPage: Int) {
+/**
+ * T-0010: results carry a type badge. 2026-10-14: the builder searches one type at a time
+ * (anime / manga toggle); `$type` null keeps the old "both" search.
+ * AniList matches Thai titles through its synonyms (e.g. "นารูโตะ" -> NARUTO), so the query
+ * text is passed through as-is (Unicode, NFC-normalised), never ASCII-filtered.
+ */
+const MEDIA_QUERY = `query ($search: String, $perPage: Int, $type: MediaType) {
   Page(perPage: $perPage) {
-    media(search: $search, sort: SEARCH_MATCH) {
+    media(search: $search, type: $type, sort: SEARCH_MATCH) {
       id
       idMal
       type
@@ -136,6 +141,20 @@ function interleave<T>(a: T[], b: T[]): T[] {
     return out;
 }
 
+/**
+ * Search text as sent upstream: NFC (Thai typed on different keyboards can arrive decomposed,
+ * e.g. sara am as nikhahit + sara aa), zero-width characters removed, whitespace collapsed.
+ * Nothing is stripped by script, so Thai / Japanese / Korean queries pass through.
+ */
+export function normalizeQuery(query: string): string {
+    return query
+        .normalize("NFC")
+        .replace(/\u0E4D\u0E32/g, "\u0E33")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 export interface StorySearchDeps {
     fetch?: typeof fetch;
     now?: () => number;
@@ -163,8 +182,9 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
         return mapJikan(body.data ?? [], type);
     }
 
-    /** Fallback: anime and manga in parallel; one side failing still shows the other. */
-    async function jikan(query: string, signal?: AbortSignal): Promise<SearchItem[]> {
+    /** Fallback: anime and manga in parallel (or the one asked for); one side failing still shows the other. */
+    async function jikan(query: string, signal?: AbortSignal, type?: MediaType): Promise<SearchItem[]> {
+        if (type) return jikanOne(query, type, signal);
         const [a, m] = await Promise.allSettled([jikanOne(query, "ANIME", signal), jikanOne(query, "MANGA", signal)]);
         if (a.status === "rejected" && m.status === "rejected") throw a.reason;
         return interleave(a.status === "fulfilled" ? a.value : [], m.status === "fulfilled" ? m.value : []);
@@ -175,28 +195,29 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
     const CACHE_MS = 5 * 60_000;
     const CACHE_MAX = 50;
 
-    async function search(query: string, signal?: AbortSignal): Promise<SearchResult> {
-        const key = query.trim().toLowerCase();
+    async function search(query: string, signal?: AbortSignal, type?: MediaType): Promise<SearchResult> {
+        const text = normalizeQuery(query);
+        const key = `${type ?? "ALL"}:${text.toLowerCase()}`;
         const hit = cache.get(key);
         if (hit && now() - hit.at < CACHE_MS) return hit.r;
-        const r = await searchUncached(query, signal);
+        const r = await searchUncached(text, signal, type);
         // Only full AniList answers are kept; a Jikan fallback should be retried against AniList.
-        if (r.source === "anilist" && key.length >= 2) {
+        if (r.source === "anilist" && text.length >= 2) {
             if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
             cache.set(key, { at: now(), r });
         }
         return r;
     }
 
-    async function searchUncached(query: string, signal?: AbortSignal): Promise<SearchResult> {
-        const q = query.trim();
+    async function searchUncached(query: string, signal?: AbortSignal, type?: MediaType): Promise<SearchResult> {
+        const q = query;
         if (q.length < 2) return { items: [], source: "anilist", anilistCooldownUntil: inCooldown() ? cooldownUntil : null };
 
         if (inCooldown()) {
-            return { items: await jikan(q, signal), source: "jikan", anilistCooldownUntil: cooldownUntil };
+            return { items: await jikan(q, signal, type), source: "jikan", anilistCooldownUntil: cooldownUntil };
         }
 
-        const variables: Record<string, unknown> = { search: q, perPage: SEARCH_PER_PAGE };
+        const variables: Record<string, unknown> = { search: q, perPage: SEARCH_PER_PAGE, ...(type ? { type } : {}) };
         const res = await doFetch(ANILIST_GRAPHQL, {
             method: "POST",
             signal,
@@ -206,10 +227,10 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
 
         if (res.status === 429) {
             cooldownUntil = now() + parseRetryAfter(res.headers.get("Retry-After"), now()) * 1000;
-            return { items: await jikan(q, signal), source: "jikan", anilistCooldownUntil: cooldownUntil };
+            return { items: await jikan(q, signal, type), source: "jikan", anilistCooldownUntil: cooldownUntil };
         }
         if (res.status >= 500) {
-            return { items: await jikan(q, signal), source: "jikan", anilistCooldownUntil: null };
+            return { items: await jikan(q, signal, type), source: "jikan", anilistCooldownUntil: null };
         }
         if (!res.ok) throw new SearchError("Search failed. Please try a different title.", res.status);
 

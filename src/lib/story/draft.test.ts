@@ -24,7 +24,7 @@ describe("story draft", () => {
     });
 
     it("parses garbage and non-public covers safely", () => {
-        expect(parseDraft("nope").size).toBe(10);
+        expect(parseDraft("nope").size).toBe(9); // new boards default to 3x3
         const d = parseDraft(JSON.stringify({ size: 9, items: [{ ...item(1), cover: "http://evil.example/x.jpg" }, item(2)] }));
         expect(d.items[0]).toBeNull();
         expect(d.items[1]?.id).toBe(2);

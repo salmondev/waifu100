@@ -32,6 +32,8 @@ import { ensureUserId } from "@/lib/user-id";
 import { StoryPngButton, StoryVerdict } from "@/components/story/StoryExtras";
 import { canPickImagesFor, ImagePicker, pickerKey } from "@/components/story/ImagePicker";
 import { TypeBadge } from "@/components/story/TypeBadge";
+import { SearchModeToggle } from "@/components/story/SearchModeToggle";
+import type { MediaType } from "@/lib/share-schema";
 import { rememberOwnGrid } from "@/lib/my-grids";
 import { AISuggestionHint, ChangeImageHint, SearchHint, StoryToast, type NoticeType } from "@/components/story/StoryHints";
 import { PanelTabs, StoryCommunity, type PanelTab } from "@/components/story/StoryPanels";
@@ -75,6 +77,8 @@ export function StoryBuilder() {
     const [loaded, setLoaded] = useState(false);
     const [selected, setSelected] = useState<number | null>(null);
     const [query, setQuery] = useState("");
+    /** Anime / manga mode under the search box (default anime). */
+    const [searchType, setSearchType] = useState<MediaType>("ANIME");
     const [results, setResults] = useState<SearchItem[]>([]);
     const [source, setSource] = useState<SearchSource>("anilist");
     const [searching, setSearching] = useState(false);
@@ -169,7 +173,7 @@ export function StoryBuilder() {
         return () => clearTimeout(t);
     }, [notice, setNotice]);
 
-    // Debounced search over anime AND manga; a newer query aborts the older request.
+    // Debounced search in the chosen mode (anime or manga); a newer query or mode aborts the older request.
     useEffect(() => {
         const q = query.trim();
         if (q.length < 2) {
@@ -186,7 +190,7 @@ export function StoryBuilder() {
             const ctrl = new AbortController();
             abortRef.current = ctrl;
             try {
-                const r = await storySearch.search(q, ctrl.signal);
+                const r = await storySearch.search(q, ctrl.signal, searchType);
                 if (ctrl.signal.aborted) return;
                 setResults(r.items);
                 if (r.items.length > 0 && !hintsShown.current.search) {
@@ -206,7 +210,7 @@ export function StoryBuilder() {
             }
         }, SEARCH_DEBOUNCE_MS);
         return () => clearTimeout(timer);
-    }, [query]);
+    }, [query, searchType]);
 
     const filled = useMemo(() => draft.items.filter(Boolean).length, [draft.items]);
 
@@ -347,6 +351,17 @@ export function StoryBuilder() {
     // Actions follow waifu's sidebar: Save/Load, Ask AI, Share | Save as .png, Clear Grid - same colours and copy.
     const actions = (
                     <div data-testid="story-actions" className={cn("w-full space-y-2", !isDesktop && "max-w-md mx-auto")}>
+                        {/* Waifu's "Community Showcase" button (same markup), opening the story showcase. */}
+                        <Link
+                            href="/community?kind=story"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-testid="showcase-link"
+                            className="w-full py-2 mb-2 bg-gradient-to-r from-indigo-900/40 to-purple-900/40 hover:from-indigo-900/60 hover:to-purple-900/60 border border-indigo-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all group"
+                        >
+                            <Users className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
+                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-300">Community Showcase</span>
+                        </Link>
                         <div className="flex gap-2">
                             <button type="button" onClick={saveBoard} disabled={filled === 0} className={cn(WAIFU_BTN.neutral, "flex-1")}>
                                 <Save className="w-4 h-4 text-green-400" /> Save board
@@ -387,8 +402,9 @@ export function StoryBuilder() {
                         <input
                             ref={searchRef}
                             className="w-full bg-zinc-900 border border-zinc-700 rounded-lg py-2 pl-10 pr-9 focus:ring-2 focus:ring-purple-500 outline-none"
-                            placeholder="Search anime or manga…"
+                            placeholder={searchType === "MANGA" ? "Search manga… (ไทย / English / 日本語)" : "Search anime… (ไทย / English / 日本語)"}
                             aria-label="Search anime or manga"
+                            lang="th"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             autoComplete="off"
@@ -400,6 +416,7 @@ export function StoryBuilder() {
                             <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
                         ) : null}
                     </div>
+                    <SearchModeToggle value={searchType} onChange={setSearchType} />
                 </div>
 
                 {/* Upload is a fallback only (no-results link below); the input stays hidden. */}
@@ -435,7 +452,7 @@ export function StoryBuilder() {
                     ) : q.length >= 2 && searched && !searching && !searchError ? (
                         <div className="text-center py-10 px-4">
                             <div className="border border-dashed border-zinc-800 rounded-lg p-4 bg-zinc-900/20">
-                                <p className="text-zinc-500 text-sm mb-3">No titles match “{searched}”. Try the English or Japanese title.</p>
+                                <p className="text-zinc-500 text-sm mb-3">No {searchType === "MANGA" ? "manga" : "anime"} matches “{searched}”. Try the English or Japanese title, or switch to {searchType === "MANGA" ? "Anime" : "Manga"}.</p>
                                 <button type="button" disabled={uploading} onClick={() => { setUploadTitle(searched); fileRef.current?.click(); }} className="text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-300 disabled:opacity-60">
                                     {/* Kept muted (T-0012 decision: upload is a last-resort fallback), inside waifu's dashed no-results box. */}
                                     {uploading ? "Checking & uploading…" : "Can't find it? Upload your own image"}
@@ -467,7 +484,7 @@ export function StoryBuilder() {
 
             {/* MAIN: the board */}
             <main ref={canvasRef} data-testid="story-canvas" className="flex-1 min-w-0 lg:overflow-y-auto">
-                <div className={cn("mx-auto p-3 sm:p-6 space-y-4", draft.size === 9 ? "max-w-xl" : draft.size === 10 ? "max-w-3xl" : "max-w-5xl")}>
+                <div className={cn("mx-auto p-3 sm:p-6 space-y-4", draft.size === 9 ? "max-w-xl" : draft.size === 10 || draft.size === 25 ? "max-w-3xl" : "max-w-5xl")}>
                     <div className="flex flex-wrap items-center gap-2">
                         <div className="flex rounded-lg overflow-hidden border border-zinc-800" role="group" aria-label="Grid size">
                             {STORY_SIZES.map((s) => (
@@ -487,13 +504,31 @@ export function StoryBuilder() {
                         <span className="text-sm text-zinc-500 ml-auto tabular-nums">{filled}/{draft.size}</span>
                     </div>
 
-                    <input
-                        value={draft.title}
-                        onChange={(e) => setDraft({ ...draft, title: e.target.value.slice(0, SHARE_TITLE_MAX) })}
-                        placeholder="Name your grid (e.g. My Top 10 Anime)"
-                        aria-label="Grid title"
-                        className="w-full px-3 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 outline-none focus:border-purple-500 text-center font-semibold"
-                    />
+                    {/* Title: prominent, labelled, and gently highlighted while empty (never required). */}
+                    <div data-testid="title-field">
+                        <label htmlFor="story-grid-title" className="flex items-center justify-between gap-2 mb-1.5 text-sm">
+                            <span className="font-semibold text-zinc-200">Grid title <span className="font-normal text-purple-300/90">· recommended</span></span>
+                            <span className="text-xs text-zinc-500 tabular-nums">{draft.title.length}/{SHARE_TITLE_MAX}</span>
+                        </label>
+                        <input
+                            id="story-grid-title"
+                            value={draft.title}
+                            onChange={(e) => setDraft({ ...draft, title: e.target.value.slice(0, SHARE_TITLE_MAX) })}
+                            placeholder="Name your grid, e.g. อนิเมะที่ชอบที่สุด 2026"
+                            aria-label="Grid title"
+                            aria-describedby="story-grid-title-hint"
+                            data-empty={draft.title.trim() ? undefined : "true"}
+                            className={cn(
+                                "w-full px-4 py-3 rounded-xl bg-zinc-900 outline-none text-center text-lg font-bold transition-colors placeholder:font-medium placeholder:text-zinc-500",
+                                draft.title.trim()
+                                    ? "border border-zinc-700 focus:border-purple-500"
+                                    : "border-2 border-dashed border-purple-500/60 bg-purple-500/5 focus:border-solid focus:border-purple-400 shadow-[0_0_0_3px_rgba(168,85,247,0.08)]"
+                            )}
+                        />
+                        <p id="story-grid-title-hint" className={cn("mt-1.5 text-xs text-center", draft.title.trim() ? "text-zinc-600" : "text-purple-300/80")}>
+                            {draft.title.trim() ? "Shown on your shared card and in the Community Showcase." : "Add a title so people know what your grid is about. It shows on your shared card."}
+                        </p>
+                    </div>
 
                     {/* Side gutter wider than the edge trash strips (32/56/80 px), so the outer columns never sit under a strip. */}
                     <div data-testid="board-frame" className={cn("p-1.5 sm:p-2 rounded-lg bg-zinc-900/50 border border-zinc-800", BOARD_GUTTER_CLASS)}>
