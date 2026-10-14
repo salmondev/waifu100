@@ -24,3 +24,18 @@ describe("story PNG layout", () => {
         expect(exportLayout(100)).toMatchObject({ cols: 10, rows: 10 });
     });
 });
+
+describe("compareStoryGrids counts", () => {
+    it("reports filled cells per side and ignores duplicates", () => {
+        const r = compareStoryGrids([it_(1), it_(1), null, it_(2)], [it_(2), null]);
+        expect(r.countA).toBe(3);
+        expect(r.countB).toBe(1);
+        expect(r.shared.map((s) => [s.rankA, s.rankB])).toEqual([[4, 1]]);
+        expect(r.similarity).toBe(100);
+    });
+    it("identical grids are 100% with nothing only-in", () => {
+        const g = [it_(1), it_(2), it_(3)];
+        const r = compareStoryGrids(g, [...g]);
+        expect([r.similarity, r.onlyA.length, r.onlyB.length]).toEqual([100, 0, 0]);
+    });
+});

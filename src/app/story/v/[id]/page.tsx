@@ -7,7 +7,7 @@ import { StoryView } from "@/components/story/StoryView";
 import { readDecoded } from "@/server/share-service";
 import { AppLive } from "@/server/run";
 import { shareCardPath } from "@/lib/share-card";
-import { STORY_BRAND, STORY_SIZE_LABELS, isStorySize } from "@/lib/story/config";
+import { STORY_BRAND, storySizeLabel } from "@/lib/story/config";
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const h = await headers();
     const host = h.get("host") || "waifu100.vercel.app";
     const origin = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
-    const label = isStorySize(d.size) ? STORY_SIZE_LABELS[d.size] : `${d.size}`;
+    const label = storySizeLabel(d.size, d.cols);
     const description = `${label} anime & manga picks: "${d.title}" (${d.count} titles). Make your own on ${STORY_BRAND}.`;
     const image = `${origin}${shareCardPath(id)}`;
 
@@ -56,5 +56,5 @@ export default async function StorySharePage({ params }: Props) {
     if (!d) redirect("/story");
     // A waifu id typed into the story path goes to its own page.
     if (d.kind !== "story") redirect(`/view/${id}`);
-    return <StoryView id={id} title={d.title} size={d.size} items={d.items} titleStyle={d.titleStyle} />;
+    return <StoryView id={id} title={d.title} size={d.size} cols={d.cols} items={d.items} titleStyle={d.titleStyle} />;
 }

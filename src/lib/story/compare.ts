@@ -9,6 +9,9 @@ export interface StoryCompareResult {
     onlyB: StoryItem[];
     /** Shared / smaller grid's filled count, 0-100. */
     similarity: number;
+    /** Filled cells on each side (waifu's countA/countB). */
+    countA: number;
+    countB: number;
 }
 
 export function compareStoryGrids(a: (StoryItem | null)[], b: (StoryItem | null)[]): StoryCompareResult {
@@ -30,7 +33,7 @@ export function compareStoryGrids(a: (StoryItem | null)[], b: (StoryItem | null)
     const filledA = a.filter(Boolean).length;
     const filledB = b.filter(Boolean).length;
     const denom = Math.min(filledA, filledB);
-    return { shared, onlyA, onlyB, similarity: denom ? Math.round((shared.length / denom) * 100) : 0 };
+    return { shared, onlyA, onlyB, similarity: denom ? Math.round((shared.length / denom) * 100) : 0, countA: filledA, countB: filledB };
 }
 
 export const storyComparePath = (a: string, b: string) => `/story/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`;

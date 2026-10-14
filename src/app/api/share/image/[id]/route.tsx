@@ -34,7 +34,7 @@ export async function GET(
         // One decoder for every stored shape (legacy array, v1, v2 waifu/story).
         const decoded = decodeShare(raw);
         if (!decoded) return new Response("Share not found", { status: 404 });
-        const { title, count, kind, size } = decoded;
+        const { title, count, kind, size, cols } = decoded;
         const images = decoded.images;
 
         // ?debug=1 reports how each cell resolved instead of drawing the card -
@@ -47,7 +47,7 @@ export async function GET(
             return Response.json({ id, title, count, stats });
         }
 
-        const rendered = await renderShareOg({ title, images, count, kind, size });
+        const rendered = await renderShareOg({ title, images, count, kind, size, cols });
 
         // Draining the body here keeps render failures inside this try: a
         // streamed ImageResponse would otherwise blow up past the handler and

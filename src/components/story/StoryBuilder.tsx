@@ -22,9 +22,10 @@ import {
     TITLE_STYLES,
     TITLE_STYLE_LABELS,
     storyColumns,
+    storySizeLabel,
     storyViewPath,
-    type StorySize,
 } from "@/lib/story/config";
+import { CustomSizeControl } from "@/components/story/CustomSizeControl";
 import { emptyDraft, loadDraft, placeItem, resizeDraft, saveDraft, type StoryDraft } from "@/lib/story/draft";
 import { SEARCH_DEBOUNCE_MS, storySearch, type SearchItem, type SearchSource } from "@/lib/story/search";
 import { toStoredStoryCell, type StoryItem } from "@/lib/share-schema";
@@ -313,14 +314,15 @@ export function StoryBuilder() {
         if (place(r.item)) setUploadTitle("");
     };
 
-    const changeSize = (size: StorySize) => {
+    /** Preset (cols null) or custom rows x cols; resizeDraft ignores anything outside the limits. */
+    const changeSize = (size: number, cols: number | null = null) => {
         const lost = draft.items.slice(size).filter(Boolean).length;
         const apply = () => {
-            setDraft((d) => resizeDraft(d, size));
+            setDraft((d) => resizeDraft(d, size, cols));
             setSelected(null);
         };
         if (lost > 0) {
-            setConfirm({ title: `Shrink to ${STORY_SIZE_LABELS[size]}?`, message: `This removes ${lost} title(s) from the end of your board.`, confirmText: "Shrink", variant: "warning", onConfirm: apply });
+            setConfirm({ title: `Shrink to ${storySizeLabel(size, cols)}?`, message: `This removes ${lost} title(s) from the end of your board.`, confirmText: "Shrink", variant: "warning", onConfirm: apply });
             return;
         }
         apply();
@@ -335,7 +337,7 @@ export function StoryBuilder() {
             res = await fetch("/api/share", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ kind: "story", size: draft.size, grid: cells, customTitle: title || undefined, userId: ensureUserId(), titleStyle: draft.titleStyle }),
+                body: JSON.stringify({ kind: "story", size: draft.size, ...(draft.cols ? { cols: draft.cols } : {}), grid: cells, customTitle: title || undefined, userId: ensureUserId(), titleStyle: draft.titleStyle }),
             });
         } catch {
             return { error: "Failed to create share link. Try again." };
@@ -344,7 +346,7 @@ export function StoryBuilder() {
         if (!res.ok || !data.id) {
             return { error: friendlyError(data.error, "") || (res.status === 503 ? "Sharing is unavailable right now (storage offline). Your board is saved on this device." : "Failed to create share link. Try again.") };
         }
-        rememberOwnGrid({ id: data.id, title: title || `${STORY_BRAND} Grid`, imageUrl: null, createdAt: new Date().toISOString(), hasGif: false, count: filled, kind: "story", size: draft.size });
+        rememberOwnGrid({ id: data.id, title: title || `${STORY_BRAND} Grid`, imageUrl: null, createdAt: new Date().toISOString(), hasGif: false, count: filled, kind: "story", size: draft.size, ...(draft.cols ? { cols: draft.cols } : {}) });
         return { id: data.id, viewPath: storyViewPath(data.id) };
     };
 
@@ -376,14 +378,15 @@ export function StoryBuilder() {
                             <button type="button" onClick={() => setShareOpen(true)} className={WAIFU_BTN.share}>
                                 <Share2 size={16} /> <span>Share</span>
                             </button>
-                            <StoryPngButton title={draft.title} items={draft.items} titleStyle={draft.titleStyle} className={WAIFU_BTN.png} label="Save as .png" />
+                            <StoryPngButton title={draft.title} items={draft.items} titleStyle={draft.titleStyle} cols={draft.cols} className={WAIFU_BTN.png} label="Save as .png" />
                         </div>
-                        <button type="button" disabled={filled === 0} onClick={() => setConfirm({ title: "Clear Entire Grid?", message: "Are you sure you want to delete all titles? This action cannot be undone unless you have a save file.", confirmText: "Clear Everything", onConfirm: () => { setDraft((d) => ({ ...emptyDraft(d.size), titleStyle: d.titleStyle })); setNotice("Grid cleared successfully!"); } })} className={WAIFU_BTN.clear}>
+                        <button type="button" disabled={filled === 0} onClick={() => setConfirm({ title: "Clear Entire Grid?", message: "Are you sure you want to delete all titles? This action cannot be undone unless you have a save file.", confirmText: "Clear Everything", onConfirm: () => { setDraft((d) => ({ ...emptyDraft(d.size, d.cols ?? null), titleStyle: d.titleStyle })); setNotice("Grid cleared successfully!"); } })} className={WAIFU_BTN.clear}>
                             <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" /> Clear Grid
                         </button>
                     </div>
     );
     const q = query.trim();
+    const columns = storyColumns(draft.size, draft.cols);
     return (
         <div className="min-h-screen lg:h-screen w-full bg-black text-white flex flex-col lg:flex-row lg:overflow-hidden">
             {/* LEFT: search + upload (stacks on top on mobile) */}
@@ -439,7 +442,7 @@ export function StoryBuilder() {
                             {results.map((r) => (
                                 <li key={`${r.src}-${r.type}-${r.id}`}>
                                     <button type="button" onClick={() => setPicking(r)} className="group flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-all w-full text-left bg-zinc-900/50 border-transparent hover:bg-zinc-800 focus-visible:border-purple-500 outline-none">
-                                        <img src={proxied(r.cover, 128)} alt="" referrerPolicy="no-referrer" loading="lazy" className="w-12 h-[72px] rounded-md object-cover bg-zinc-800 shrink-0" />
+                                        <img src={proxied(r.cover, 128)} alt="" referrerPolicy="no-referrer" loading="lazy" className="w-12 h-[72px] rounded-md object-contain bg-zinc-800 shrink-0" />
                                         <span className="min-w-0 flex-1 py-0.5">
                                             <span className="block text-sm font-medium leading-tight line-clamp-2 group-hover:text-purple-300">{r.title}</span>
                                             <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-500"><TypeBadge type={r.type} />{r.format && r.format !== "Manga" && <span>{r.format}</span>}{r.year && <span>{r.year}</span>}</span>
@@ -484,15 +487,16 @@ export function StoryBuilder() {
 
             {/* MAIN: the board */}
             <main ref={canvasRef} data-testid="story-canvas" className="flex-1 min-w-0 lg:overflow-y-auto">
-                <div className={cn("mx-auto p-3 sm:p-6 space-y-4", draft.size === 9 ? "max-w-xl" : draft.size === 10 || draft.size === 25 ? "max-w-3xl" : "max-w-5xl")}>
+                <div className={cn("mx-auto p-3 sm:p-6 space-y-4", columns <= 3 ? "max-w-xl" : columns <= 5 ? "max-w-3xl" : columns <= 7 ? "max-w-4xl" : "max-w-5xl")}>
                     <div className="flex flex-wrap items-center gap-2">
                         <div className="flex rounded-lg overflow-hidden border border-zinc-800" role="group" aria-label="Grid size">
                             {STORY_SIZES.map((s) => (
-                                <button key={s} type="button" onClick={() => changeSize(s)} aria-pressed={draft.size === s} className={cn("px-3 py-1.5 text-sm", draft.size === s ? "bg-purple-600 text-white font-semibold" : "bg-zinc-900 text-zinc-400 hover:text-white")}>
+                                <button key={s} type="button" onClick={() => changeSize(s)} aria-pressed={draft.size === s && !draft.cols} className={cn("px-3 py-1.5 text-sm", draft.size === s && !draft.cols ? "bg-purple-600 text-white font-semibold" : "bg-zinc-900 text-zinc-400 hover:text-white")}>
                                     {STORY_SIZE_LABELS[s]}
                                 </button>
                             ))}
                         </div>
+                        <CustomSizeControl rows={Math.ceil(draft.size / columns)} cols={columns} active={!!draft.cols} onApply={(r, c) => changeSize(r * c, c)} />
                         <div className="flex rounded-lg overflow-hidden border border-zinc-800 text-xs" role="group" aria-label="Title position">
                             <span className="px-2 py-1.5 bg-zinc-950 text-zinc-500">Titles</span>
                             {TITLE_STYLES.map((t) => (
@@ -534,7 +538,7 @@ export function StoryBuilder() {
                     <div data-testid="board-frame" className={cn("p-1.5 sm:p-2 rounded-lg bg-zinc-900/50 border border-zinc-800", BOARD_GUTTER_CLASS)}>
                         <MediaGrid
                             items={draft.items}
-                            columns={storyColumns(draft.size)}
+                            columns={columns}
                             toCell={toCell}
                             editable
                             titleStyle={draft.titleStyle}

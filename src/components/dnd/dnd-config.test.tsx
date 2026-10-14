@@ -26,7 +26,9 @@ describe("drag config: story shares waifu's values, waifu unchanged", () => {
         expect(cell).toContain('isOver && "border-purple-500 bg-purple-500/20 scale-110"');
         expect(cell).toContain('isDragging && "opacity-50"');
         expect(cell).toContain('className="w-full h-full touch-none"');
-        expect(overlay).toContain('className="w-24 h-32 rounded-lg overflow-hidden border-2 border-purple-500 shadow-2xl bg-zinc-900 pointer-events-none cursor-grabbing opacity-70 scale-110 rotate-3"');
+        // "relative" is the one addition: FittedImage's two layers are absolutely
+        // positioned, so the card has to be their containing block. The look is pinned as before.
+        expect(overlay).toContain('className="relative w-24 h-32 rounded-lg overflow-hidden border-2 border-purple-500 shadow-2xl bg-zinc-900 pointer-events-none cursor-grabbing opacity-70 scale-110 rotate-3"');
         // story's shared constants are copies of the same strings
         expect(cell).toContain(DROP_OVER_CLASS);
         expect(cell).toContain(DRAGGING_CLASS);

@@ -12,6 +12,7 @@ import { Character, GridCell, ImageResult, AnalysisResult, VerdictFeedback } fro
 import { GridCell as GridComponent } from "@/components/grid/GridCell";
 import { applyGridDrop, placeOnEmpty, type DropSource, type DropTarget } from "@/lib/waifu-grid-ops";
 import { MediaGrid } from "@/components/grid/MediaGrid";
+import { FittedImage } from "@/components/media/FittedImage";
 import { DraggableSidebarItem } from "@/components/sidebar/DraggableSidebarItem";
 import { DragOverlayWrapper } from "@/components/dnd/DragOverlayWrapper";
 import { TrashZone } from "@/components/dnd/TrashZone";
@@ -1419,7 +1420,7 @@ export default function Home() {
                        "group flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-all w-full",
                        selectedCharacter?.mal_id === char.mal_id ? "bg-purple-900/20 border-purple-500" : "bg-zinc-900/50 border-transparent hover:bg-zinc-800"
                      )}>
-                       <img src={proxied(char.images.jpg.image_url, 128)} alt={char.name} referrerPolicy="no-referrer" className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
+                       <img src={proxied(char.images.jpg.image_url, 128)} alt={char.name} referrerPolicy="no-referrer" className="w-16 h-20 rounded-lg object-contain bg-zinc-800 shrink-0 pointer-events-none select-none"/>
                        <div className="flex-1 min-w-0">
                          <p className="font-medium truncate text-sm">{char.name}</p>
                          <p className="text-xs text-zinc-500 truncate">{char.source}</p>
@@ -1584,14 +1585,14 @@ export default function Home() {
                    char={selectedCharacter}
                    onClick={() => {}}
                 >
-                   <div className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-zinc-900 mb-4 border border-zinc-800 cursor-grab active:cursor-grabbing hover:border-purple-500 transition-colors">
+                   <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-zinc-900 mb-4 border border-zinc-800 cursor-grab active:cursor-grabbing hover:border-purple-500 transition-colors">
                       
                   {selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url ? (
-                      <img 
-                         src={proxied(selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url, 384)} 
+                      <FittedImage
+                         src={selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url}
                          alt={selectedCharacter.name}
-                         referrerPolicy="no-referrer"
-                         className="w-full h-full object-cover pointer-events-none"
+                         width={384}
+                         className="pointer-events-none"
                       />
                   ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-zinc-700 bg-zinc-900">
@@ -1846,14 +1847,14 @@ export default function Home() {
 
                      {cell.character ? (
                         <>
-                            <img
-                              src={proxied(cell.character.customImageUrl || cell.character.images.jpg.image_url, 384)} 
+                            <FittedImage
+                              src={cell.character.customImageUrl || cell.character.images.jpg.image_url}
                               alt={cell.character.name}
-                              referrerPolicy="no-referrer"
-                              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                              width={384}
                               loading="eager"
+                              className="pointer-events-none select-none"
                             />
-                           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-1 pointer-events-none">
+                           <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-1 pointer-events-none">
                               <p className="text-[10px] text-white font-bold text-center px-1 truncate w-full shadow-black drop-shadow-md">
                                  {cell.character.name}
                               </p>
@@ -2145,7 +2146,7 @@ export default function Home() {
                                                const next = tries === 0 ? el.src : proxied(img.url, 256);
                                                setTimeout(() => { el.src = next; }, 700 + Math.random() * 800);
                                             }}
-                                            className="w-full h-full object-cover pointer-events-none select-none"
+                                            className="w-full h-full object-contain pointer-events-none select-none"
                                          />
                                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                                             <span className="text-[9px] text-white bg-black/50 px-1 rounded">{img.source}</span>
@@ -2201,7 +2202,7 @@ export default function Home() {
                             >
                                <div className="aspect-square bg-zinc-950 relative">
                                    {grid.imageUrl ? (
-                                       <img src={proxied(grid.imageUrl, 384)} alt={grid.title} className="w-full h-full object-cover"/>
+                                       <FittedImage src={grid.imageUrl} alt={grid.title} width={384} loading="lazy" />
                                    ) : (
                                        <div className="w-full h-full flex items-center justify-center text-zinc-700">
                                            <span className="text-xs">No Preview</span>
@@ -2298,7 +2299,7 @@ export default function Home() {
                 <div className="text-center">
                    <img src={proxied(pendingReplace.oldChar.customImageUrl || pendingReplace.oldChar.images.jpg.image_url, 256)} referrerPolicy="no-referrer" 
                       alt={pendingReplace.oldChar.name}
-                      className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-red-500/50"
+                      className="w-20 h-24 rounded-lg object-contain bg-zinc-950 mx-auto mb-2 border border-red-500/50"
                    />
                    <p className="text-xs text-zinc-400 truncate w-20">{pendingReplace.oldChar.name}</p>
                 </div>
@@ -2307,7 +2308,7 @@ export default function Home() {
                    <img src={proxied(pendingReplace.newChar.customImageUrl || pendingReplace.newChar.images.jpg.image_url, 256)}
                       alt={pendingReplace.newChar.name}
                       referrerPolicy="no-referrer"
-                      className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-green-500/50"
+                      className="w-20 h-24 rounded-lg object-contain bg-zinc-950 mx-auto mb-2 border border-green-500/50"
                    />
                    <p className="text-xs text-zinc-400 truncate w-20">{pendingReplace.newChar.name}</p>
                 </div>

@@ -24,6 +24,19 @@ import { ImageFetchError, safeFetchImage, type SafeFetchOptions } from "@/server
 export const BATCH_MAX = 8;
 export const BATCH_WINDOW_MS = 60;
 export const MODERATION_INPUT_PX = 384;
+/**
+ * A cell that must fill a fixed box without cropping: the whole image, centred
+ * on a blurred, darkened copy of itself. Same idea as FittedImage in the
+ * browser, done here because the card renderer cannot blur cheaply.
+ */
+async function letterboxed(bytes: Buffer, width: number, height: number): Promise<Buffer> {
+    const open = () => sharp(bytes, { limitInputPixels: 50_000_000 });
+    const [background, image] = await Promise.all([
+        open().resize(width, height, { fit: "cover" }).blur(Math.max(2, Math.round(Math.min(width, height) / 10))).modulate({ brightness: 0.55 }).toBuffer(),
+        open().resize(width, height, { fit: "inside" }).toBuffer(),
+    ]);
+    return sharp(background).composite([{ input: image, gravity: "center" }]).jpeg({ quality: 78 }).toBuffer();
+}
 export const SERVE_WIDTHS = [64, 128, 160, 256, 384, 512] as const;
 /** Animated GIFs above these are served (and checked) as their first frame only. */
 export const GIF_MAX_BYTES = 8 * 1024 * 1024;
@@ -199,7 +212,7 @@ export function clampWidth(w: number | null | undefined): number {
 export async function getModeratedImage(
     url: string,
     width: number,
-    opts: { allow?: (u: string) => boolean; square?: boolean; height?: number; animated?: boolean } & ModerateOptions = {}
+    opts: { allow?: (u: string) => boolean; square?: boolean; height?: number; animated?: boolean; letterbox?: boolean } & ModerateOptions = {}
 ): Promise<ModerationResult> {
     let bytes: Buffer;
     try {
@@ -213,10 +226,15 @@ export async function getModeratedImage(
     }
     try {
         // Served bytes are derived from exactly the bytes that were hashed and checked.
-        const jpeg = await sharp(bytes, { limitInputPixels: 50_000_000 })
-            .resize(width, opts.square ? width : opts.height, { fit: opts.square || opts.height ? "cover" : "inside", withoutEnlargement: !opts.square && !opts.height })
-            .jpeg({ quality: 78 })
-            .toBuffer();
+        // The caller gets exactly the box it asked for either way, so a
+        // fixed-size layout (the OG cards) is unaffected by the choice.
+        const boxH = opts.square ? width : opts.height;
+        const jpeg = boxH !== undefined && opts.letterbox
+            ? await letterboxed(bytes, width, boxH)
+            : await sharp(bytes, { limitInputPixels: 50_000_000 })
+                  .resize(width, boxH, { fit: boxH !== undefined ? "cover" : "inside", withoutEnlargement: boxH === undefined })
+                  .jpeg({ quality: 78 })
+                  .toBuffer();
         // Animated GIF within caps: the original, already-hashed bytes (never refetched).
         const gif = opts.animated && (await animatedGifFrames(bytes)) ? bytes : undefined;
         return { ok: true, hash, jpeg, gif, checked: verdict === "a", reason: verdict === "u" ? reason : undefined };

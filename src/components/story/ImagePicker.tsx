@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { friendlyError } from "@/lib/public-errors";
 import { Check, Loader2, X } from "lucide-react";
 import { proxied } from "@/lib/img-proxy";
+import { FittedImage } from "@/components/media/FittedImage";
 import type { SearchItem } from "@/lib/story/search";
 import type { StoryItem } from "@/lib/share-schema";
 import { TypeBadge } from "@/components/story/TypeBadge";
@@ -153,9 +154,11 @@ export function ImagePicker({
                 title={c.label}
                 className="group relative block w-full aspect-[2/3] overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 hover:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
-                <img src={proxied(c.url, 256)} alt={c.label} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105" />
-                <span className="absolute inset-x-0 bottom-0 p-1 text-[10px] leading-tight text-zinc-200 bg-gradient-to-t from-black/90 to-transparent line-clamp-2 text-left">{c.label}</span>
-                <span className="absolute top-1 right-1 hidden group-hover:flex w-6 h-6 rounded-full bg-purple-600 items-center justify-center"><Check className="w-3.5 h-3.5" /></span>
+                {/* Whole image: a cropped preview here promises a cell that the board
+                    will not deliver - banners and web results are rarely 2:3. */}
+                <FittedImage src={c.url} alt={c.label} width={256} loading="lazy" className="transition-transform group-hover:scale-105" />
+                <span className="absolute inset-x-0 bottom-0 z-20 p-1 text-[10px] leading-tight text-zinc-200 bg-gradient-to-t from-black/90 to-transparent line-clamp-2 text-left">{c.label}</span>
+                <span className="absolute top-1 right-1 z-20 hidden group-hover:flex w-6 h-6 rounded-full bg-purple-600 items-center justify-center"><Check className="w-3.5 h-3.5" /></span>
             </button>
         </li>
     );
@@ -164,7 +167,7 @@ export function ImagePicker({
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`Choose an image for ${item.title}`} onClick={onClose}>
             <div className="w-full sm:max-w-3xl max-h-[92vh] sm:max-h-[85vh] flex flex-col bg-zinc-950 border border-zinc-800 rounded-t-2xl sm:rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-start gap-3 p-4 border-b border-zinc-800">
-                    <img src={proxied(item.cover, 128)} alt="" className="w-12 h-[72px] rounded-md object-cover bg-zinc-800 shrink-0" />
+                    <img src={proxied(item.cover, 128)} alt="" className="w-12 h-[72px] rounded-md object-contain bg-zinc-800 shrink-0" />
                     <div className="min-w-0 flex-1">
                         <p className="text-xs uppercase tracking-wider text-purple-300">{current ? "Change image" : "Choose an image"}</p>
                         <h2 className="font-bold leading-tight line-clamp-2">{item.title}</h2>

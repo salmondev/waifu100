@@ -17,7 +17,7 @@ import { useMyGrids } from "@/lib/my-grids";
 const btn = "px-3 py-1.5 rounded-lg text-sm bg-zinc-900 border border-zinc-800 hover:border-purple-500/60 inline-flex items-center gap-1 disabled:opacity-50";
 
 /** PNG download (item 2). */
-export function StoryPngButton({ title, items, titleStyle, className, label = "Save PNG" }: { title: string; items: (StoryItem | null)[]; titleStyle?: TitleStyle; className?: string; label?: string }) {
+export function StoryPngButton({ title, items, titleStyle, cols, className, label = "Save PNG" }: { title: string; items: (StoryItem | null)[]; titleStyle?: TitleStyle; cols?: number | null; className?: string; label?: string }) {
     const [busy, setBusy] = useState(false);
     return (
         <button
@@ -26,7 +26,7 @@ export function StoryPngButton({ title, items, titleStyle, className, label = "S
             disabled={busy || !items.some(Boolean)}
             onClick={async () => {
                 setBusy(true);
-                const blob = await exportStoryPng(title, items, titleStyle).catch(() => null);
+                const blob = await exportStoryPng(title, items, titleStyle, cols).catch(() => null);
                 setBusy(false);
                 if (blob) downloadBlob(blob, `${(title || "story100").replace(/[^\w-]+/g, "_").slice(0, 40)}.png`);
             }}

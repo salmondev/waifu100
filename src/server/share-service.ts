@@ -51,6 +51,8 @@ function cleanWaifuGrid(grid: any[]) {
 export interface CreateShareBody {
     kind?: unknown;
     size?: unknown;
+    /** Story custom layout columns (validated by cleanStoryCells). */
+    cols?: unknown;
     grid?: unknown;
     customTitle?: unknown;
     imageUrl?: unknown;
@@ -85,11 +87,11 @@ export const createShare = (body: CreateShareBody, opts: { now?: number; id?: st
         let payload: string;
         if (kind === "story") {
             const cleaned = yield* Effect.try({
-                try: () => cleanStoryCells(body.size, body.grid),
+                try: () => cleanStoryCells(body.size, body.grid, body.cols),
                 catch: (e) => new InvalidShare({ reason: e instanceof ShareValidationError ? e.message : "Invalid grid data" }),
             });
             payload = JSON.stringify(
-                buildStoryPayload({ title: finalTitle, imageUrl, userId, size: cleaned.size, cells: cleaned.cells, titleStyle: body.titleStyle })
+                buildStoryPayload({ title: finalTitle, imageUrl, userId, size: cleaned.size, cols: cleaned.cols, cells: cleaned.cells, titleStyle: body.titleStyle })
             );
         } else {
             payload = JSON.stringify(

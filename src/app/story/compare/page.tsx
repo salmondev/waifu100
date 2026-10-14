@@ -1,64 +1,92 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
-import { readShares } from "@/lib/share-store";
+import { readShare, readShares, type StoredShare } from "@/lib/share-store";
 import { compareStoryGrids } from "@/lib/story/compare";
-import { MediaGrid } from "@/components/grid/MediaGrid";
-import { STORY_BRAND, storyColumns, storyViewPath } from "@/lib/story/config";
-import type { StoryItem } from "@/lib/share-schema";
-import { proxied } from "@/lib/img-proxy";
+import { STORY_BRAND } from "@/lib/story/config";
+import type { ShareSummary } from "@/lib/share-summary";
+import { StoryCompareView, type StoryCompareSide } from "@/components/story/StoryCompareView";
+import { StoryComparePicker } from "@/components/story/StoryComparePicker";
+import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
+import { CMP } from "@/components/story/compare-styles";
+import { cn } from "@/lib/utils";
 
 interface Props {
     searchParams: Promise<{ a?: string; b?: string }>;
 }
 
-export const metadata: Metadata = { title: `Compare story grids | ${STORY_BRAND}` };
+type Loaded = { kind: "ok"; A: StoredShare; B: StoredShare } | { kind: "missing" } | { kind: "wrong-kind" } | { kind: "error" };
 
-/** Story-vs-story compare (item 5). Same kind only: anything else is "not found". */
+/**
+ * Story-vs-story compare (item 5), shaped like waifu's /compare: picker when a side is
+ * missing or both are the same, "gone" / "not a story grid" / "unavailable" states,
+ * then the comparison. Same kind only. Memoised so metadata + page read Redis once.
+ */
+const load = cache(async function load(a: string, b: string): Promise<Loaded> {
+    try {
+        const [A, B] = await readShares([a, b]);
+        if (!A || !B) return { kind: "missing" };
+        if (A.kind !== "story" || B.kind !== "story") return { kind: "wrong-kind" };
+        return { kind: "ok", A, B };
+    } catch (e) {
+        console.error("Story compare read error:", e);
+        return { kind: "error" };
+    }
+});
+
+const firstCover = (s: StoredShare) => s.imageUrl || s.items.find(Boolean)?.cover || null;
+
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+    const { a = "", b = "" } = await searchParams;
+    if (!a || !b || a === b) return { title: `Compare story grids | ${STORY_BRAND}` };
+    const d = await load(a, b);
+    if (d.kind !== "ok") return { title: `Compare story grids | ${STORY_BRAND}` };
+    const r = compareStoryGrids(d.A.items, d.B.items);
+    const title = `${d.A.title} × ${d.B.title}`;
+    const description = `${r.similarity}% match - ${r.shared.length} titles in common. Compare your own grid at ${STORY_BRAND}.`;
+    return { title: `${title} | ${STORY_BRAND}`, description, openGraph: { title, description }, twitter: { card: "summary", title, description } };
+}
+
+function StoryCompareEmpty({ heading, body }: { heading: string; body: string }) {
+    return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-zinc-950 px-6 text-center text-white" data-testid="story-compare-empty">
+            <h1 className="text-2xl font-bold">{heading}</h1>
+            <p className="max-w-md text-sm text-zinc-400">{body}</p>
+            <div className="mt-4 flex gap-2">
+                <Link href="/community?kind=story" className={cn("rounded-lg px-4 py-2 text-sm", SHOWCASE_LINK_CLASS)}>
+                    Browse the showcase
+                </Link>
+                <Link href="/story" className={CMP.emptyHome}>
+                    Build a grid
+                </Link>
+            </div>
+        </div>
+    );
+}
+
+/** A side named in the URL, for the picker. Never throws; non-story grids are not offered. */
+async function preset(id: string): Promise<ShareSummary | null> {
+    if (!id) return null;
+    const s = await readShare(id).catch((e) => {
+        console.error("Story compare preset read error:", e);
+        return null;
+    });
+    if (!s || s.kind !== "story") return null;
+    return { id: s.id, title: s.title, imageUrl: firstCover(s), createdAt: s.createdAt ?? "", hasGif: false, count: s.items.filter(Boolean).length, kind: "story", size: s.size, ...(s.cols != null ? { cols: s.cols } : {}) };
+}
+
+const side = (id: string, s: StoredShare): StoryCompareSide => ({ id, title: s.title, imageUrl: firstCover(s), size: s.size, cols: s.cols, items: s.items });
+
 export default async function StoryComparePage({ searchParams }: Props) {
     const { a = "", b = "" } = await searchParams;
-    const [A, B] = await readShares([a, b]).catch(() => [null, null]);
-    if (!A || !B || A.kind !== "story" || B.kind !== "story" || a === b) {
-        return (
-            <main className="min-h-screen bg-zinc-950 text-zinc-100 grid place-items-center p-6 text-center">
-                <div className="space-y-3">
-                    <p>These two story grids can&apos;t be compared (missing, the same, or not story grids).</p>
-                    <Link className="text-purple-300 underline" href="/community?kind=story">Back to the showcase</Link>
-                </div>
-            </main>
-        );
+    if (!a || !b || a === b) {
+        const [pa, pb] = await Promise.all([preset(a), preset(a === b ? "" : b)]);
+        return <StoryComparePicker initialA={pa} initialB={pb} notice={a && a === b ? "That's the same grid twice - pick a second one." : null} />;
     }
-    const r = compareStoryGrids(A.items, B.items);
-    const toCell = (i: StoryItem) => ({ key: `${i.src ?? "anilist"}-${i.type}-${i.id}`, image: i.cover, label: i.title });
-    return (
-        <main className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-6">
-            <div className="max-w-6xl mx-auto space-y-6">
-                <header className="text-center space-y-1">
-                    <p className="text-xs uppercase tracking-widest text-purple-300">{STORY_BRAND} compare</p>
-                    <h1 className="text-2xl font-bold">{A.title} × {B.title}</h1>
-                    <p className="text-3xl font-bold text-purple-300">{r.similarity}% match</p>
-                    <p className="text-sm text-zinc-500">{r.shared.length} titles in common</p>
-                </header>
-                {r.shared.length > 0 && (
-                    <ul className="flex flex-wrap gap-3 justify-center">
-                        {r.shared.map((s) => (
-                            <li key={`${s.item.type}-${s.item.id}`} className="w-24 text-center text-[11px]">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={proxied(s.item.cover, 160)} alt={s.item.title} className="w-24 aspect-[2/3] object-cover rounded" />
-                                <span className="block truncate">{s.item.title}</span>
-                                <span className="text-zinc-500">#{s.rankA} vs #{s.rankB}</span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-                <div className="grid md:grid-cols-2 gap-6">
-                    {[{ s: A, id: a }, { s: B, id: b }].map(({ s, id }) => (
-                        <section key={id} className="space-y-2">
-                            <Link href={storyViewPath(id)} className="font-semibold hover:text-purple-300">{s.title}</Link>
-                            <MediaGrid items={s.items} columns={storyColumns(s.size)} toCell={toCell} />
-                        </section>
-                    ))}
-                </div>
-            </div>
-        </main>
-    );
+    const d = await load(a, b);
+    if (d.kind === "missing") return <StoryCompareEmpty heading="One of these grids is gone" body="A grid can be deleted by whoever made it, and a comparison link outlives it." />;
+    if (d.kind === "wrong-kind") return <StoryCompareEmpty heading="These grids can't be compared" body="Story grids can only be compared with other story grids." />;
+    if (d.kind === "error") return <StoryCompareEmpty heading="Compare is unavailable right now" body="We couldn't load these grids. Try again in a moment." />;
+    // Each side keeps its own layout: StoryCompareView lays it out with storyColumns(s.size, s.cols).
+    return <StoryCompareView a={side(a, d.A)} b={side(b, d.B)} result={compareStoryGrids(d.A.items, d.B.items)} />;
 }

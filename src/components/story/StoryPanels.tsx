@@ -2,6 +2,7 @@
 
 import { Loader2, Share2 } from "lucide-react";
 import { proxied } from "@/lib/img-proxy";
+import { FittedImage } from "@/components/media/FittedImage";
 import { storyViewPath } from "@/lib/story/config";
 import type { ShareSummary } from "@/lib/share-summary";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,7 @@ function PreviewMosaic({ urls, title }: { urls: string[]; title: string }) {
     return (
         <div data-testid="community-mosaic" role="img" aria-label={title} className={cn("w-full h-full grid gap-px bg-zinc-800", shown.length === 1 ? "grid-cols-1" : "grid-cols-2 grid-rows-2")}>
             {shown.map((u, i) => (
-                <img key={i} src={proxied(u, 192)} alt="" referrerPolicy="no-referrer" loading="lazy" className={cn("w-full h-full object-cover min-h-0", shown.length === 3 && i === 0 && "row-span-2")} />
+                <img key={i} src={proxied(u, 192)} alt="" referrerPolicy="no-referrer" loading="lazy" className={cn("w-full h-full object-contain min-h-0 bg-zinc-950", shown.length === 3 && i === 0 && "row-span-2")} />
             ))}
         </div>
     );
@@ -62,7 +63,7 @@ export function StoryCommunity({ grids, loading, error, hasMore, onLoadMore, onR
                             <a key={g.id} href={storyViewPath(g.id)} target="_blank" rel="noopener noreferrer" className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden hover:border-indigo-500/50 transition-all group">
                                 <div className="aspect-square bg-zinc-950 relative">
                                     {g.imageUrl ? (
-                                        <img src={proxied(g.imageUrl, 384)} alt={g.title} className="w-full h-full object-cover" />
+                                        <FittedImage src={g.imageUrl} alt={g.title} width={384} loading="lazy" />
                                     ) : g.previews && g.previews.length > 0 ? (
                                         <PreviewMosaic urls={g.previews} title={g.title} />
                                     ) : (

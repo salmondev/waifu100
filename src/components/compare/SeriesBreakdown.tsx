@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Library, Loader2, X } from "lucide-react";
+import { FittedImage } from "@/components/media/FittedImage";
 import {
     compareSeries,
     seriesOf,
@@ -10,7 +11,7 @@ import {
     type SeriesResolution,
     type SeriesRow,
 } from "@/lib/series-stats";
-import { cn, optimizedImageSrc } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useOpenCharacter } from "@/components/character/CharacterProfile";
 import { prefetchCharacter } from "@/lib/character-cache";
 
@@ -222,15 +223,12 @@ function RowDetail({
                                         >
                                             <div className="relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
                                                 {character.image && (
-                                                    // eslint-disable-next-line @next/next/no-img-element
-                                                    <img
-                                                        src={optimizedImageSrc(
-                                                            character.image,
-                                                            256
-                                                        )}
+                                                    <FittedImage
+                                                        src={character.image}
                                                         alt={character.name}
+                                                        width={256}
                                                         loading="lazy"
-                                                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                                        className="transition-transform duration-300 group-hover:scale-110"
                                                     />
                                                 )}
                                             </div>

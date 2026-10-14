@@ -19,11 +19,55 @@ export function isStorySize(value: unknown): value is StorySize {
     return typeof value === "number" && (STORY_SIZES as readonly number[]).includes(value);
 }
 
-/** Columns used to lay a grid of this size out (page and OG card). */
-export function storyColumns(size: number): number {
+/**
+ * Custom grids (2026-10-15): rows x cols, each side 1-10, total 2-100.
+ *  - 10 per side / 100 cells is the largest preset (Top 100), so nothing new gets bigger than
+ *    what the share payload, the OG card (80px cells at 10 wide) and the PNG export already handle.
+ *  - 2 cells minimum: a 1x1 "grid" is not a list.
+ * A custom layout is stored as `size` (total) plus `cols`; rows = size / cols. Shares and
+ * drafts without `cols` (everything before this) keep the preset layout of their size.
+ */
+export const STORY_MIN_SIDE = 1;
+export const STORY_MAX_SIDE = 10;
+export const STORY_MIN_CELLS = 2;
+export const STORY_MAX_CELLS = 100;
+
+/** Columns of the preset layout for a size (legacy shares/drafts have no `cols`). */
+function presetColumns(size: number): number {
     if (size === 9) return 3;
     if (size === 10 || size === 25) return 5;
     return 10;
+}
+
+/** Columns used to lay a grid out (builder, page, PNG, OG). `cols` wins when it is a valid layout. */
+export function storyColumns(size: number, cols?: number | null): number {
+    return cols != null && isStoryLayout(size, cols) ? cols : presetColumns(size);
+}
+
+const sideOk = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= STORY_MIN_SIDE && n <= STORY_MAX_SIDE;
+
+/**
+ * A valid story layout: a preset size with no `cols` (legacy), or a custom rows x cols with
+ * integer sides in 1-10 and 2-100 cells. Used by the client, the board file and the server.
+ */
+export function isStoryLayout(size: unknown, cols?: unknown): size is number {
+    if (cols === undefined || cols === null) return isStorySize(size);
+    if (!sideOk(cols) || typeof size !== "number" || !Number.isInteger(size)) return false;
+    if (size < STORY_MIN_CELLS || size > STORY_MAX_CELLS || size % cols !== 0) return false;
+    return sideOk(size / cols);
+}
+
+/** Clamps user input to a valid custom side (1-10, integer); rows*cols >= 2 is fixed up by the caller. */
+export function clampSide(value: unknown): number {
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) ? Math.min(STORY_MAX_SIDE, Math.max(STORY_MIN_SIDE, n)) : STORY_MIN_SIDE;
+}
+
+/** "3×3", "Top 10", or "4×6" for a custom grid (rows × cols). */
+export function storySizeLabel(size: number, cols?: number | null): string {
+    if (cols == null && isStorySize(size)) return STORY_SIZE_LABELS[size];
+    const c = storyColumns(size, cols);
+    return `${Math.ceil(size / c)}×${c}`;
 }
 
 export const STORY_SIZE_LABELS: Record<StorySize, string> = {
