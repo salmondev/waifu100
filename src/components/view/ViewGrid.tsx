@@ -1,7 +1,8 @@
 "use client";
 
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
-import { cn, isGifUrl, optimizedImageSrc } from "@/lib/utils";
+import { cn, isGifUrl } from "@/lib/utils";
+import { FittedImage } from "@/components/media/FittedImage";
 
 import Link from "next/link";
 import { ArrowLeft, Check, Sparkles, Loader2, Grid3x3, Link2 } from "lucide-react";
@@ -290,19 +291,17 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
             >
               {cell.character ? (
                  <>
-                   <img
-                      src={optimizedImageSrc(
-                          cell.character.customImageUrl || cell.character.images.jpg.image_url
-                      )}
+                   <FittedImage
+                      src={cell.character.customImageUrl || cell.character.images.jpg.image_url}
                       alt={cell.character.name}
-                      referrerPolicy="no-referrer"
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      width={384}
+                      className="transition-transform duration-300 group-hover:scale-110"
                    />
                    {/* Hover caption, desktop only: a phone cell is ~35px wide,
                        so this would be unreadable there - a tap opens the card,
                        which is readable at any size. */}
                    <div className={cn(
-                      "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 transition-opacity duration-200 pointer-events-none hidden sm:block",
+                      "absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-2 transition-opacity duration-200 pointer-events-none hidden sm:block",
                       "opacity-0 group-hover:opacity-100"
                    )}>
                       <p className="text-[10px] font-bold truncate text-white text-center leading-tight">

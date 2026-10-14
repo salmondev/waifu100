@@ -3,6 +3,7 @@ import {
     isAllowedStoryImage,
     type StorySource,
     isStorySize,
+    isStoryLayout,
     SHARE_TITLE_MAX,
     STORY_TITLE_MAX,
     type StorySize,
@@ -54,6 +55,8 @@ export interface DecodedShare {
     version: 0 | 1 | 2;
     kind: ShareKind;
     size: number;
+    /** Story custom layout (2026-10-15): columns, rows = size / cols. Null = preset layout of `size`. */
+    cols: number | null;
     title: string;
     imageUrl: string | null;
     createdAt: string | null;
@@ -145,7 +148,9 @@ export function decodeShareObject(parsed: unknown): DecodedShare | null {
     const cells: unknown[] = isArray ? (parsed as unknown[]) : Array.isArray(obj.grid) ? obj.grid : [];
     const kind = shareKindOf(parsed);
     const version: 0 | 1 | 2 = isArray ? 0 : meta.v === 2 ? 2 : 1;
-    const size = kind === "story" && isStorySize(meta.size) ? meta.size : WAIFU_GRID_SIZE;
+    // Custom layouts carry meta.cols; anything without it (all older shares) keeps the preset rule.
+    const cols = kind === "story" && meta.cols != null && isStoryLayout(meta.size, meta.cols) ? (meta.cols as number) : null;
+    const size = kind === "story" && (cols !== null || isStorySize(meta.size)) ? (meta.size as number) : WAIFU_GRID_SIZE;
 
     const grid: GridCell[] = Array.from({ length: size }, () => ({ character: null }));
     const items: (StoryItem | null)[] = Array.from({ length: size }, () => null);
@@ -182,6 +187,7 @@ export function decodeShareObject(parsed: unknown): DecodedShare | null {
         version,
         kind,
         size,
+        cols,
         title: asString(meta.title) || DEFAULT_TITLES[kind],
         imageUrl: safeImageUrl(meta.imageUrl),
         createdAt: asString(meta.createdAt),
@@ -249,9 +255,13 @@ export class ShareValidationError extends Error {
     }
 }
 
-/** Cleans what a browser sent for a story share, or throws ShareValidationError. */
-export function cleanStoryCells(size: unknown, cells: unknown): { size: StorySize; cells: StoredStoryCell[] } {
-    if (!isStorySize(size)) throw new ShareValidationError("Invalid grid size");
+/**
+ * Cleans what a browser sent for a story share, or throws ShareValidationError.
+ * `cols` (optional): a custom layout; it must be an integer 1-10 dividing `size` into 1-10 rows
+ * (2-100 cells). Absent/null = a preset size, as before.
+ */
+export function cleanStoryCells(size: unknown, cells: unknown, cols?: unknown): { size: number; cols: number | null; cells: StoredStoryCell[] } {
+    if (!isStoryLayout(size, cols)) throw new ShareValidationError("Invalid grid size");
     if (!Array.isArray(cells)) throw new ShareValidationError("Invalid grid data");
     const seen = new Set<number>();
     const out: StoredStoryCell[] = [];
@@ -270,12 +280,14 @@ export function cleanStoryCells(size: unknown, cells: unknown): { size: StorySiz
         out.push(cell);
     }
     if (out.length === 0) throw new ShareValidationError("Grid is empty");
-    return { size, cells: out.sort((a, b) => a.i - b.i) };
+    return { size, cols: cols == null ? null : (cols as number), cells: out.sort((a, b) => a.i - b.i) };
 }
 
-export function buildStoryPayload(input: ShareMetaInput & { size: StorySize; cells: StoredStoryCell[]; titleStyle?: unknown }) {
+export function buildStoryPayload(input: ShareMetaInput & { size: number; cols?: number | null; cells: StoredStoryCell[]; titleStyle?: unknown }) {
+    // `cols` only for custom layouts, so preset shares keep exactly the old payload shape.
+    const cols = input.cols != null && isStoryLayout(input.size, input.cols) ? { cols: input.cols } : {};
     return {
-        meta: { ...baseMeta("story", input, input.size), titleStyle: isTitleStyle(input.titleStyle) ? input.titleStyle : DEFAULT_TITLE_STYLE },
+        meta: { ...baseMeta("story", input, input.size), ...cols, titleStyle: isTitleStyle(input.titleStyle) ? input.titleStyle : DEFAULT_TITLE_STYLE },
         grid: input.cells,
     };
 }

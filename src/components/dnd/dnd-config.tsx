@@ -1,7 +1,6 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
 import { KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, type KeyboardCoordinateGetter } from "@dnd-kit/core";
-import { proxied } from "@/lib/img-proxy";
+import { FittedImage } from "@/components/media/FittedImage";
 
 /**
  * Shared drag & drop look and feel for waifu100 (page.tsx) and story100
@@ -34,8 +33,8 @@ export const DRAGGING_CLASS = "opacity-50";
 /** The lifted card that follows the finger/cursor (used inside a DragOverlay with snapCenterToCursor). */
 export function DragPreview({ src, alt, aspect = "portrait" }: { src: string; alt: string; aspect?: "portrait" | "square" }) {
     return (
-        <div data-testid="drag-preview" className={`${aspect === "square" ? "w-24 h-24" : "w-24 h-32"} rounded-lg overflow-hidden border-2 border-purple-500 shadow-2xl bg-zinc-900 pointer-events-none cursor-grabbing opacity-70 scale-110 rotate-3`}>
-            <img src={proxied(src, 256)} alt={alt} referrerPolicy="no-referrer" className="w-full h-full object-cover" draggable={false} />
+        <div data-testid="drag-preview" className={`relative ${aspect === "square" ? "w-24 h-24" : "w-24 h-32"} rounded-lg overflow-hidden border-2 border-purple-500 shadow-2xl bg-zinc-900 pointer-events-none cursor-grabbing opacity-70 scale-110 rotate-3`}>
+            <FittedImage src={src} alt={alt} width={256} draggable={false} />
         </div>
     );
 }

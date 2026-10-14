@@ -22,7 +22,7 @@ export class BoardFileError extends Error {
 
 export function boardToFile(d: StoryDraft): string {
     const cells = d.items.flatMap((item, i) => (item ? [toStoredStoryCell(i, item)] : []));
-    return JSON.stringify({ format: BOARD_FILE_FORMAT, version: BOARD_FILE_VERSION, title: d.title, size: d.size, type: d.type, titleStyle: d.titleStyle, cells }, null, 2);
+    return JSON.stringify({ format: BOARD_FILE_FORMAT, version: BOARD_FILE_VERSION, title: d.title, size: d.size, ...(d.cols ? { cols: d.cols } : {}), type: d.type, titleStyle: d.titleStyle, cells }, null, 2);
 }
 
 export function boardFileName(d: StoryDraft, now = new Date()): string {
@@ -44,7 +44,7 @@ export function boardFromFile(text: string): { draft: StoryDraft; dropped: numbe
     if (typeof o.version !== "number" || o.version > BOARD_FILE_VERSION) throw new BoardFileError("This board file is from a newer version. Please refresh the page and try again.");
     let clean;
     try {
-        clean = cleanStoryCells(o.size, o.cells);
+        clean = cleanStoryCells(o.size, o.cells, o.cols);
     } catch (e) {
         if (e instanceof ShareValidationError) {
             throw new BoardFileError(e.message === "Grid is empty" ? "That board file has no valid titles in it." : "That board file is damaged (bad size or cells).");
@@ -59,6 +59,7 @@ export function boardFromFile(text: string): { draft: StoryDraft; dropped: numbe
     return {
         draft: {
             size: clean.size,
+            cols: clean.cols,
             type: o.type === "MANGA" ? "MANGA" : "ANIME",
             title: typeof o.title === "string" ? o.title.slice(0, STORY_TITLE_MAX) : "",
             items,

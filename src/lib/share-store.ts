@@ -30,6 +30,8 @@ export interface StoredShare {
     kind: ShareKind;
     /** Slots in the grid: 100 for waifu, 9/10/50/100 for story. */
     size: number;
+    /** Story custom layout columns (null = preset layout of `size`). */
+    cols: number | null;
     /** Story cells (all null for a waifu share). */
     items: (StoryItem | null)[];
 }
@@ -49,6 +51,7 @@ export function parseShare(id: string, raw: string): StoredShare | null {
         verdictFeedback: d.verdictFeedback,
         kind: d.kind,
         size: d.size,
+        cols: d.cols,
         items: d.items,
     };
 }

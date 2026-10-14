@@ -41,6 +41,8 @@ export interface ShareOgInput {
     /** Absent = waifu (10x10). */
     kind?: 'waifu' | 'story';
     size?: number;
+    /** Story custom layout columns (null/absent = preset layout of `size`). */
+    cols?: number | null;
 }
 
 /** Story covers are portrait (AniList / MAL are ~2:3), so story cells are 2:3 too. */
@@ -51,9 +53,9 @@ export const STORY_CELL_RATIO = 1.5;
  * square (cellH === cell); story cells are 2:3 portrait so a cover fits whole
  * instead of losing its top and bottom to a square crop.
  */
-export function ogLayout(kind: 'waifu' | 'story' = 'waifu', size = 100) {
+export function ogLayout(kind: 'waifu' | 'story' = 'waifu', size = 100, cols?: number | null) {
     if (kind === 'story') {
-        const columns = storyColumns(size);
+        const columns = storyColumns(size, cols);
         const rows = Math.ceil(size / columns);
         const cell = Math.floor(Math.min(GRID_SIZE / columns, GRID_SIZE / (rows * STORY_CELL_RATIO)));
         const cellH = Math.floor(cell * STORY_CELL_RATIO);
@@ -122,7 +124,9 @@ async function fetchCell(
     // T-0009 A: server-rendered cards use the same moderated, hash-checked
     // pipeline as the browser proxy; a blocked or unverified cell stays empty.
     // `whole` (story only): keep the image's own shape (fit inside, no crop).
-    const result = await getModeratedImage(url, px, whole ? { allow } : { square: true, allow });
+    // Square cells are letterboxed, not cropped: a 225x350 character portrait
+    // used to lose about a third of its height to a square crop.
+    const result = await getModeratedImage(url, px, whole ? { allow } : { square: true, letterbox: true, allow });
     if (!result.ok) return { reason: result.reason };
     // Cards are CDN-cached for a long time: an unchecked cell (Gemini gave no answer) stays empty.
     if (!result.checked) return { reason: 'unchecked' };
@@ -220,8 +224,8 @@ export async function resolveCells(
 
 // --- Card -------------------------------------------------------------------
 
-export async function renderShareOg({ title, images, count, kind = 'waifu', size = 100 }: ShareOgInput) {
-    const layout = ogLayout(kind, size);
+export async function renderShareOg({ title, images, count, kind = 'waifu', size = 100, cols = null }: ShareOgInput) {
+    const layout = ogLayout(kind, size, cols);
     const story = kind === 'story';
     const [font, resolved] = await Promise.all([
         loadOgFont(),

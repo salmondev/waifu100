@@ -1,17 +1,21 @@
-import { isStorySize, DEFAULT_STORY_SIZE, isAllowedStoryImage, STORY_DRAFT_KEY, type StorySize, DEFAULT_TITLE_STYLE, isTitleStyle, type TitleStyle } from "@/lib/story/config";
+import { isStorySize, isStoryLayout, DEFAULT_STORY_SIZE, isAllowedStoryImage, STORY_DRAFT_KEY, DEFAULT_TITLE_STYLE, isTitleStyle, type TitleStyle } from "@/lib/story/config";
 import type { MediaType, StoryItem } from "@/lib/share-schema";
 
 /** The builder's local state, saved in localStorage (never sent anywhere). */
 export interface StoryDraft {
-    size: StorySize;
+    /** Total slots: a preset (9/10/25/50/100) or a custom rows*cols. */
+    size: number;
+    /** Custom layout columns; absent/null = the preset layout of `size` (all older drafts). */
+    cols?: number | null;
     type: MediaType;
     title: string;
     items: (StoryItem | null)[];
     titleStyle: TitleStyle;
 }
 
-export function emptyDraft(size: StorySize = DEFAULT_STORY_SIZE): StoryDraft {
-    return { size, type: "ANIME", title: "", items: Array.from({ length: size }, () => null), titleStyle: DEFAULT_TITLE_STYLE };
+export function emptyDraft(size: number = DEFAULT_STORY_SIZE, cols: number | null = null): StoryDraft {
+    if (!isStoryLayout(size, cols)) { size = DEFAULT_STORY_SIZE; cols = null; }
+    return { size, cols, type: "ANIME", title: "", items: Array.from({ length: size }, () => null), titleStyle: DEFAULT_TITLE_STYLE };
 }
 
 function isItem(v: unknown): v is StoryItem {
@@ -24,17 +28,19 @@ export function parseDraft(raw: string | null): StoryDraft {
     if (!raw) return emptyDraft();
     try {
         const d = JSON.parse(raw) as Partial<StoryDraft>;
-        const size = isStorySize(d.size) ? d.size : DEFAULT_STORY_SIZE;
+        const cols = d.cols != null && isStoryLayout(d.size, d.cols) ? d.cols : null;
+        const size = cols !== null || isStorySize(d.size) ? (d.size as number) : DEFAULT_STORY_SIZE;
         const items = Array.from({ length: size }, (_, i) => (Array.isArray(d.items) && isItem(d.items[i]) ? d.items[i] : null));
-        return { size, type: d.type === "MANGA" ? "MANGA" : "ANIME", title: typeof d.title === "string" ? d.title.slice(0, 120) : "", items, titleStyle: isTitleStyle(d.titleStyle) ? d.titleStyle : DEFAULT_TITLE_STYLE };
+        return { size, cols, type: d.type === "MANGA" ? "MANGA" : "ANIME", title: typeof d.title === "string" ? d.title.slice(0, 120) : "", items, titleStyle: isTitleStyle(d.titleStyle) ? d.titleStyle : DEFAULT_TITLE_STYLE };
     } catch {
         return emptyDraft();
     }
 }
 
 /** Changes the board size, keeping items in order (extra ones drop off the end). */
-export function resizeDraft(d: StoryDraft, size: StorySize): StoryDraft {
-    return { ...d, size, items: Array.from({ length: size }, (_, i) => d.items[i] ?? null) };
+export function resizeDraft(d: StoryDraft, size: number, cols: number | null = null): StoryDraft {
+    if (!isStoryLayout(size, cols)) return d;
+    return { ...d, size, cols, items: Array.from({ length: size }, (_, i) => d.items[i] ?? null) };
 }
 
 /** Puts an item in `at` (or the first empty slot). Returns null if full or a duplicate. */

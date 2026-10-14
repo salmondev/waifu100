@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
 
 import { useId, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
@@ -14,7 +13,7 @@ import {
     type DragStartEvent,
     type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
-import { proxied } from "@/lib/img-proxy";
+import { FittedImage } from "@/components/media/FittedImage";
 import { Trash2, X } from "lucide-react";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { DragPreview, DRAGGING_CLASS, DROP_OVER_CLASS, useGridSensors } from "@/components/dnd/dnd-config";
@@ -192,18 +191,11 @@ export function MediaGrid<T>({
                     <>
                         {cell ? (
                             <>
-                                <img
-                                    src={proxied(cell.image, 256)}
-                                    alt={cell.label}
-                                    title={cell.label}
-                                    loading="lazy"
-                                    decoding="async"
-                                    referrerPolicy="no-referrer"
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                    draggable={false}
-                                />
+                                {/* Whole cover, never cropped: an AniList banner (1900x400) and a
+                                    2:3 cover both have to live in this one slot shape. */}
+                                <FittedImage src={cell.image} alt={cell.label} title={cell.label} width={256} loading="lazy" decoding="async" draggable={false} />
                                 {titleStyle === "overlay" && (
-                                    <div className="absolute inset-x-0 bottom-0 pt-8 pb-1 px-1.5 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none">
+                                    <div className="absolute inset-x-0 bottom-0 z-20 pt-8 pb-1 px-1.5 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none">
                                         <p data-testid="cell-title" className="text-[10px] sm:text-[11px] font-semibold leading-tight text-white line-clamp-2 text-center drop-shadow">{cell.label}</p>
                                     </div>
                                 )}
@@ -215,7 +207,7 @@ export function MediaGrid<T>({
                                             e.stopPropagation();
                                             onRemove(index);
                                         }}
-                                        className="absolute top-1 right-1 p-1 rounded-full bg-black/70 text-zinc-200 opacity-100 sm:opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                        className="absolute top-1 right-1 z-20 p-1 rounded-full bg-black/70 text-zinc-200 opacity-100 sm:opacity-0 group-hover:opacity-100 focus:opacity-100"
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
@@ -225,7 +217,7 @@ export function MediaGrid<T>({
                             renderEmpty?.(index) ?? null
                         )}
                         {showRank && (
-                            <span className={cn("absolute left-0 px-1 text-[10px] font-bold bg-black/70 text-zinc-300", titleStyle === "overlay" && cell ? "top-0 rounded-br" : "bottom-0 rounded-tr")}>
+                            <span className={cn("absolute left-0 z-20 px-1 text-[10px] font-bold bg-black/70 text-zinc-300", titleStyle === "overlay" && cell ? "top-0 rounded-br" : "bottom-0 rounded-tr")}>
                                 {index + 1}
                             </span>
                         )}

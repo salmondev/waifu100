@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowLeft, Check, GitCompareArrows, Grid3x3, Link2, Users } from "lucide-react";
 import { cn, optimizedImageSrc } from "@/lib/utils";
+import { FittedImage } from "@/components/media/FittedImage";
 import type { CompareCharacter, ComparePair } from "@/lib/character-match";
 import { CompareVerdict } from "@/components/compare/CompareVerdict";
 import {
@@ -121,19 +122,19 @@ function Face({
         >
             <div className="relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
                 {character.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={optimizedImageSrc(character.image, 256)}
+                    <FittedImage
+                        src={character.image}
                         alt={character.name}
+                        width={256}
                         loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        className="transition-transform duration-300 group-hover:scale-110"
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center">
                         <div className="h-2 w-2 rounded-full bg-zinc-700" />
                     </div>
                 )}
-                <span className="absolute right-1 top-1 rounded bg-black/60 px-1 font-mono text-[9px] text-zinc-400">
+                <span className="absolute right-1 top-1 z-20 rounded bg-black/60 px-1 font-mono text-[9px] text-zinc-400">
                     {cellLabel(character.index)}
                 </span>
             </div>

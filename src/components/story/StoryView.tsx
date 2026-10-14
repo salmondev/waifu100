@@ -28,7 +28,8 @@ const W = {
 const TITLE_GLOW = { textShadow: "0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(168, 85, 247, 0.2)" };
 const COLUMNS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
-export function StoryView({ id, title, size, items, titleStyle = DEFAULT_TITLE_STYLE }: { id: string; title: string; size: number; items: (StoryItem | null)[]; titleStyle?: TitleStyle }) {
+export function StoryView({ id, title, size, cols = null, items, titleStyle = DEFAULT_TITLE_STYLE }: { id: string; title: string; size: number; cols?: number | null; items: (StoryItem | null)[]; titleStyle?: TitleStyle }) {
+    const columns = storyColumns(size, cols);
     const count = items.filter(Boolean).length;
     const viaMal = items.some((i) => i?.src === "mal");
     const [copied, setCopied] = useState(false);
@@ -64,7 +65,7 @@ export function StoryView({ id, title, size, items, titleStyle = DEFAULT_TITLE_S
                         <span className="truncate">{copied ? "Link Copied!" : "Copy Link"}</span>
                     </button>
                     <StoryViewVerdict items={items} sharePath={storyViewPath(id)} gridTitle={title} />
-                    <StoryPngButton title={title} items={items} titleStyle={titleStyle} label="Save as PNG" className={cn(W.headerBtn, "basis-full lg:basis-auto bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800 disabled:opacity-50")} />
+                    <StoryPngButton title={title} items={items} titleStyle={titleStyle} cols={cols} label="Save as PNG" className={cn(W.headerBtn, "basis-full lg:basis-auto bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800 disabled:opacity-50")} />
                     <div className="basis-full lg:basis-auto lg:w-full lg:max-w-[232px] flex flex-col items-center lg:items-end gap-2">
                         <StoryCompareWithMine shareId={id} />
                     </div>
@@ -72,7 +73,7 @@ export function StoryView({ id, title, size, items, titleStyle = DEFAULT_TITLE_S
             </div>
 
             <div className="w-full max-w-[1000px] px-3 sm:px-4 lg:px-6">
-                <div className={cn("relative w-full mx-auto", size === 9 ? "max-w-md" : size === 10 || size === 25 ? "max-w-3xl" : "max-w-[950px]")}>
+                <div className={cn("relative w-full mx-auto", columns <= 3 ? "max-w-md" : columns <= 5 ? "max-w-3xl" : columns <= 7 ? "max-w-4xl" : "max-w-[950px]")}>
                     {labels && (
                         <>
                             <div className="hidden lg:grid absolute -top-6 inset-x-0 grid-cols-10">
@@ -84,7 +85,7 @@ export function StoryView({ id, title, size, items, titleStyle = DEFAULT_TITLE_S
                         </>
                     )}
                     <div className={W.gridFrame} data-testid="story-view-grid">
-                        <MediaGrid items={items} columns={storyColumns(size)} toCell={toCell} titleStyle={titleStyle} />
+                        <MediaGrid items={items} columns={columns} toCell={toCell} titleStyle={titleStyle} />
                     </div>
                 </div>
             </div>

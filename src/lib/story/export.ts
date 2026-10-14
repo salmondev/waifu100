@@ -15,8 +15,8 @@ export const EXPORT_CELL_H = 300;
 /** Extra caption band per row when titles go below the image (T-0010). */
 export const EXPORT_CAPTION_H = 44;
 
-export function exportLayout(size: number, titleStyle: TitleStyle = DEFAULT_TITLE_STYLE) {
-    const cols = storyColumns(size);
+export function exportLayout(size: number, titleStyle: TitleStyle = DEFAULT_TITLE_STYLE, layoutCols?: number | null) {
+    const cols = storyColumns(size, layoutCols);
     const rows = Math.ceil(size / cols);
     const pad = 24;
     const header = 72;
@@ -65,8 +65,8 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
     });
 }
 
-export async function exportStoryPng(title: string, items: (StoryItem | null)[], titleStyle: TitleStyle = DEFAULT_TITLE_STYLE): Promise<Blob | null> {
-    const L = exportLayout(items.length, titleStyle);
+export async function exportStoryPng(title: string, items: (StoryItem | null)[], titleStyle: TitleStyle = DEFAULT_TITLE_STYLE, cols?: number | null): Promise<Blob | null> {
+    const L = exportLayout(items.length, titleStyle, cols);
     const canvas = document.createElement("canvas");
     canvas.width = L.width;
     canvas.height = L.height;
@@ -87,14 +87,30 @@ export async function exportStoryPng(title: string, items: (StoryItem | null)[],
         ctx.fillRect(x + 2, y + 2, EXPORT_CELL_W - 4, EXPORT_CELL_H - 4);
         const img = imgs[i];
         if (img && img.naturalWidth) {
-            const s = Math.max((EXPORT_CELL_W - 4) / img.naturalWidth, (EXPORT_CELL_H - 4) / img.naturalHeight);
-            const w = img.naturalWidth * s;
-            const h = img.naturalHeight * s;
+            const bw = EXPORT_CELL_W - 4;
+            const bh = EXPORT_CELL_H - 4;
+            const cx = x + EXPORT_CELL_W / 2;
+            const cy = y + EXPORT_CELL_H / 2;
+            const draw = (scale: number) => {
+                const w = img.naturalWidth * scale;
+                const h = img.naturalHeight * scale;
+                ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+            };
             ctx.save();
             ctx.beginPath();
-            ctx.rect(x + 2, y + 2, EXPORT_CELL_W - 4, EXPORT_CELL_H - 4);
+            ctx.rect(x + 2, y + 2, bw, bh);
             ctx.clip();
-            ctx.drawImage(img, x + EXPORT_CELL_W / 2 - w / 2, y + EXPORT_CELL_H / 2 - h / 2, w, h);
+            // Backdrop: the same image, overflowing and blurred, so the cell is
+            // full-bleed without the picture itself losing anything. Mirrors
+            // FittedImage on screen. Browsers without ctx.filter simply get a
+            // sharp zoomed backdrop, which still reads correctly.
+            ctx.filter = "blur(18px)";
+            ctx.globalAlpha = 0.45;
+            draw(Math.max(bw / img.naturalWidth, bh / img.naturalHeight) * 1.12);
+            ctx.filter = "none";
+            ctx.globalAlpha = 1;
+            // The picture itself: contained, so nothing is cropped.
+            draw(Math.min(bw / img.naturalWidth, bh / img.naturalHeight));
             ctx.restore();
         }
         const name = it?.title?.trim();
