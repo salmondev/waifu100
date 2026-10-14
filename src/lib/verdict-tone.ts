@@ -41,9 +41,13 @@ export const GRID_VERDICT_STYLE_VERSION = 2;
  * exact same prompt the route builds. The script runs under plain `node`, which
  * is why this file has no imports of its own - keep it that way.
  */
-export function buildGridVerdictPrompt(characterNames: string[]): string {
+export function buildGridVerdictPrompt(characterNames: string[], kind: "waifu" | "story" = "waifu"): string {
+    const subject =
+        kind === "story"
+            ? `You are judging a user's "Story100" grid of favourite ANIME / MANGA TITLES (works, not characters), listed in rank order. Treat each line as a title.`
+            : `You are judging a user's "10x10 Favorite Characters Grid".`;
     return `You are an observant, warm expert in Anime, Manga, Games, and VTubers.
-    You are judging a user's "10x10 Favorite Characters Grid".
+    ${subject}
     You write in two voices: English is playful, Thai is calm and gentle. They are not translations of each other.
     
     User's characters:

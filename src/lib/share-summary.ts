@@ -1,4 +1,5 @@
 import { isGifUrl } from "@/lib/utils";
+import { decodeShareObject, type ShareKind } from "@/lib/share-schema";
 
 /**
  * The card-sized view of a share.
@@ -18,6 +19,15 @@ export interface ShareSummary {
     hasGif: boolean;
     /** How many of the 100 slots are filled. */
     count: number;
+    /** Absent on summaries cached before story100: read as "waifu". */
+    kind?: ShareKind;
+    /** Absent means 100. */
+    size?: number;
+    /**
+     * Story feed responses only: up to 4 cell image URLs for a card without an imageUrl.
+     * Filled in per request from the payload (read-only) and never written to the summary cache.
+     */
+    previews?: string[];
 }
 
 interface RawCell {
@@ -49,6 +59,20 @@ export function summarizeShare(id: string, rawJson: string): ShareSummary | null
                 isGifUrl(cell?.character?.customImageUrl) ||
                 isGifUrl(cell?.character?.images?.jpg?.image_url)
         );
+
+        const decoded = decodeShareObject(parsed);
+        if (decoded?.kind === "story") {
+            return {
+                id,
+                title,
+                imageUrl: decoded.imageUrl,
+                createdAt: parsed.meta?.createdAt,
+                hasGif: false,
+                count: decoded.count,
+                kind: "story",
+                size: decoded.size,
+            };
+        }
 
         return {
             id,

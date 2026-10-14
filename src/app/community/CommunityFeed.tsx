@@ -6,7 +6,7 @@ import { ArrowLeft, Loader2, Search, SlidersHorizontal, LayoutGrid, X } from "lu
 import { GridCard } from "@/components/community/GridCard";
 import { CompareBar, type CompareSlot } from "@/components/compare/CompareBar";
 import type { ShareSummary } from "@/lib/share-summary";
-import { FEED_PAGE_SIZE, type FeedPage } from "@/lib/feed-page";
+import { DEFAULT_FEED_KIND, FEED_PAGE_SIZE, parseFeedKind, type FeedKind, type FeedPage } from "@/lib/feed-page";
 import { cn } from "@/lib/utils";
 
 type SortOrder = "new" | "old";
@@ -29,6 +29,14 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
   const [nextOffset, setNextOffset] = useState<number | null>(initialPage.nextOffset);
 
   const [order, setOrder] = useState<SortOrder>("new");
+  /** Waifu / Story tabs (T-0009). The server renders the default tab. */
+  const [kind, setKind] = useState<FeedKind>(DEFAULT_FEED_KIND);
+
+  // A `?kind=story` link opens on that tab.
+  useEffect(() => {
+    const wanted = parseFeedKind(new URLSearchParams(window.location.search).get("kind"));
+    if (wanted !== DEFAULT_FEED_KIND) setKind(wanted);
+  }, []);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
 
@@ -74,7 +82,7 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
    * so changing it refetches from offset 0. Filter and search stay on the client
    * for now, which is why `loadPage` doesn't know about them.
    */
-  const loadPage = useCallback(async (offset: number, sortOrder: SortOrder) => {
+  const loadPage = useCallback(async (offset: number, sortOrder: SortOrder, feedKind: FeedKind) => {
     const first = offset === 0;
     if (first) setLoading(true);
     else setLoadingMore(true);
@@ -82,7 +90,7 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
 
     try {
       const res = await fetch(
-        `/api/community?offset=${offset}&limit=${PAGE_SIZE}&order=${sortOrder}`
+        `/api/community?offset=${offset}&limit=${PAGE_SIZE}&order=${sortOrder}&kind=${feedKind}`
       );
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
       const data = await res.json();
@@ -116,8 +124,8 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
       seeded.current = false;
       return;
     }
-    loadPage(0, order);
-  }, [order, loadPage]);
+    loadPage(0, order, kind);
+  }, [order, kind, loadPage]);
 
   /**
    * Load the next page when the sentinel below the grid comes within a screen
@@ -132,13 +140,13 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) loadPage(nextOffset, order);
+        if (entry.isIntersecting) loadPage(nextOffset, order, kind);
       },
       { rootMargin: "800px 0px" }
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [nextOffset, loadingMore, loading, order, loadPage]);
+  }, [nextOffset, loadingMore, loading, order, kind, loadPage]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -181,7 +189,7 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
                 Community Showcase
               </h1>
               <p className="text-zinc-500 mt-1">
-                Discover curated collections from the Waifu100 community.
+                Discover character (Waifu100) and anime & manga (Story100) grids from the community.
               </p>
             </div>
           </div>
@@ -193,6 +201,26 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
             <LayoutGrid className="w-4 h-4 text-purple-400" />
             My Grids
           </Link>
+        </div>
+
+        {/* Mode tabs: one shared showcase for both builders. */}
+        <div role="tablist" aria-label="Grid type" className="mb-4 inline-flex items-center gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
+          {(["all", "waifu", "story"] as FeedKind[]).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={kind === k}
+              onClick={() => setKind(k)}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                kind === k ? "bg-purple-600/30 text-purple-100 border border-purple-500/40" : "text-zinc-400 hover:text-white border border-transparent"
+              )}
+            >
+              {k === "all" ? "All" : k === "waifu" ? "Waifu" : "Story"}
+            </button>
+          ))}
+          <Link href="/story" className="ml-2 px-3 py-1.5 rounded-lg text-xs text-sky-300 hover:text-sky-200">+ Make a Story grid</Link>
         </div>
 
         {/* Controls. Search narrows what has been loaded; the filters and the
@@ -294,7 +322,7 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
               {hasMore && (
                 <button
                   type="button"
-                  onClick={() => loadPage(nextOffset, order)}
+                  onClick={() => loadPage(nextOffset, order, kind)}
                   disabled={loadingMore}
                   className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors disabled:opacity-60"
                 >
@@ -330,7 +358,7 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
               {hasMore ? (
                 <button
                   type="button"
-                  onClick={() => loadPage(nextOffset, order)}
+                  onClick={() => loadPage(nextOffset, order, kind)}
                   disabled={loadingMore}
                   className="inline-flex items-center gap-2 px-8 py-3 bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 hover:border-purple-500/40 rounded-xl font-medium transition-colors disabled:opacity-60 disabled:cursor-wait"
                 >

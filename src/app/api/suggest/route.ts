@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { featureUnavailable } from "@/lib/public-errors";
 import { getFlashModel } from "@/lib/gemini";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
+import { buildStorySuggestPrompt, cleanStorySuggestions, isQuotaError } from "@/lib/story/suggest";
+
+/** Polite answer when Gemini is out of quota or failing - no server details. */
+const AI_BUSY = { code: "ai_busy", error: "The AI is busy right now. Please try again in a few minutes." };
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,9 +13,9 @@ export async function POST(request: NextRequest) {
     const limited = await enforceRateLimit(request, LIMITS.suggest);
     if (limited) return limited;
 
-    const { characterNames } = await request.json();
+    const { characterNames, kind } = await request.json();
 
-    if (!characterNames || characterNames.length === 0) {
+    if (!characterNames || characterNames.length === 0 || (kind === "story" && !Array.isArray(characterNames))) {
       return NextResponse.json(
         { error: "No characters provided" },
         { status: 400 }
@@ -18,13 +23,26 @@ export async function POST(request: NextRequest) {
     }
 
     if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY not configured" },
-        { status: 500 }
-      );
+      return featureUnavailable("ai", "GEMINI_API_KEY is not set");
     }
 
     const model = getFlashModel();
+
+    // Story100 (parity item 5): titles in, text-only suggestions out (no URLs from the model).
+    if (kind === "story") {
+      const titles = (characterNames as unknown[]).slice(0, 100).map((n) => String(n).slice(0, 120));
+      const res = await model.generateContent(buildStorySuggestPrompt(titles));
+      const text = (await res.response).text();
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(text.replace(/```(?:json)?\s*/gi, "").replace(/\s*```$/g, "").trim());
+      } catch {
+        console.error("[suggest] story: unparsable model reply");
+        return NextResponse.json(AI_BUSY, { status: 502 });
+      }
+      const onBoard = titles.map((t) => t.replace(/\s*\((anime|manga)\)$/i, ""));
+      return NextResponse.json({ suggestions: cleanStorySuggestions(parsed, onBoard) });
+    }
 
     const prompt = `You are an expert in Anime, Manga, VTubers, and Video Games (Gacha, JRPG, Visual Novels). Based on the following list of characters that a user has selected as their favorites, suggest 15 similar characters they might also like.
 
@@ -62,9 +80,11 @@ IMPORTANT: Return ONLY valid JSON in this exact format, no markdown, no code blo
 
     return NextResponse.json(suggestions);
   } catch (error) {
+    // Full details stay in the server log; the client gets a polite, generic answer.
     console.error("Gemini API error:", error);
+    if (isQuotaError(error)) return NextResponse.json(AI_BUSY, { status: 503 });
     return NextResponse.json(
-      { error: "Failed to get suggestions" },
+      { ...AI_BUSY, error: "Failed to get suggestions" },
       { status: 500 }
     );
   }

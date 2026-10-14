@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serperFetch } from "@/server/serper-budget";
 import { isAdminRequest } from "@/lib/admin-auth";
 import { isGifUrl } from "@/lib/utils";
 import { ImageResult } from "@/types";
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
         const baseQuery = `${characterName} ${animeSource || ""}`.trim();
 
         const searchSerper = async (q: string, tbs?: string): Promise<ImageResult[]> => {
-          const res = await fetch("https://google.serper.dev/images", {
+          const res = await serperFetch("https://google.serper.dev/images", {
             method: "POST",
             headers: {
               "X-API-KEY": process.env.SERPER_API_KEY as string,
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
               q,
               // Serper pages in tens, like Google - keep num a multiple of 10 as
               // the sibling /api/serper-images route does.
-              num: isGif ? 50 : 20, // GIF mode filters most results out, so ask for more
+              num: 10, // T-0009: capped at 10 (credit budget); serperFetch clamps anyway
               gl: "us",
               hl: "en",
               ...(tbs ? { tbs } : {}),

@@ -25,6 +25,22 @@ function isConnectionError(e: unknown): boolean {
     return CONNECTION_ERROR_RE.test(msg);
 }
 
+/** redis[s]://[user[:pass]@]host[:port][/db] -> ioredis options, without url.parse(). */
+export function redisOptionsFromUrl(raw: string): RedisOptions {
+    const u = new URL(raw);
+    if (u.protocol !== "redis:" && u.protocol !== "rediss:") throw new Error("REDIS_URL must be redis:// or rediss://");
+    const host = u.hostname.replace(/^\[|\]$/g, "");
+    const db = Number(u.pathname.slice(1));
+    return {
+        host,
+        port: u.port ? Number(u.port) : 6379,
+        ...(u.username ? { username: decodeURIComponent(u.username) } : {}),
+        ...(u.password ? { password: decodeURIComponent(u.password) } : {}),
+        ...(Number.isInteger(db) && db > 0 ? { db } : {}),
+        ...(u.protocol === "rediss:" ? { tls: { servername: host } } : {}),
+    };
+}
+
 function createClient(): Redis {
     const url = process.env.REDIS_URL;
     if (!url) {
@@ -46,7 +62,9 @@ function createClient(): Redis {
         reconnectOnError: () => true,
     };
 
-    const client = new Redis(url, options);
+    // Parse with WHATWG URL ourselves: given a string, ioredis calls the
+    // deprecated url.parse() (Node DEP0169 warning in the dev log).
+    const client = new Redis({ ...redisOptionsFromUrl(url), ...options });
     // Without an error listener ioredis emits an unhandled 'error' event.
     client.on('error', (err: Error) => {
         console.error('[redis] client error:', err.message);

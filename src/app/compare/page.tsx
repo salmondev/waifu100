@@ -30,6 +30,8 @@ const load = cache(async function load(idA: string, idB: string) {
     try {
         const [shareA, shareB] = await readShares([idA, idB]);
         if (!shareA || !shareB) return null;
+        // Q4: compare grids of the same kind only; story compare is not built yet.
+        if (shareA.kind !== "waifu" || shareB.kind !== "waifu") return null;
         return { shareA, shareB, result: compareGrids(shareA.grid, shareB.grid) };
     } catch (e) {
         // A Redis outage must not surface as a bare framework 500 - the page

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { proxied } from "@/lib/img-proxy";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, GitCompareArrows, Loader2, Search, X } from "lucide-react";
@@ -51,7 +52,7 @@ function GridTile({
             <div className="relative aspect-square bg-zinc-950">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                    src={grid.imageUrl || shareCardPath(grid.id)}
+                    src={proxied(grid.imageUrl, 256) || shareCardPath(grid.id)}
                     alt=""
                     loading="lazy"
                     className="h-full w-full object-cover"
@@ -97,7 +98,7 @@ function SlotBox({
                 {grid && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                        src={grid.imageUrl || shareCardPath(grid.id)}
+                        src={proxied(grid.imageUrl, 256) || shareCardPath(grid.id)}
                         alt=""
                         className="h-full w-full object-cover"
                     />
@@ -158,7 +159,7 @@ export function ComparePicker({
         else setLoadingMore(true);
         setError(null);
         try {
-            const res = await fetch(`/api/community?offset=${offset}&limit=${PAGE_SIZE}`);
+            const res = await fetch(`/api/community?offset=${offset}&limit=${PAGE_SIZE}&kind=waifu`);
             if (!res.ok) throw new Error(`Request failed (${res.status})`);
             const data = await res.json();
             const page: ShareSummary[] = data.grids ?? [];
@@ -188,7 +189,7 @@ export function ComparePicker({
      */
     const listed = useMemo(() => {
         const seen = new Set<string>();
-        const all = [...mine, ...grids].filter((g) => {
+        const all = [...mine.filter((g) => g.kind !== "story"), ...grids].filter((g) => {
             if (seen.has(g.id)) return false;
             seen.add(g.id);
             return true;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { friendlyError } from "@/lib/public-errors";
 import { Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnalysisResult } from "@/types";
@@ -33,6 +34,7 @@ export function CompareVerdict({
     const [verdict, setVerdict] = useState<AnalysisResult | null>(initial);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [unavailable, setUnavailable] = useState(false);
     // Thai first, like the grid verdict: the Thai text is written for the
     // reader rather than translated at them.
     const [lang, setLang] = useState<"en" | "th">("th");
@@ -46,11 +48,15 @@ export function CompareVerdict({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ a, b }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Failed to generate a verdict.");
+            const data = await res.json().catch(() => ({}));
+            if (data.code === "ai_unavailable") {
+                setUnavailable(true);
+                return;
+            }
+            if (!res.ok) throw new Error(friendlyError(data.error, "Couldn't write a verdict right now. Please try again."));
             setVerdict(data.verdict);
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Failed to generate a verdict.");
+            setError(friendlyError(e instanceof Error ? e.message : null, "Couldn't write a verdict right now. Please try again."));
         } finally {
             setLoading(false);
         }
@@ -66,6 +72,8 @@ export function CompareVerdict({
         // generate is stable enough for this one-shot; re-running it is the bug.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoGenerate, verdict]);
+
+    if (!verdict && unavailable) return null;
 
     if (!verdict) {
         // While it is being written, hold the shape the verdict will take rather

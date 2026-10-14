@@ -6,7 +6,7 @@ import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn, isGifUrl } from "@/lib/utils";
 import { ensureUserId } from "@/lib/user-id";
 import { rememberOwnGrid } from "@/lib/my-grids";
-import { upload } from '@vercel/blob/client';
+import { uploadModeratedImage } from '@/lib/upload-client';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -69,11 +69,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
              if (blob) {
                  setLoadingState("Uploading thumbnail...");
                  try {
-                    const { url } = await upload(`shares/thumbnails/thumb-${Date.now()}.png`, blob, {
-                        access: 'public',
-                        handleUploadUrl: '/api/upload',
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    } as any);
+                    const url = await uploadModeratedImage(blob);
                     imageUrl = url;
                  } catch (e) {
                     console.error("Thumbnail upload failed", e);
@@ -126,10 +122,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                       // Convert base64 to Blob
                       const res = await fetch(base64OrUrl);
                       const blob = await res.blob();
-                      const { url } = await upload(`shares/assets/${name}.png`, blob, {
-                          access: 'public',
-                          handleUploadUrl: '/api/upload',
-                      });
+                      void name; // stored by content hash server-side
+                      const url = await uploadModeratedImage(blob);
                       return url;
                   }
                   return base64OrUrl;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { featureUnavailable } from "@/lib/public-errors";
 import { getFlashModel } from "@/lib/gemini";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { readShares, isValidShareId } from "@/lib/share-store";
@@ -45,11 +46,11 @@ export async function POST(req: NextRequest) {
         if (cached) return NextResponse.json({ verdict: cached, cached: true });
 
         if (!process.env.GEMINI_API_KEY) {
-            return NextResponse.json({ error: "GEMINI_API_KEY not configured" }, { status: 500 });
+            return featureUnavailable("ai", "GEMINI_API_KEY is not set");
         }
 
         const [shareA, shareB] = await readShares([a, b]);
-        if (!shareA || !shareB) {
+        if (!shareA || !shareB || shareA.kind !== "waifu" || shareB.kind !== "waifu") {
             return NextResponse.json({ error: "Grid not found" }, { status: 404 });
         }
 

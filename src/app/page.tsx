@@ -1,6 +1,8 @@
 "use client";
 
+import { cacheGallery, getCachedGallery } from "@/lib/gallery-cache";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { proxied } from "@/lib/img-proxy";
 import NextLink from "next/link";
 import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil, CheckSquare, MousePointer2, ArrowRight, Users, LayoutGrid } from "lucide-react";
 import { toBlob } from "html-to-image";
@@ -8,6 +10,8 @@ import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartE
 import { cn } from "@/lib/utils";
 import { Character, GridCell, ImageResult, AnalysisResult, VerdictFeedback } from "@/types";
 import { GridCell as GridComponent } from "@/components/grid/GridCell";
+import { applyGridDrop, placeOnEmpty, type DropSource, type DropTarget } from "@/lib/waifu-grid-ops";
+import { MediaGrid } from "@/components/grid/MediaGrid";
 import { DraggableSidebarItem } from "@/components/sidebar/DraggableSidebarItem";
 import { DragOverlayWrapper } from "@/components/dnd/DragOverlayWrapper";
 import { TrashZone } from "@/components/dnd/TrashZone";
@@ -460,6 +464,15 @@ export default function Home() {
         return;
     }
 
+    // T-0013: same title already loaded this session -> reuse, no request.
+    const galleryKey = { characterName: searchName, animeSource: sourceToSend, malId: char.jikan_id, isGif: isGifMode };
+    const cachedImages = getCachedGallery<ImageResult>(galleryKey);
+    if (cachedImages) {
+        setGalleryImages(cachedImages);
+        setIsGalleryLoading(false);
+        return;
+    }
+
     try {
       const res = await fetch("/api/gallery", {
         method: "POST",
@@ -477,6 +490,7 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setGalleryImages(data.images || []);
+        cacheGallery(galleryKey, data.images || []);
       }
     } catch (e) {
       console.error(e);
@@ -550,11 +564,7 @@ export default function Home() {
          openGallery(existingChar);
       } else {
          // Empty cell, just place
-         setGrid(prev => {
-           const next = [...prev];
-           next[index] = { character: selectedCharacter };
-           return next;
-         });
+         setGrid(prev => placeOnEmpty(prev, index, selectedCharacter) ?? prev);
          setLastDroppedIndex(index);
          setTimeout(() => setLastDroppedIndex(null), 300);
       }
@@ -596,52 +606,18 @@ export default function Home() {
     const sourceData = active.data.current;
     const targetData = over.data.current;
 
-    // 1. Drop on Trash
-    if (targetData?.type === 'trash') {
-        if (sourceData?.index !== undefined && sourceData.index !== null) {
-             setGrid(prev => {
-                const next = [...prev];
-                next[sourceData.index] = { character: null };
-                return next;
-             });
-        }
-        return;
-    }
+    // Drop rules live in src/lib/waifu-grid-ops.ts (unit-tested).
+    const result = applyGridDrop(grid, sourceData as DropSource | undefined, targetData as DropTarget | undefined);
+    if (result.pendingReplace) setPendingReplace(result.pendingReplace);
+    if (result.grid !== grid) setGrid(result.grid);
 
-    // 2. Drop on Grid Cell
     if (targetData?.type === 'cell') {
          const targetIndex = targetData.index;
          const sourceIndex = sourceData?.index;
          const char = sourceData?.character;
-
          if (!char) return;
+         if (sourceIndex !== undefined && sourceIndex !== null && sourceIndex === targetIndex) return;
 
-         // Move Logic (Swap)
-         if (sourceIndex !== undefined && sourceIndex !== null) {
-             // Don't do anything if dropped on same cell
-             if (sourceIndex === targetIndex) return;
-
-             setGrid(prev => {
-                const next = [...prev];
-                const targetChar = next[targetIndex].character;
-                next[targetIndex] = { character: char };
-                next[sourceIndex] = { character: targetChar }; // Swap
-                return next;
-             });
-         } else {
-             // New Item Logic (from Sidebar/Gallery)
-             const existingChar = grid[targetIndex].character;
-             if (existingChar) {
-                 setPendingReplace({ index: targetIndex, newChar: char, oldChar: existingChar });
-             } else {
-                 setGrid(prev => {
-                    const next = [...prev];
-                    next[targetIndex] = { character: char };
-                    return next;
-                 });
-             }
-         }
-         
          // Hint Logic: AI hint takes priority over Gallery hint
          // UPDATED: Trigger on first drag of session (removed currentCount check)
          const shouldShowAIHint = !hasShownAIHint;
@@ -811,8 +787,8 @@ export default function Home() {
     // failure rejects the WHOLE capture. Feeding the animated GIF through the
     // same-origin proxy instead makes the capture hang indefinitely. So each one
     // is loaded through the proxy, drawn to a canvas, and swapped for that single
-    // PNG frame - small, inline, and static. Everything else already goes through
-    // /_next/image and is left untouched.
+    // PNG frame - small, inline, and static. Since T-0009 every cell already
+    // loads through the moderated /api/img proxy, so this is a fallback only.
     //
     // Without this, any grid containing a GIF produced no thumbnail at all, hence
     // no showcase preview and no link embed.
@@ -822,7 +798,7 @@ export default function Home() {
         new Promise<string | null>((resolve) => {
             const probe = new Image();
             // Same-origin, so drawing it leaves the canvas untainted.
-            const proxied = `/_next/image?url=${encodeURIComponent(remoteSrc)}&w=384&q=75`;
+            const proxiedSrc = proxied(remoteSrc, 384);
             const timer = setTimeout(() => resolve(null), 5000);
             const finish = (value: string | null) => { clearTimeout(timer); resolve(value); };
 
@@ -848,7 +824,7 @@ export default function Home() {
                     finish(null);
                 }
             };
-            probe.src = proxied;
+            probe.src = proxiedSrc;
         });
 
     await Promise.all(
@@ -963,8 +939,7 @@ export default function Home() {
 
     } catch(e: unknown) { 
        console.error("Export Error:", e);
-       const errMsg = e instanceof Error ? e.message : String(e);
-       showNotification(`Export failed: ${errMsg}`, 'error');
+       showNotification("Export failed. Please try again.", 'error');
     }
     finally { setIsExporting(false); }
   };
@@ -1333,7 +1308,7 @@ export default function Home() {
         const img = new Image();
         img.onload = () => resolve();
         img.onerror = () => reject();
-        img.src = url;
+        img.src = proxied(url, 128); // T-0009 M4: even the hidden probe goes through moderation
       });
       
       // Success - create character
@@ -1444,7 +1419,7 @@ export default function Home() {
                        "group flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-all w-full",
                        selectedCharacter?.mal_id === char.mal_id ? "bg-purple-900/20 border-purple-500" : "bg-zinc-900/50 border-transparent hover:bg-zinc-800"
                      )}>
-                       <img src={char.images.jpg.image_url} alt={char.name} referrerPolicy="no-referrer" className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
+                       <img src={proxied(char.images.jpg.image_url, 128)} alt={char.name} referrerPolicy="no-referrer" className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
                        <div className="flex-1 min-w-0">
                          <p className="font-medium truncate text-sm">{char.name}</p>
                          <p className="text-xs text-zinc-500 truncate">{char.source}</p>
@@ -1491,6 +1466,14 @@ export default function Home() {
            >
               <Users className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform"/>
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-300">Community Showcase</span>
+           </NextLink>
+
+           {/* Story100: the anime & manga grid mode (T-0009). */}
+           <NextLink
+              href="/story"
+              className="w-full py-2 mb-2 bg-zinc-900/60 hover:bg-zinc-800 border border-sky-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all"
+           >
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-300 to-purple-300">Story100: Anime &amp; Manga grid</span>
            </NextLink>
 
            {/* Own the grids you shared: rename-by-resharing was the only tool
@@ -1605,7 +1588,7 @@ export default function Home() {
                       
                   {selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url ? (
                       <img 
-                         src={selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url} 
+                         src={proxied(selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url, 384)} 
                          alt={selectedCharacter.name}
                          referrerPolicy="no-referrer"
                          className="w-full h-full object-cover pointer-events-none"
@@ -1822,10 +1805,13 @@ export default function Home() {
                 <p className="text-[10px] text-zinc-500">Search characters on the left, then drag them here. Drag to reorder or drop on red zones to delete.</p>
              </div>
              
-             <div className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full"
-                  onMouseLeave={() => { isSelectionDragging.current = false; }}
-             >
-                {grid.map((cell, idx) => (
+             <MediaGrid
+                items={grid}
+                columns={10}
+                className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full"
+                dataAttribute="data-waifu-grid"
+                onMouseLeave={() => { isSelectionDragging.current = false; }}
+                renderCell={(cell, idx) => (
                    <GridComponent
                      key={idx}
                      idx={idx}
@@ -1861,11 +1847,7 @@ export default function Home() {
                      {cell.character ? (
                         <>
                             <img
-                              src={(() => {
-                                  const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
-                                  if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif') || url.includes('vercel-storage.com')) return url;
-                                  return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
-                              })()} 
+                              src={proxied(cell.character.customImageUrl || cell.character.images.jpg.image_url, 384)} 
                               alt={cell.character.name}
                               referrerPolicy="no-referrer"
                               className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
@@ -1883,8 +1865,8 @@ export default function Home() {
                         </div>
                      )}
                    </GridComponent>
-                 ))}
-             </div>
+                )}
+             />
              <p className="text-center text-zinc-600 text-[10px] mt-2 uppercase tracking-wider export-exclude">Drag to Move • Drag Out to Delete</p>
              
              {/* Credit Footer */}
@@ -2152,7 +2134,7 @@ export default function Home() {
                                              src really does retry - before hiding a tile whose
                                              image is genuinely gone. */}
                                          <img
-                                            src={char.customImageUrl}
+                                            src={proxied(char.customImageUrl, 256)}
                                             referrerPolicy="no-referrer"
                                             loading="lazy"
                                             onError={(e) => {
@@ -2160,7 +2142,7 @@ export default function Home() {
                                                const tries = Number(el.dataset.tries ?? 0);
                                                if (tries >= 2) { el.style.display = "none"; return; }
                                                el.dataset.tries = String(tries + 1);
-                                               const next = tries === 0 ? el.src : img.url;
+                                               const next = tries === 0 ? el.src : proxied(img.url, 256);
                                                setTimeout(() => { el.src = next; }, 700 + Math.random() * 800);
                                             }}
                                             className="w-full h-full object-cover pointer-events-none select-none"
@@ -2219,7 +2201,7 @@ export default function Home() {
                             >
                                <div className="aspect-square bg-zinc-950 relative">
                                    {grid.imageUrl ? (
-                                       <img src={grid.imageUrl} alt={grid.title} className="w-full h-full object-cover"/>
+                                       <img src={proxied(grid.imageUrl, 384)} alt={grid.title} className="w-full h-full object-cover"/>
                                    ) : (
                                        <div className="w-full h-full flex items-center justify-center text-zinc-700">
                                            <span className="text-xs">No Preview</span>
@@ -2314,7 +2296,7 @@ export default function Home() {
              
              <div className="flex items-center justify-center gap-4 mb-6">
                 <div className="text-center">
-                   <img src={pendingReplace.oldChar.customImageUrl || pendingReplace.oldChar.images.jpg.image_url} referrerPolicy="no-referrer" 
+                   <img src={proxied(pendingReplace.oldChar.customImageUrl || pendingReplace.oldChar.images.jpg.image_url, 256)} referrerPolicy="no-referrer" 
                       alt={pendingReplace.oldChar.name}
                       className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-red-500/50"
                    />
@@ -2322,7 +2304,7 @@ export default function Home() {
                 </div>
                 <span className="text-2xl text-zinc-500">→</span>
                 <div className="text-center">
-                   <img src={pendingReplace.newChar.customImageUrl || pendingReplace.newChar.images.jpg.image_url}
+                   <img src={proxied(pendingReplace.newChar.customImageUrl || pendingReplace.newChar.images.jpg.image_url, 256)}
                       alt={pendingReplace.newChar.name}
                       referrerPolicy="no-referrer"
                       className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-green-500/50"

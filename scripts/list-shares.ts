@@ -35,6 +35,7 @@ async function listShares() {
 
             const parsed = JSON.parse(data);
             const title = parsed.meta?.title || 'Untitled';
+            const kind = parsed.meta?.kind === 'story' ? `story/${parsed.meta?.size ?? '?'}` : 'waifu';
             const createdAt = parsed.meta?.createdAt 
                 ? new Date(parsed.meta.createdAt).toLocaleDateString()
                 : 'Unknown';
@@ -43,7 +44,7 @@ async function listShares() {
             const score = await redis.zscore('waifu100:feed', id);
             const inFeed = score !== null ? '✅ Yes' : '❌ No';
 
-            console.log(`${id.padEnd(15)} | ${title.substring(0, 35).padEnd(35)} | ${inFeed.padEnd(10)} | ${createdAt}`);
+            console.log(`${id.padEnd(15)} | ${kind.padEnd(9)} | ${title.substring(0, 35).padEnd(35)} | ${inFeed.padEnd(10)} | ${createdAt}`);
             
         } catch (e) {
             console.error(`Error reading ${key}:`, e);
