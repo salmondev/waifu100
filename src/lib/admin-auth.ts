@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "crypto";
+import { matchesSecret } from "@/lib/secret-auth";
 import { NextResponse } from "next/server";
 
 /**
@@ -12,24 +12,12 @@ import { NextResponse } from "next/server";
 
 const HEADER = "x-admin-token";
 
-function matches(provided: string, expected: string): boolean {
-    const a = Buffer.from(provided);
-    const b = Buffer.from(expected);
-    // timingSafeEqual throws on length mismatch, which is itself a leak of
-    // length - compare padded buffers and check the length separately.
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
-}
-
+/**
+ * Fail closed: with ADMIN_TOKEN unset / empty / whitespace-only, nothing is admin.
+ * Constant-time, length-safe compare lives in secret-auth (T-0012).
+ */
 export function isAdminRequest(request: Request): boolean {
-    const expected = process.env.ADMIN_TOKEN;
-    // Fail closed: with no token configured, nothing is admin.
-    if (!expected) return false;
-
-    const provided = request.headers.get(HEADER);
-    if (!provided) return false;
-
-    return matches(provided, expected);
+    return matchesSecret(request.headers.get(HEADER), "ADMIN_TOKEN");
 }
 
 /** 401 body for a request that needed the admin token and did not carry it. */

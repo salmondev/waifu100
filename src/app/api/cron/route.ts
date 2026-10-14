@@ -3,6 +3,7 @@ import { createCipheriv, randomBytes, scryptSync } from "crypto";
 import { del, list, put } from "@vercel/blob";
 import { withRedis } from "@/lib/redis";
 import { isAdminRequest } from "@/lib/admin-auth";
+import { bearerToken, matchesSecret, snapshotKeySecret } from "@/lib/secret-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,9 +79,8 @@ function encrypt(plaintext: string, secret: string): Buffer {
 function authorized(req: NextRequest): boolean {
     if (isAdminRequest(req)) return true;
 
-    const secret = process.env.CRON_SECRET;
-    if (!secret) return false;
-    return req.headers.get("authorization") === `Bearer ${secret}`;
+    // Fail closed on an unset/blank CRON_SECRET; constant-time compare (T-0012).
+    return matchesSecret(bearerToken(req), "CRON_SECRET");
 }
 
 export async function GET(req: NextRequest) {
@@ -155,7 +155,8 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const secret = process.env.BACKUP_SECRET || process.env.ADMIN_TOKEN;
+        // RAW value on purpose (key derivation, not auth): old snapshots must still decrypt.
+        const secret = snapshotKeySecret();
         if (!secret) {
             // The heartbeat above is the part that stops the database being
             // reclaimed, and it has already run. Refusing here costs today's
@@ -168,7 +169,7 @@ export async function GET(req: NextRequest) {
                     heartbeat: startedAt,
                     grids,
                     snapshot: null,
-                    warning: "Set BACKUP_SECRET to enable encrypted snapshots.",
+                    warning: "Encrypted snapshots are off - see server logs.",
                 },
                 { status: 200 }
             );
@@ -228,7 +229,7 @@ export async function GET(req: NextRequest) {
     } catch (e) {
         console.error("[cron] failed:", e);
         return NextResponse.json(
-            { ok: false, error: e instanceof Error ? e.message : String(e) },
+            { ok: false, error: "Cron run failed - see server logs." },
             { status: 500 }
         );
     }

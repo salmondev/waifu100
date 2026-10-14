@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { featureUnavailable } from "@/lib/public-errors";
 import { getFlashModel } from "@/lib/gemini";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
+import { STORY_VERDICT_ENABLED } from "@/lib/story/config";
 import {
   buildGridVerdictPrompt,
   parseVerdictJson,
@@ -14,7 +16,11 @@ export async function POST(request: NextRequest) {
     const limited = await enforceRateLimit(request, LIMITS.analyze);
     if (limited) return limited;
 
-    const { characterNames } = await request.json();
+    const { characterNames, kind } = await request.json();
+    const mode = kind === "story" ? "story" : "waifu";
+    if (mode === "story" && !STORY_VERDICT_ENABLED) {
+      return NextResponse.json({ error: "Story verdicts are disabled." }, { status: 403 });
+    }
 
     if (!characterNames || characterNames.length === 0) {
       return NextResponse.json(
@@ -24,14 +30,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY not configured" },
-        { status: 500 }
-      );
+      return featureUnavailable("ai", "GEMINI_API_KEY is not set");
     }
 
     const model = getFlashModel();
-    const result = await model.generateContent(buildGridVerdictPrompt(characterNames));
+    const result = await model.generateContent(buildGridVerdictPrompt(characterNames.slice(0, 100).map((n: unknown) => String(n).slice(0, 120)), mode));
     const text = (await result.response).text();
 
     const analysis = parseVerdictJson(text);

@@ -20,6 +20,7 @@
     "@google/generative-ai": "^0.24.1",
     "@vercel/blob": "^2.1.0",
     "clsx": "^2.1.1",
+    "effect": "^4.0.3",
     "google-auth-library": "^10.5.0",
     "html-to-image": "^1.11.13",
     "ioredis": "^5.9.2",

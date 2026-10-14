@@ -7,10 +7,12 @@
  * Example:
  *   bun run scripts/add-to-feed.ts abc123 def456 ghi789
  * 
- * This will add the specified share IDs to the community feed.
+ * This will add the specified share IDs to the community feed
+ * (story shares also to waifu100:feed:story).
  */
 
 import { getRedis } from '../src/lib/redis';
+import { feedKeysForShare } from '../src/lib/share-schema';
 
 async function addToFeed(shareIds: string[]) {
     const redis = await getRedis();
@@ -36,17 +38,20 @@ async function addToFeed(shareIds: string[]) {
                 ? new Date(parsed.meta.createdAt).getTime() 
                 : Date.now();
             
-            // Check if already in feed
-            const score = await redis.zscore('waifu100:feed', id);
-            if (score !== null) {
+            // Every share goes in the main feed; story shares also in feed:story.
+            const keys = feedKeysForShare(data);
+            const missing: string[] = [];
+            for (const key of keys) {
+                if ((await redis.zscore(key, id)) === null) missing.push(key);
+            }
+            if (missing.length === 0) {
                 console.log(`⏭️  Already in feed: ${id} (${parsed.meta?.title || 'Untitled'})`);
                 skipped++;
                 continue;
             }
 
-            // Add to feed
-            await redis.zadd('waifu100:feed', createdAt, id);
-            console.log(`✅ Added: ${id} - "${parsed.meta?.title || 'Untitled'}"`);
+            for (const key of missing) await redis.zadd(key, createdAt, id);
+            console.log(`✅ Added: ${id} - "${parsed.meta?.title || 'Untitled'}" -> ${missing.join(', ')}`);
             added++;
             
         } catch (e) {

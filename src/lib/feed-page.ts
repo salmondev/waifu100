@@ -27,3 +27,20 @@ export const EMPTY_FEED_PAGE: FeedPage = {
     nextOffset: null,
     hasMore: false,
 };
+
+/** Community tabs. Q1 default: "all". */
+export type FeedKind = "all" | "waifu" | "story";
+export const DEFAULT_FEED_KIND: FeedKind = "all";
+
+export function parseFeedKind(value: string | null | undefined): FeedKind {
+    return value === "waifu" || value === "story" ? value : DEFAULT_FEED_KIND;
+}
+
+/** Summaries without a kind predate story100 and are waifu. */
+export function kindOf(summary: Pick<ShareSummary, "kind">): "waifu" | "story" {
+    return summary.kind === "story" ? "story" : "waifu";
+}
+
+export function filterByKind(grids: ShareSummary[], kind: FeedKind): ShareSummary[] {
+    return kind === "all" ? grids : grids.filter((g) => kindOf(g) === kind);
+}

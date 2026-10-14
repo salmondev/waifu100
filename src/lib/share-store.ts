@@ -1,5 +1,9 @@
-import { withRedis } from "@/lib/redis";
+import { Effect } from "effect";
+import { SHARE_KEY_PREFIX, shareKey, isValidShareId } from "@/lib/share-keys";
+import { ShareRepo } from "@/server/share-repo";
+import { runApp } from "@/server/run";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
+import { decodeShare, type ShareKind, type StoryItem } from "@/lib/share-schema";
 
 /**
  * Reading a stored share back into a grid.
@@ -11,7 +15,7 @@ import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
  * slots rather than read positionally.
  */
 
-export const SHARE_KEY_PREFIX = "waifu100:share:";
+export { SHARE_KEY_PREFIX, shareKey, isValidShareId };
 export const GRID_SIZE = 100;
 
 export interface StoredShare {
@@ -22,80 +26,47 @@ export interface StoredShare {
     createdAt: string | null;
     verdict: AnalysisResult | null;
     verdictFeedback: VerdictFeedback;
-}
-
-export function shareKey(id: string): string {
-    return `${SHARE_KEY_PREFIX}${id}`;
-}
-
-/**
- * Ids reach us from query strings, so they get the same shape check the delete
- * route applies before they are ever concatenated into a Redis key.
- */
-export function isValidShareId(value: unknown): value is string {
-    return typeof value === "string" && value.length > 0 && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+    /** "waifu" for every share written before story100 existed. */
+    kind: ShareKind;
+    /** Slots in the grid: 100 for waifu, 9/10/50/100 for story. */
+    size: number;
+    /** Story cells (all null for a waifu share). */
+    items: (StoryItem | null)[];
 }
 
 export function parseShare(id: string, raw: string): StoredShare | null {
-    try {
-        const parsed = JSON.parse(raw);
-        const isArray = Array.isArray(parsed);
-
-        const cells: unknown[] = isArray ? parsed : parsed.grid || [];
-        const meta = isArray ? {} : parsed.meta || {};
-
-        const grid: GridCell[] = Array.from({ length: GRID_SIZE }, () => ({ character: null }));
-
-        cells.forEach((entry) => {
-            const item = entry as { i?: number; character?: GridCell["character"] };
-            const index = item?.i ?? -1;
-            if (index < 0 || index >= GRID_SIZE || !item.character) return;
-            grid[index] = { character: item.character };
-        });
-
-        return {
-            id,
-            title: meta.title || "Waifu100 Grid",
-            grid,
-            imageUrl: meta.imageUrl || null,
-            createdAt: meta.createdAt || null,
-            verdict: (!isArray && parsed.verdict) || null,
-            verdictFeedback: (!isArray && parsed.verdictFeedback) || null,
-        };
-    } catch {
-        return null;
-    }
-}
-
-export async function readShare(id: string): Promise<StoredShare | null> {
-    if (!isValidShareId(id)) return null;
-    const raw = await withRedis((redis) => redis.get(shareKey(id)));
-    return raw ? parseShare(id, raw) : null;
+    // All shapes (legacy array, v1 object, v2 waifu/story) are decoded in
+    // share-schema.ts; this keeps the historical StoredShare contract.
+    const d = decodeShare(raw);
+    if (!d) return null;
+    return {
+        id,
+        title: d.title,
+        grid: d.kind === "waifu" ? d.grid : Array.from({ length: GRID_SIZE }, () => ({ character: null })),
+        imageUrl: d.imageUrl,
+        createdAt: d.createdAt,
+        verdict: d.verdict,
+        verdictFeedback: d.verdictFeedback,
+        kind: d.kind,
+        size: d.size,
+        items: d.items,
+    };
 }
 
 /**
- * Reads several shares in one pipeline.
- *
- * The compare page needs two grids to render anything at all, and doing that as
- * two sequential GETs would pay the round trip twice on every page view.
+ * Reads one share (Effect ShareRepo underneath). Null when missing or invalid;
+ * a Redis failure rejects, as before.
  */
+export async function readShare(id: string): Promise<StoredShare | null> {
+    if (!isValidShareId(id)) return null;
+    const raw = await runApp(Effect.gen(function* () { return yield* (yield* ShareRepo).getRaw(id); }));
+    return raw ? parseShare(id, raw) : null;
+}
+
+/** Reads several shares in one pipeline (compare needs two at once). */
 export async function readShares(ids: string[]): Promise<(StoredShare | null)[]> {
     if (ids.length === 0) return [];
-    if (ids.some((id) => !isValidShareId(id))) {
-        return ids.map(() => null);
-    }
-
-    const results = await withRedis((redis) => {
-        const pipeline = redis.pipeline();
-        ids.forEach((id) => pipeline.get(shareKey(id)));
-        return pipeline.exec();
-    });
-
-    return ids.map((id, index) => {
-        const entry = results?.[index];
-        if (!entry) return null;
-        const [err, data] = entry;
-        if (err || !data) return null;
-        return parseShare(id, data as string);
-    });
+    if (ids.some((id) => !isValidShareId(id))) return ids.map(() => null);
+    const raws = await runApp(Effect.gen(function* () { return yield* (yield* ShareRepo).getRawMany(ids); }));
+    return ids.map((id, i) => (raws[i] ? parseShare(id, raws[i]!) : null));
 }

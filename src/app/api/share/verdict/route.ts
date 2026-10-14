@@ -49,9 +49,8 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ success: true });
     } catch (e: unknown) {
         console.error("Share Verdict Update Error:", e);
-        const errMsg = e instanceof Error ? e.message : String(e);
         return NextResponse.json(
-            { error: "Failed to update verdict", details: errMsg },
+            { error: "Failed to update verdict" },
             { status: 500 }
         );
     }

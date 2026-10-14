@@ -9,7 +9,7 @@
  * Bump whenever the card design changes. Cards are cached for a year, so
  * without this a redesign would never reach anything already rendered.
  */
-export const CARD_VERSION = 3;
+export const CARD_VERSION = 4; // 4: cells moderated (T-0009 A)
 
 export function shareCardPath(id: string) {
     return `/api/share/image/${id}?v=${CARD_VERSION}`;
@@ -20,7 +20,7 @@ export function shareCardPath(id: string) {
  * carries its own version rather than riding on the share card's - bumping one
  * design should not invalidate a year of the other's cache.
  */
-export const COMPARE_CARD_VERSION = 1;
+export const COMPARE_CARD_VERSION = 2; // 2: moderated faces
 
 export function compareCardPath(a: string, b: string) {
     return `/api/compare/image?a=${encodeURIComponent(a)}&b=${encodeURIComponent(

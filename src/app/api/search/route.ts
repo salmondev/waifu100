@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serperFetch } from "@/server/serper-budget";
 import { getFlashModel } from "@/lib/gemini";
 
 // Simple in-memory cache (resets on server restart)
@@ -33,14 +34,16 @@ export async function POST(request: NextRequest) {
   // const _startTime = Date.now();
   
   try {
-    const { characterName } = await request.json();
+    const { characterName, more } = await request.json();
+    // Serper only on an explicit "more images" request (T-0009 budget).
+    const wantMore = more === true;
 
     if (!characterName) {
       return NextResponse.json({ error: "Name required" }, { status: 400 });
     }
 
     const cleanQuery = characterName.trim();
-    const cacheKey = cleanQuery.toLowerCase();
+    const cacheKey = cleanQuery.toLowerCase() + (wantMore ? "|more" : "");
     
     // Check cache first
     const cached = searchCache.get(cacheKey);
@@ -174,20 +177,20 @@ export async function POST(request: NextRequest) {
         } catch { return []; }
       })(),
 
-      // Source 4: Serper (Google) - ALWAYS runs for any query
-      // This is the "Google-like" fallback that handles games, VTubers, etc.
+      // Source 4: Serper (Google). T-0009: never on typing - only when the
+      // caller explicitly asks (`more=1`), and within the global daily budget.
       (async (): Promise<CharacterResult[]> => {
-        if (!process.env.SERPER_API_KEY) return [];
+        if (!process.env.SERPER_API_KEY || !wantMore) return [];
         
         try {
           const searchQuery = `${cleanQuery} character`;
-          const res = await fetch("https://google.serper.dev/images", {
+          const res = await serperFetch("https://google.serper.dev/images", {
             method: "POST",
             headers: {
               "X-API-KEY": process.env.SERPER_API_KEY,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ q: searchQuery, num: 12, gl: "us", hl: "en" }),
+            body: JSON.stringify({ q: searchQuery, num: 10, gl: "us", hl: "en" }),
           });
 
           if (!res.ok) return [];

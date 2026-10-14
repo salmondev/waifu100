@@ -53,7 +53,7 @@ export function CompareWithMine({
 }) {
     const mine = useMyGrids();
     // Comparing a grid with itself is a 100% match and no fun.
-    const grids = mine.filter((g) => g.id !== shareId);
+    const grids = mine.filter((g) => g.id !== shareId && g.kind !== "story");
 
     const [open, setOpen] = useState(false);
     const boxRef = useRef<HTMLDivElement>(null);

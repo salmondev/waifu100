@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFeedPage } from "@/lib/community-feed";
-import { FEED_MAX_LIMIT, FEED_PAGE_SIZE, type FeedOrder } from "@/lib/feed-page";
+import { FEED_MAX_LIMIT, FEED_PAGE_SIZE, parseFeedKind, type FeedOrder } from "@/lib/feed-page";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
         const limit = clampInt(params.get('limit'), FEED_PAGE_SIZE, 1, FEED_MAX_LIMIT);
         const order: FeedOrder = params.get('order') === 'old' ? 'old' : 'new';
 
-        const page = await readFeedPage(offset, limit, order);
+        const kind = parseFeedKind(params.get('kind'));
+
+        const page = await readFeedPage(offset, limit, order, kind);
 
         return NextResponse.json(page, {
             headers: {

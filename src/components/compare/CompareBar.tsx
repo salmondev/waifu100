@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { proxied } from "@/lib/img-proxy";
 import { useRouter } from "next/navigation";
 import { GitCompareArrows, Loader2, X } from "lucide-react";
 import type { ShareSummary } from "@/lib/share-summary";
@@ -65,7 +66,7 @@ function Slot({
                 {grid && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                        src={grid.imageUrl || shareCardPath(grid.id)}
+                        src={proxied(grid.imageUrl, 256) || shareCardPath(grid.id)}
                         alt=""
                         className="h-full w-full object-cover"
                     />

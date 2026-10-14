@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { proxied } from "@/lib/img-proxy";
 import { Calendar, ExternalLink, GitCompareArrows, Grid3x3, Loader2, Trash2 } from "lucide-react";
 import { shareCardPath } from "@/lib/share-card";
 import { cn } from "@/lib/utils";
 import type { ShareSummary } from "@/lib/share-summary";
 import { CompareWithMine } from "@/components/compare/CompareWithMine";
+import { storyViewPath } from "@/lib/story/config";
 
 interface GridCardProps {
     grid: ShareSummary;
@@ -43,8 +45,11 @@ export function GridCard({
 }: GridCardProps) {
     // A share whose thumbnail upload failed has no imageUrl; the OG route draws
     // one from the grid data so the card is never blank.
-    const preview = grid.imageUrl || shareCardPath(grid.id);
-    const isComplete = grid.count >= 100;
+    const preview = proxied(grid.imageUrl, 512) || shareCardPath(grid.id);
+    const isStory = grid.kind === "story";
+    const slots = isStory ? grid.size ?? 100 : 100;
+    const isComplete = grid.count >= slots;
+    const href = isStory ? storyViewPath(grid.id) : `/view/${grid.id}`;
 
     return (
         <div className={cn(
@@ -52,7 +57,7 @@ export function GridCard({
             selected && "border-purple-500 ring-2 ring-purple-500/40"
         )}>
             <Link
-                href={`/view/${grid.id}`}
+                href={href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block"
@@ -115,7 +120,7 @@ export function GridCard({
                             {/* How full the grid is. A 20-character grid and a
                                 finished one used to look identical from here. */}
                             <span
-                                title={`${grid.count} of 100 slots filled`}
+                                title={`${grid.count} of ${slots} slots filled`}
                                 className={
                                     "flex items-center gap-1 shrink-0 tabular-nums " +
                                     (isComplete ? "text-amber-400 font-semibold" : "")
@@ -123,11 +128,21 @@ export function GridCard({
                             >
                                 <Grid3x3 className="w-3.5 h-3.5" />
                                 {grid.count}
-                                <span className="text-zinc-600">/100</span>
+                                <span className="text-zinc-600">/{slots}</span>
                             </span>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
+                            {/* Which mode made this grid; old shares have no kind and are waifu. */}
+                            <span
+                                data-testid="kind-badge"
+                                className={cn(
+                                    "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest",
+                                    isStory ? "bg-sky-500/20 text-sky-300" : "bg-pink-500/15 text-pink-300"
+                                )}
+                            >
+                                {isStory ? "Story" : "Waifu"}
+                            </span>
                             {/* Animated grids get a chip beside the id, in the GIF MODE
                                 palette so the toggle and the badge teach each other. */}
                             {grid.hasGif && (
@@ -154,7 +169,7 @@ export function GridCard({
                 A full-width strip along the bottom, because the small chip that
                 used to float over the thumbnail was dark on dark art in the one
                 corner nobody looks at, and people could not find it. */}
-            {onSelect ? (
+            {isStory ? null : onSelect ? (
                 <button
                     type="button"
                     onClick={() => onSelect(grid)}

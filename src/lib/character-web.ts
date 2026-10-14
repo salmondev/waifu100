@@ -1,4 +1,5 @@
 import { withRedis } from "@/lib/redis";
+import { serperFetch } from "@/server/serper-budget";
 import { matchKey, normalizeName } from "@/lib/character-match";
 import { usableSeriesHint } from "@/lib/anilist-character";
 import { getFlashModel } from "@/lib/gemini";
@@ -109,7 +110,7 @@ async function retrieve(name: string, source: string | null | undefined): Promis
     // the budget that has actually run out here before.
     assertUpstreamUp(SERPER);
 
-    const res = await fetch(SERPER_URL, {
+    const res = await serperFetch(SERPER_URL, {
         method: "POST",
         headers: { "X-API-KEY": key, "Content-Type": "application/json" },
         body: JSON.stringify({ q: buildQuery(name, source), num: 8 }),

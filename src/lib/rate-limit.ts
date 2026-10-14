@@ -184,4 +184,15 @@ export const LIMITS = {
   // AniList could not answer, and the answer - including "nothing found" - is
   // cached, so this counts genuinely new characters.
   research: { name: "research", limit: 5, windowSec: 60 } satisfies RateLimit,
+  // Story web image search: Serper credit, cached per query (T-0009 E).
+  storyWeb: { name: "story-web", limit: 6, windowSec: 60 } satisfies RateLimit,
+  // Story cover uploads: one moderation call + one Blob write each (T-0009 D).
+  storyUpload: { name: "story-upload", limit: 5, windowSec: 300 } satisfies RateLimit,
+  // Image choices for one title (T-0010): AniList + Jikan + Serper + hashing, cache misses only.
+  storyImages: { name: "story-images", limit: 20, windowSec: 60 } satisfies RateLimit,
+  // Waifu share uploads (thumbnail + custom cell images): moderated, then stored (T-0009 review M1).
+  upload: { name: "upload", limit: 30, windowSec: 600 } satisfies RateLimit,
+  // /api/img cache MISSES only (a fetch + Gemini check). Cached verdicts are free.
+  // A cold 100-cell grid needs ~100 misses once, then everything is cached.
+  imgModerate: { name: "img-moderate", limit: 150, windowSec: 60 } satisfies RateLimit,
 };
