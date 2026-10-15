@@ -6,7 +6,7 @@
  */
 import { applyTogetherOp, emptyTogether, type TogetherOp, type TogetherState } from "../src/lib/together/ops";
 
-const PORT = 3310;
+const PORT = Number(process.env.PORT) || 3310;
 /** A room lasts six hours from the moment it is opened, then it is dropped. */
 const SESSION_MS = 6 * 60 * 60 * 1000;
 const COLORS = ["#f472b6", "#a78bfa", "#38bdf8", "#34d399", "#fbbf24", "#fb7185", "#22d3ee", "#c084fc"];
@@ -80,6 +80,7 @@ function endRoom(code: string) {
 
 Bun.serve<{ peer?: Peer; room?: Room }>({
     port: PORT,
+    hostname: "0.0.0.0",
     fetch(req, server) {
         const url = new URL(req.url);
         if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
