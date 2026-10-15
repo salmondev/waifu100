@@ -144,7 +144,8 @@ export async function exportStoryPng(title: string, items: (StoryItem | null)[],
     ctx.fillStyle = "#71717a";
     ctx.font = "16px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(`${STORY_BRAND} · Data from AniList`, L.width / 2, L.height - L.pad);
+    // Shared image: brand only, no data-source credit (2026-10-15). Credits stay on the site.
+    ctx.fillText(STORY_BRAND, L.width / 2, L.height - L.pad);
 
     return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
 }
