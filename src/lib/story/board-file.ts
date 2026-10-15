@@ -1,4 +1,4 @@
-import { cleanStoryCells, ShareValidationError, toStoredStoryCell, type StoryItem } from "@/lib/share-schema";
+import { cleanStoryCells, ShareValidationError, toMediaType, toStoredStoryCell, type StoryItem } from "@/lib/share-schema";
 import { DEFAULT_TITLE_STYLE, isTitleStyle, STORY_TITLE_MAX } from "@/lib/story/config";
 import type { StoryDraft } from "@/lib/story/draft";
 
@@ -60,7 +60,7 @@ export function boardFromFile(text: string): { draft: StoryDraft; dropped: numbe
         draft: {
             size: clean.size,
             cols: clean.cols,
-            type: o.type === "MANGA" ? "MANGA" : "ANIME",
+            type: toMediaType(o.type),
             title: typeof o.title === "string" ? o.title.slice(0, STORY_TITLE_MAX) : "",
             items,
             titleStyle: isTitleStyle(o.titleStyle) ? o.titleStyle : DEFAULT_TITLE_STYLE,

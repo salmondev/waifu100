@@ -5,6 +5,7 @@ import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { moderateBytes } from "@/server/moderation/moderator";
 import { STORY_TITLE_MAX } from "@/lib/story/config";
 import { webItemId } from "@/server/story-web-search";
+import { toMediaType } from "@/lib/share-schema";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData().catch(() => null);
     const file = form?.get("file");
     const title = String(form?.get("title") ?? "").trim().slice(0, STORY_TITLE_MAX) || "Custom cover";
-    const type = form?.get("type") === "MANGA" ? "MANGA" : "ANIME";
+    const type = toMediaType(form?.get("type"));
     if (!(file instanceof Blob)) return NextResponse.json({ error: "No file" }, { status: 400 });
     if (file.size > UPLOAD_MAX_BYTES) return NextResponse.json({ error: "Max 2 MB" }, { status: 413 });
     const ext = TYPES[file.type];

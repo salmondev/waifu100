@@ -4,14 +4,15 @@ import { useRef, type KeyboardEvent } from "react";
 import type { MediaType } from "@/lib/share-schema";
 import { cn } from "@/lib/utils";
 
-/** The two search modes under the main search box, in display order. */
+/** The three search modes under the main search box, in display order. */
 export const SEARCH_MODES: { type: MediaType; label: string }[] = [
     { type: "ANIME", label: "Anime" },
     { type: "MANGA", label: "Manga" },
+    { type: "NOVEL", label: "Light Novel" },
 ];
 
 /**
- * Anime / manga segmented control (a radio group): click, or arrow keys to move, Home/End to jump.
+ * Anime / manga / light novel segmented control (a radio group): click, or arrow keys to move, Home/End to jump.
  * Only the checked option is in the tab order, as for any radio group.
  */
 export function SearchModeToggle({ value, onChange }: { value: MediaType; onChange: (t: MediaType) => void }) {
@@ -28,7 +29,7 @@ export function SearchModeToggle({ value, onChange }: { value: MediaType; onChan
         else if (e.key === "End") { e.preventDefault(); pick(SEARCH_MODES.length - 1); }
     };
     return (
-        <div role="radiogroup" aria-label="Search for" data-testid="search-mode" className="mt-2 grid grid-cols-2 gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800">
+        <div role="radiogroup" aria-label="Search for" data-testid="search-mode" className="mt-2 grid grid-cols-3 gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800">
             {SEARCH_MODES.map((m, i) => {
                 const on = value === m.type;
                 return (

@@ -54,6 +54,8 @@ export interface MediaGridProps<T> {
     editable?: boolean;
     selected?: number | null;
     onSelect?: (index: number) => void;
+    /** Read-only grids whose FILLED cells open something on click (story view card). Off by default. */
+    clickable?: boolean;
     onMove?: (from: number, to: number) => void;
     onRemove?: (index: number) => void;
     renderEmpty?: (index: number) => ReactNode;
@@ -137,6 +139,7 @@ export function MediaGrid<T>({
     editable = false,
     selected = null,
     onSelect,
+    clickable = false,
     onMove,
     onRemove,
     renderEmpty,
@@ -228,8 +231,8 @@ export function MediaGrid<T>({
                         key={cell ? `${cell.key}-${index}` : `empty-${index}`}
                         ref={dnd?.ref}
                         {...dnd?.props}
-                        role={editable ? "button" : undefined}
-                        tabIndex={editable ? 0 : undefined}
+                        role={editable || (clickable && cell) ? "button" : undefined}
+                        tabIndex={editable || (clickable && cell) ? 0 : undefined}
                         aria-label={cell ? `${index + 1}. ${cell.label}` : `Empty slot ${index + 1}`}
                         aria-disabled={undefined}
                         data-slot={index}
@@ -263,7 +266,8 @@ export function MediaGrid<T>({
                             "group relative rounded-md select-none",
                             !below && "overflow-hidden bg-zinc-900 border border-zinc-800",
                             !below && (aspect === "portrait" ? "aspect-[2/3]" : "aspect-square"),
-                            editable && "cursor-pointer",
+                            (editable || (clickable && cell)) && "cursor-pointer",
+                            clickable && cell && !below && "hover:border-purple-500/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                             editable && !below && "hover:border-purple-500/60",
                             selected === index && !below && "ring-2 ring-purple-500 border-purple-500",
                             "transition-all duration-200",

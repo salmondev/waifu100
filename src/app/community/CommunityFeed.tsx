@@ -68,6 +68,13 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
       setActiveSlot("b");
       return;
     }
+    // Story-only branch: grids compare within their kind, so pairing a story grid with a waifu one
+    // (the "All" tab) clears the other slot. Never fires for two waifu grids.
+    const other = activeSlot === "a" ? slotB : slotA;
+    if (other && (grid.kind === "story" || other.kind === "story") && grid.kind !== other.kind) {
+      if (activeSlot === "a") setSlotB(null);
+      else setSlotA(null);
+    }
     if (activeSlot === "a") {
       setSlotA(grid);
       setActiveSlot("b");

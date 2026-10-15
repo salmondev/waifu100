@@ -3,7 +3,7 @@ import { safeFetchImage, type SafeFetchOptions } from "@/server/moderation/safe-
 import { isPublicHttpsUrl } from "@/lib/url-safety";
 import { ANILIST_GRAPHQL, JIKAN_BASE } from "@/lib/story/search";
 import { STORY_TITLE_MAX } from "@/lib/story/config";
-import type { MediaType } from "@/lib/share-schema";
+import { upstreamType, type MediaType } from "@/lib/share-schema";
 
 /**
  * T-0010: every image choice for one title, for the "pick an image" panel.
@@ -138,7 +138,7 @@ export interface ChoiceDeps {
 
 export async function storyImageChoices(src: "anilist" | "mal", id: number, type: MediaType, deps: ChoiceDeps): Promise<ImageChoices | null> {
     const f = deps.fetch ?? fetch;
-    const variables = src === "mal" ? { idMal: id, type } : { id };
+    const variables = src === "mal" ? { idMal: id, type: upstreamType(type) } : { id };
     const res = await f(ANILIST_GRAPHQL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -147,14 +147,14 @@ export async function storyImageChoices(src: "anilist" | "mal", id: number, type
     }).catch(() => null);
     const media: MediaById | null = res?.ok ? (((await res.json().catch(() => ({}))) as { data?: { Media?: MediaById } }).data?.Media ?? null) : null;
 
-    const mediaType: MediaType = media?.type === "MANGA" ? "MANGA" : media?.type === "ANIME" ? "ANIME" : type;
+    const mediaType: MediaType = type === "NOVEL" ? "NOVEL" : media?.type === "MANGA" ? "MANGA" : media?.type === "ANIME" ? "ANIME" : type;
     const idMal = media?.idMal ?? (src === "mal" ? id : null);
     const title = media?.title?.english || media?.title?.romaji || "";
 
     let partial = !media;
     const [mal, web] = await Promise.all([
         idMal
-            ? f(`${JIKAN_BASE}/${mediaType === "MANGA" ? "manga" : "anime"}/${idMal}/pictures`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) })
+            ? f(`${JIKAN_BASE}/${mediaType === "ANIME" ? "anime" : "manga"}/${idMal}/pictures`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) })
                   .then(async (r) => {
                       if (!r.ok) throw new Error(String(r.status));
                       return ((await r.json()) as { data?: { jpg?: { large_image_url?: string; image_url?: string } }[] }).data ?? [];
@@ -224,7 +224,7 @@ export function sourceCacheKey(source: ImageSourceName, src: "anilist" | "mal", 
 
 /** The one AniList query for a title (by AniList id, or by MAL id). null = not found / failed. */
 export async function fetchMedia(src: "anilist" | "mal", id: number, type: MediaType, f: typeof fetch = fetch): Promise<MediaById | null> {
-    const variables = src === "mal" ? { idMal: id, type } : { id };
+    const variables = src === "mal" ? { idMal: id, type: upstreamType(type) } : { id };
     const res = await f(ANILIST_GRAPHQL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -249,7 +249,7 @@ export async function sourceImageChoices(
 ): Promise<SourceChoices> {
     const f = deps.fetch ?? fetch;
     const { media } = ctx;
-    const type: MediaType = media?.type === "MANGA" ? "MANGA" : media?.type === "ANIME" ? "ANIME" : ctx.type;
+    const type: MediaType = ctx.type === "NOVEL" ? "NOVEL" : media?.type === "MANGA" ? "MANGA" : media?.type === "ANIME" ? "ANIME" : ctx.type;
     const title = (media?.title?.english || media?.title?.romaji || "").slice(0, STORY_TITLE_MAX);
     const idMal = media?.idMal ?? (ctx.src === "mal" ? ctx.id : null);
     const base = { source, id: media?.id ?? ctx.id, type, title };
@@ -261,7 +261,7 @@ export async function sourceImageChoices(
         candidates = collectCandidates(media, [], []);
     } else if (source === "jikan") {
         if (!idMal) return { ...base, choices: [], partial: !media }; // no MAL id: nothing to ask, not a failure
-        const urls = await f(`${JIKAN_BASE}/${type === "MANGA" ? "manga" : "anime"}/${idMal}/pictures`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) })
+        const urls = await f(`${JIKAN_BASE}/${type === "ANIME" ? "anime" : "manga"}/${idMal}/pictures`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) })
             .then(async (r) => {
                 if (!r.ok) throw new Error(String(r.status));
                 return ((await r.json()) as { data?: { jpg?: { large_image_url?: string; image_url?: string } }[] }).data ?? [];

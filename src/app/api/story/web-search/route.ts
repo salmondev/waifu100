@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRedis } from "@/lib/redis";
 import { consume, LIMITS } from "@/lib/rate-limit";
+import { toMediaType } from "@/lib/share-schema";
 import { storyWebSearch, WEB_CACHE_TTL_SEC } from "@/server/story-web-search";
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/story/web-search?q=&type=ANIME|MANGA - Serper, cached 30 days. Images still go through /api/img. */
+/** GET /api/story/web-search?q=&type=ANIME|MANGA|NOVEL - Serper, cached 30 days. Images still go through /api/img. */
 export async function GET(req: NextRequest) {
     const q = req.nextUrl.searchParams.get("q") ?? "";
-    const type = req.nextUrl.searchParams.get("type") === "MANGA" ? "MANGA" : "ANIME";
+    const type = toMediaType(req.nextUrl.searchParams.get("type"));
     const result = await storyWebSearch(q, type, {
         apiKey: process.env.SERPER_API_KEY,
         cacheGet: (k) => (process.env.REDIS_URL ? withRedis((r) => r.get(k)) : Promise.resolve(null)),

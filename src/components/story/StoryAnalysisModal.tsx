@@ -5,6 +5,8 @@ import { X, Sparkles, AlertCircle, Quote, Copy, ThumbsUp, ThumbsDown, Check, Ima
 import type { AnalysisResult, VerdictFeedback } from "@/types";
 import { cn } from "@/lib/utils";
 import { toBlob } from "html-to-image";
+import { createPortal } from "react-dom";
+import { StoryVerdictCard } from "@/components/story/StoryVerdictCard";
 
 /**
  * Story copy of waifu's AnalysisModal (components/analysis/AnalysisModal.tsx), so the story verdict
@@ -31,23 +33,28 @@ interface AnalysisModalProps {
 }
 
 /**
- * Renders the verdict card to a PNG, minus the action row - the same picture
- * Copy Image and Save Image produce.
+ * Renders the share picture (StoryVerdictCard, mounted off-screen while a result is shown) to a
+ * PNG. Unlike waifu, which screenshots the modal card minus its action row, this never includes
+ * the EN/TH toggle, buttons or the modal's scroll clip - the picture is the same on every screen.
  */
 async function renderVerdictCard(): Promise<Blob | null> {
-    const node = document.getElementById('ai-verdict-card');
+    const node = document.getElementById(EXPORT_ID);
     if (!node) return null;
     try {
         return await toBlob(node, {
             backgroundColor: '#09090b',
-            style: { padding: '20px', overflow: 'hidden' },
-            filter: (n) => n.id !== 'verdict-actions',
+            pixelRatio: 2,
+            // The clone must not keep the off-screen offset, or it renders outside its own canvas.
+            style: { position: 'static', left: '0', top: '0', margin: '0' },
+            filter: (n) => !(n instanceof HTMLElement && (n.tagName === 'BUTTON' || n.dataset?.exportSkip !== undefined)),
         });
     } catch (e) {
         console.error(e);
         return null;
     }
 }
+
+export const EXPORT_ID = 'story-verdict-export';
 
 export function StoryAnalysisModal({ isOpen, onClose, titles, onUnavailable, result, onResult, feedback, onFeedback, readonly = false, shareUrl, gridTitle }: AnalysisModalProps) {
   const [loading, setLoading] = useState(false);
@@ -163,7 +170,18 @@ export function StoryAnalysisModal({ isOpen, onClose, titles, onUnavailable, res
 
   if (!isOpen) return null;
 
+  const exportCard = result && !loading && typeof document !== 'undefined'
+    ? createPortal(
+        <div id={EXPORT_ID} aria-hidden style={{ position: 'fixed', left: '-10000px', top: 0, padding: 24, background: '#09090b', pointerEvents: 'none' }}>
+          <StoryVerdictCard result={result} lang={lang} gridTitle={gridTitle} host={typeof window !== 'undefined' ? window.location.host : undefined} />
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
+    <>
+    {exportCard}
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
         
@@ -323,10 +341,12 @@ export function StoryAnalysisModal({ isOpen, onClose, titles, onUnavailable, res
                                 label="Copy Image" 
                                 onClick={async () => {
                                     try {
-                                        const blob = await renderVerdictCard();
-                                        if (blob) {
-                                            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-                                        }
+                                        // A promise inside the ClipboardItem keeps Safari's user-gesture window open while the PNG renders.
+                                        const png = renderVerdictCard().then((b) => {
+                                            if (!b) throw new Error('render failed');
+                                            return b;
+                                        });
+                                        await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
                                     } catch (e) { console.error(e); }
                                 }}
                                 successIcon={Check}
@@ -354,6 +374,7 @@ export function StoryAnalysisModal({ isOpen, onClose, titles, onUnavailable, res
         </div>
       </div>
     </div>
+    </>
   );
 }
 

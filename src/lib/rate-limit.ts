@@ -186,6 +186,11 @@ export const LIMITS = {
   research: { name: "research", limit: 5, windowSec: 60 } satisfies RateLimit,
   // Story web image search: Serper credit, cached per query (T-0009 E).
   storyWeb: { name: "story-web", limit: 6, windowSec: 60 } satisfies RateLimit,
+  // Story title resolver: only cache misses count, each spends one Serper credit
+  // (+ at most one Gemini call), so it is as tight as storyWeb.
+  storyResolve: { name: "story-resolve", limit: 6, windowSec: 60 } satisfies RateLimit,
+  // Story cell card details: AniList/Jikan by id, cache misses only.
+  storyInfo: { name: "story-info", limit: 30, windowSec: 60 } satisfies RateLimit,
   // Story cover uploads: one moderation call + one Blob write each (T-0009 D).
   storyUpload: { name: "story-upload", limit: 5, windowSec: 300 } satisfies RateLimit,
   // Image choices for one title (T-0010): AniList + Jikan + Serper + hashing, cache misses only.
