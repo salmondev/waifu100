@@ -118,7 +118,7 @@ export default function Home() {
   
   // --- State: Search (Left Panel) ---
   const [searchQuery, setSearchQuery] = useState("");
-  const debouncedQuery = useDebounce(searchQuery, 600); // 600ms debounce to reduce API spam
+  const debouncedQuery = useDebounce(searchQuery, 300);
   const [characterResults, setCharacterResults] = useState<Character[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);

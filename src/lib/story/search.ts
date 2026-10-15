@@ -19,8 +19,24 @@ export const JIKAN_BASE = "https://api.jikan.moe/v4";
 export const DEFAULT_RETRY_AFTER_SEC = 60;
 export const SEARCH_PER_PAGE = 16;
 export const SEARCH_DEBOUNCE_MS = 300;
+/** AniList, Jikan and the web fallback share this. A dead upstream cannot hold the box open. */
+const SEARCH_BUDGET_MS = 2400;
 
-export type SearchSource = "anilist" | "jikan";
+function limited(parent: AbortSignal | undefined, ms: number): AbortSignal {
+    const timed = AbortSignal.timeout(Math.max(1, ms));
+    if (!parent) return timed;
+    const ctrl = new AbortController();
+    const stop = () => ctrl.abort();
+    if (parent.aborted || timed.aborted) {
+        ctrl.abort();
+        return ctrl.signal;
+    }
+    parent.addEventListener("abort", stop, { once: true });
+    timed.addEventListener("abort", stop, { once: true });
+    return ctrl.signal;
+}
+
+export type SearchSource = "anilist" | "jikan" | "web";
 
 export interface SearchResult {
     items: SearchItem[];
@@ -187,6 +203,8 @@ export interface StorySearchDeps {
     now?: () => number;
     /** Optional fallback for empty AniList answers. Absent = no fallback (tests, server). */
     resolve?: ResolveTitles;
+    /** Serper-backed titles. Used only when AniList is down or empty, and only if provided. */
+    web?: (query: string, type: MediaType | undefined, signal?: AbortSignal) => Promise<SearchItem[]>;
 }
 
 export function createStorySearch(deps: StorySearchDeps = {}) {
@@ -230,9 +248,10 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
         const key = `${type ?? "ALL"}:${text.toLowerCase()}`;
         const hit = cache.get(key);
         if (hit && now() - hit.at < CACHE_MS) return hit.r;
-        let r = await searchUncached(text, signal, type);
+        const until = now() + SEARCH_BUDGET_MS;
+        let r = await searchUncached(text, signal, type, until);
         if (deps.resolve && r.source === "anilist" && r.items.length === 0 && text.length >= 2) {
-            r = await resolveAndRetry(text, r, signal, type);
+            r = await resolveAndRetry(text, r, signal, type, until);
         }
         // Only full AniList answers are kept; a Jikan fallback should be retried against AniList.
         if (r.source === "anilist" && text.length >= 2) {
@@ -243,7 +262,7 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
     }
 
     /** AniList had nothing: ask the server for real titles, then search AniList for each (deduped). */
-    async function resolveAndRetry(text: string, empty: SearchResult, signal?: AbortSignal, type?: MediaType): Promise<SearchResult> {
+    async function resolveAndRetry(text: string, empty: SearchResult, signal: AbortSignal | undefined, type: MediaType | undefined, until: number): Promise<SearchResult> {
         const titles = (await deps.resolve!(text, type, signal).catch(() => [] as string[]))
             .map(normalizeQuery)
             .filter((t) => t.length >= 2 && t.toLowerCase() !== text.toLowerCase());
@@ -252,7 +271,7 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
         const items: SearchItem[] = [];
         let source: SearchSource = "anilist";
         for (const t of titles) {
-            const r = await searchUncached(t, signal, type).catch(() => null);
+            const r = await searchUncached(t, signal, type, until).catch(() => null);
             if (!r) continue;
             if (r.source === "jikan") source = "jikan";
             for (const it of r.items) {
@@ -263,29 +282,41 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
         return { items: items.slice(0, SEARCH_PER_PAGE), source, anilistCooldownUntil: inCooldown() ? cooldownUntil : null, resolvedTitles: titles };
     }
 
-    async function searchUncached(query: string, signal?: AbortSignal, type?: MediaType): Promise<SearchResult> {
+    /** Jikan and, when wired, Serper. Whoever answers inside the budget wins; a database hit outranks the web. */
+    async function backup(q: string, signal: AbortSignal | undefined, type: MediaType | undefined, until: number, cooldown: number | null): Promise<SearchResult> {
+        const sig = limited(signal, until - now());
+        const webP = deps.web ? deps.web(q, type, sig).catch(() => [] as SearchItem[]) : Promise.resolve([] as SearchItem[]);
+        const jikanP = jikan(q, sig, type).catch(() => [] as SearchItem[]);
+        const [fromJikan, fromWeb] = await Promise.all([jikanP, webP]);
+        if (fromJikan.length) return { items: fromJikan, source: "jikan", anilistCooldownUntil: cooldown };
+        if (fromWeb.length) return { items: fromWeb, source: "web", anilistCooldownUntil: cooldown };
+        return { items: [], source: "jikan", anilistCooldownUntil: cooldown };
+    }
+
+    async function searchUncached(query: string, signal: AbortSignal | undefined, type: MediaType | undefined, until: number): Promise<SearchResult> {
         const q = query;
         if (q.length < 2) return { items: [], source: "anilist", anilistCooldownUntil: inCooldown() ? cooldownUntil : null };
 
-        if (inCooldown()) {
-            return { items: await jikan(q, signal, type), source: "jikan", anilistCooldownUntil: cooldownUntil };
-        }
+        if (inCooldown()) return backup(q, signal, type, until, cooldownUntil);
 
         const variables: Record<string, unknown> = { search: q, perPage: SEARCH_PER_PAGE, ...typeVariables(type) };
-        const res = await doFetch(ANILIST_GRAPHQL, {
-            method: "POST",
-            signal,
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({ query: MEDIA_QUERY, variables }),
-        });
+        let res: Response;
+        try {
+            res = await doFetch(ANILIST_GRAPHQL, {
+                method: "POST",
+                signal: limited(signal, until - now()),
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({ query: MEDIA_QUERY, variables }),
+            });
+        } catch {
+            return backup(q, signal, type, until, null);
+        }
 
         if (res.status === 429) {
             cooldownUntil = now() + parseRetryAfter(res.headers.get("Retry-After"), now()) * 1000;
-            return { items: await jikan(q, signal, type), source: "jikan", anilistCooldownUntil: cooldownUntil };
+            return backup(q, signal, type, until, cooldownUntil);
         }
-        if (res.status >= 500) {
-            return { items: await jikan(q, signal, type), source: "jikan", anilistCooldownUntil: null };
-        }
+        if (res.status >= 500) return backup(q, signal, type, until, null);
         if (!res.ok) throw new SearchError("Search failed. Please try a different title.", res.status);
 
         const body = (await res.json()) as { data?: { Page?: { media?: AniListMedia[] } } };
@@ -295,5 +326,13 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
     return { search, cooldownUntil: () => (inCooldown() ? cooldownUntil : null) };
 }
 
+async function fetchWeb(query: string, type: MediaType | undefined, signal?: AbortSignal): Promise<SearchItem[]> {
+    const qs = new URLSearchParams({ q: query, ...(type ? { type } : {}) });
+    const res = await fetch(`/api/story/web-search?${qs}`, { signal }).catch(() => null);
+    if (!res?.ok) return [];
+    const body = (await res.json().catch(() => ({}))) as { items?: SearchItem[] };
+    return Array.isArray(body.items) ? body.items : [];
+}
+
 /** Browser-wide instance, so the cooldown is shared by every search box. */
-export const storySearch = createStorySearch({ resolve: fetchResolve });
+export const storySearch = createStorySearch({ resolve: fetchResolve, web: fetchWeb });

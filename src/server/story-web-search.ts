@@ -76,7 +76,7 @@ export async function storyWebSearch(q: string, type: MediaType, deps: WebSearch
         method: "POST",
         headers: { "X-API-KEY": deps.apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({ q: `${query} ${type === "NOVEL" ? "light novel" : type === "MANGA" ? "manga" : "anime"} cover`, num: 10 }),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(2000),
     }).catch(() => null);
     if (!res || !res.ok) return { ok: false, status: 502, error: "Web search is unavailable right now." };
     const body = (await res.json().catch(() => ({}))) as { images?: SerperImage[] };
