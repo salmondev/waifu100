@@ -87,5 +87,7 @@ export default async function ViewSharePage({ params }: ServerPageProps) {
     verdict={data.verdict || null}
     verdictFeedback={data.verdictFeedback || null}
     shareId={id}
+    size={data.size}
+    cols={data.cols}
   />;
 }

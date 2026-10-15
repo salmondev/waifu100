@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2 } from "lucide-react";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn, isGifUrl } from "@/lib/utils";
-import { ensureUserId } from "@/lib/user-id";
+import { USER_ID_HEADER, ensureUserId } from "@/lib/user-id";
 import { rememberOwnGrid } from "@/lib/my-grids";
 import { uploadModeratedImage } from '@/lib/upload-client';
 
@@ -18,9 +18,14 @@ interface ShareModalProps {
   verdict: AnalysisResult | null;
   verdictFeedback: VerdictFeedback;
   onVerdictGenerate: (verdict: AnalysisResult) => void;
+  /** When set, Generate Link updates this share instead of creating another. */
+  shareId?: string | null;
+  size?: number;
+  cols?: number | null;
+  onShared?: (id: string) => void;
 }
 
-export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate, verdict, verdictFeedback, onVerdictGenerate }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate, verdict, verdictFeedback, onVerdictGenerate, shareId, size, cols, onShared }: ShareModalProps) {
   const [step, setStep] = useState<'customize' | 'result'>('customize');
   const [customTitle, setCustomTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -165,10 +170,13 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
          // title versioning and any chance of the author managing it later.
          const userId = ensureUserId();
 
-         const res = await fetch("/api/share", {
-             method: "POST",
-             headers: { "Content-Type": "application/json" },
+         const res = await fetch(shareId ? `/api/share/${shareId}` : "/api/share", {
+             method: shareId ? "PUT" : "POST",
+             headers: { "Content-Type": "application/json", ...(userId ? { [USER_ID_HEADER]: userId } : {}) },
              body: JSON.stringify({ 
+                kind: "waifu",
+                size,
+                ...(cols ? { cols } : {}),
                 grid: cleanGridData, 
                 customTitle: customTitle.trim(), 
                 imageUrl: imageUrl, // Single thumbnail URL
@@ -196,7 +204,10 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                      isGifUrl(cell.character?.images?.jpg?.image_url)
              ),
              count: cleanGridData.length,
+             size,
+             ...(cols ? { cols } : {}),
          });
+         onShared?.(data.id);
 
          const fullUrl = `${window.location.origin}/view/${data.id}`;
          setUrl(fullUrl);

@@ -64,6 +64,7 @@ export function boardFromFile(text: string): { draft: StoryDraft; dropped: numbe
             title: typeof o.title === "string" ? o.title.slice(0, STORY_TITLE_MAX) : "",
             items,
             titleStyle: isTitleStyle(o.titleStyle) ? o.titleStyle : DEFAULT_TITLE_STYLE,
+            shareId: null,
         },
         dropped: Math.max(0, sent - clean.cells.length),
     };

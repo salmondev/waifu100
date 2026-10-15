@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { proxied } from "@/lib/img-proxy";
-import { Calendar, ExternalLink, GitCompareArrows, Grid3x3, Loader2, Trash2 } from "lucide-react";
+import { Calendar, ExternalLink, GitCompareArrows, Grid3x3, Loader2, Pencil, Trash2 } from "lucide-react";
 import { shareCardPath } from "@/lib/share-card";
 import { cn } from "@/lib/utils";
 import type { ShareSummary } from "@/lib/share-summary";
@@ -48,7 +48,7 @@ export function GridCard({
     // one from the grid data so the card is never blank.
     const preview = proxied(grid.imageUrl, 512) || shareCardPath(grid.id);
     const isStory = grid.kind === "story";
-    const slots = isStory ? grid.size ?? 100 : 100;
+    const slots = grid.size ?? 100;
     const isComplete = grid.count >= slots;
     const href = isStory ? storyViewPath(grid.id) : `/view/${grid.id}`;
 
@@ -198,6 +198,16 @@ export function GridCard({
 
             {/* Delete sits outside the Link so it is never a stray click on the
                 way to opening a grid. */}
+            {onDelete && (
+                <Link
+                    href={isStory ? `/story?edit=${grid.id}` : `/?edit=${grid.id}`}
+                    aria-label={`Edit "${grid.title}"`}
+                    title="Edit this grid"
+                    className="absolute top-3 right-14 z-40 p-2 rounded-full bg-black/70 backdrop-blur-sm border border-white/10 text-zinc-300 hover:text-white hover:bg-purple-600/80 hover:border-purple-400/40 transition-colors"
+                >
+                    <Pencil className="w-4 h-4" />
+                </Link>
+            )}
             {onDelete && (
                 <button
                     type="button"

@@ -135,6 +135,14 @@ function asString(value: unknown): string | null {
     return typeof value === "string" && value ? value : null;
 }
 
+/** Preset or custom layout stored on a share. Anything else is the original 100. */
+function readLayout(meta: Record<string, unknown>): { size: number; cols: number | null } {
+    const cols = meta.cols != null && isStoryLayout(meta.size, meta.cols) ? (meta.cols as number) : null;
+    if (cols !== null) return { size: meta.size as number, cols };
+    if (isStorySize(meta.size)) return { size: meta.size as number, cols: null };
+    return { size: WAIFU_GRID_SIZE, cols: null };
+}
+
 export function shareKindOf(parsed: unknown): ShareKind {
     if (Array.isArray(parsed)) return "waifu";
     const kind = (parsed as { meta?: { kind?: unknown } } | null)?.meta?.kind;
@@ -164,9 +172,11 @@ export function decodeShareObject(parsed: unknown): DecodedShare | null {
     const cells: unknown[] = isArray ? (parsed as unknown[]) : Array.isArray(obj.grid) ? obj.grid : [];
     const kind = shareKindOf(parsed);
     const version: 0 | 1 | 2 = isArray ? 0 : meta.v === 2 ? 2 : 1;
-    // Custom layouts carry meta.cols; anything without it (all older shares) keeps the preset rule.
-    const cols = kind === "story" && meta.cols != null && isStoryLayout(meta.size, meta.cols) ? (meta.cols as number) : null;
-    const size = kind === "story" && (cols !== null || isStorySize(meta.size)) ? (meta.size as number) : WAIFU_GRID_SIZE;
+    // Custom layouts carry meta.cols. A missing or invalid size is 100, so every
+    // legacy waifu share (no meta.size) still reads as a 10×10 board.
+    const layout = readLayout(meta);
+    const cols = layout.cols;
+    const size = layout.size;
 
     const grid: GridCell[] = Array.from({ length: size }, () => ({ character: null }));
     const items: (StoryItem | null)[] = Array.from({ length: size }, () => null);
@@ -248,16 +258,24 @@ function baseMeta(kind: ShareKind, input: ShareMetaInput, size: number) {
     };
 }
 
-/** Waifu payload: identical to the v1 shape plus meta.v/kind/size. */
+/**
+ * Waifu payload: the v1 shape plus meta.v/kind/size.
+ * `size` / `cols` follow the story layout rules. Omitted size stays 100, and
+ * `cols` is written only for a custom layout so a preset payload is unchanged.
+ */
 export function buildWaifuPayload(
     input: ShareMetaInput & {
         grid: unknown[];
+        size?: number;
+        cols?: number | null;
         verdict?: unknown;
         verdictFeedback?: unknown;
     }
 ) {
+    const cols = input.cols != null && isStoryLayout(input.size, input.cols) ? input.cols : null;
+    const size = cols !== null || isStorySize(input.size) ? (input.size as number) : WAIFU_GRID_SIZE;
     return {
-        meta: baseMeta("waifu", input, WAIFU_GRID_SIZE),
+        meta: { ...baseMeta("waifu", input, size), ...(cols != null ? { cols } : {}) },
         grid: sanitizeWaifuCells(input.grid),
         verdict: input.verdict,
         verdictFeedback: input.verdictFeedback,

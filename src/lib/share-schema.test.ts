@@ -93,7 +93,20 @@ describe("share schema: old shares keep reading", () => {
     it("v2 waifu payload keeps the v1 fields", () => {
         const p = JSON.parse(FIXTURES.v2Waifu);
         expect(p.meta).toMatchObject({ title: "New", v: 2, kind: "waifu", size: 100 });
+        expect(p.meta.cols).toBeUndefined();
         expect(p.grid).toHaveLength(1);
+    });
+
+    it("a waifu share can be a smaller or custom layout; a size-less one stays 100", () => {
+        const raw = JSON.stringify(buildWaifuPayload({ title: "Top", size: 9, grid: [{ i: 0, character: char(1) }, { i: 20, character: char(2) }] }));
+        const d = decodeShare(raw)!;
+        expect(d).toMatchObject({ kind: "waifu", size: 9, cols: null, count: 1 });
+        expect(d.grid[0]?.character?.name).toBe("Char 1");
+        const custom = decodeShare(JSON.stringify(buildWaifuPayload({ title: "C", size: 24, cols: 6, grid: [{ i: 5, character: char(3) }] })))!;
+        expect(custom).toMatchObject({ size: 24, cols: 6 });
+        expect(custom.grid[5]?.character?.name).toBe("Char 3");
+        expect(summarizeShare("abc", raw)).toMatchObject({ size: 9, count: 1 });
+        expect(summarizeShare("abc", FIXTURES.v1)?.size).toBeUndefined();
     });
 });
 
@@ -142,6 +155,8 @@ describe("og layout", () => {
     it("keeps the waifu card at 10x10", async () => {
         const { ogLayout } = await import("@/lib/share-og");
         expect(ogLayout()).toMatchObject({ columns: 10, rows: 10, total: 100, cell: 80 });
+        expect(ogLayout("waifu", 9)).toMatchObject({ columns: 3, rows: 3, total: 9 });
+        expect(ogLayout("waifu", 24, 6)).toMatchObject({ columns: 6, rows: 4, total: 24 });
     });
     it("lays out story sizes", async () => {
         const { ogLayout } = await import("@/lib/share-og");
