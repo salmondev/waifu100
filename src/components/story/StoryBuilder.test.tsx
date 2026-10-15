@@ -31,9 +31,13 @@ describe("StoryBuilder upload fallback", () => {
         fireEvent.click(link);
         expect(click).toHaveBeenCalled();
         fireEvent.change(input, { target: { files: [new File(["x"], "pic.png", { type: "image/png" })] } });
+        const title = await screen.findByLabelText("Story title") as HTMLInputElement;
+        expect(title.value).toBe("my obscure show");
+        fireEvent.change(title, { target: { value: "The show I meant" } });
+        fireEvent.click(screen.getByRole("button", { name: "Add to grid" }));
         await waitFor(() => expect(fetchMock).toHaveBeenCalled());
         const [url, init] = fetchMock.mock.calls[0];
         expect(String(url)).toBe("/api/story/upload");
-        expect((init?.body as FormData).get("title")).toBe("my obscure show");
+        expect((init?.body as FormData).get("title")).toBe("The show I meant");
     });
 });

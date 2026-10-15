@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/server/text-screen", () => ({ screenUserTexts: vi.fn(async () => true) }));
 import { Effect } from "effect";
 import { makeMemoryShareRepo, FEED_KEY, STORY_FEED_KEY } from "@/server/share-repo";
 import { createShare, deleteShare, editorShare, readDecoded, updateShare } from "@/server/share-service";
+import { screenUserTexts } from "@/server/text-screen";
+import { TEXT_REJECTED } from "@/lib/text-policy";
 
 const USER = "123e4567-e89b-42d3-a456-426614174000";
 const cover = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx1-x.jpg";
@@ -59,6 +63,18 @@ describe("share service (memory Redis)", () => {
         const res = await run(createShare({ kind: "story", size: 7, grid: [] }).pipe(Effect.provide(mem.layer)));
         expect("err" in res && res.err._tag).toBe("InvalidShare");
         expect(mem.strings.size).toBe(0);
+    });
+
+    it("a refused title is not stored", async () => {
+        vi.mocked(screenUserTexts).mockResolvedValueOnce(false);
+        const mem = makeMemoryShareRepo();
+        const res = await run(
+            createShare({ grid: [{ i: 0, m: 1, n: "A", img: "https://x/a.jpg" }], customTitle: "nope", userId: USER }, { id: "bad1" }).pipe(Effect.provide(mem.layer))
+        );
+        expect("err" in res && res.err._tag).toBe("InvalidShare");
+        expect("err" in res && "reason" in res.err && res.err.reason).toBe(TEXT_REJECTED);
+        expect(mem.strings.size).toBe(0);
+        vi.mocked(screenUserTexts).mockResolvedValue(true);
     });
 
     it("owner update keeps the id and the feed score; a stranger cannot", async () => {

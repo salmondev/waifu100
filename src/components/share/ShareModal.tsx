@@ -7,6 +7,8 @@ import { cn, isGifUrl } from "@/lib/utils";
 import { USER_ID_HEADER, ensureUserId } from "@/lib/user-id";
 import { rememberOwnGrid } from "@/lib/my-grids";
 import { uploadModeratedImage } from '@/lib/upload-client';
+import { friendlyError } from '@/lib/public-errors';
+import { TEXT_REJECTED } from '@/lib/text-policy';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -186,9 +188,11 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
              })
          });
 
-         if (!res.ok) throw new Error("Failed to save");
-         
-         const data = await res.json();
+         const data = await res.json().catch(() => ({}));
+         if (!res.ok) {
+             const msg = friendlyError((data as { error?: unknown }).error, "");
+             throw new Error(msg === TEXT_REJECTED ? msg : "Failed to save");
+         }
 
          // Record it locally straight away, so "Compare with my grid" is already
          // there the first time this browser opens someone else's grid - before
@@ -214,7 +218,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
          setStep('result');
      } catch (e) {
          console.error(e);
-         setError("Failed to create share link. Try again.");
+         setError(e instanceof Error && e.message === TEXT_REJECTED ? e.message : "Failed to create share link. Try again.");
      } finally {
          setIsLoading(false);
          setLoadingState("");

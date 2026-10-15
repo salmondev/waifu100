@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import {
     STORY_BRAND,
     SHARE_TITLE_MAX,
+    STORY_TITLE_MAX,
     STORY_SIZES,
     STORY_SIZE_LABELS,
     TITLE_STYLES,
@@ -164,6 +165,8 @@ export function StoryBuilder() {
     const loadRef = useRef<HTMLInputElement>(null);
     const [uploadTitle, setUploadTitle] = useState("");
     const [uploading, setUploading] = useState(false);
+    /** File chosen, waiting for the visitor to name it and confirm. */
+    const [pendingUpload, setPendingUpload] = useState<{ file: File; title: string; url: string } | null>(null);
     const abortRef = useRef<AbortController | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -357,13 +360,33 @@ export function StoryBuilder() {
         }
     };
 
-    const uploadOwn = async (file: File | undefined) => {
+    const closePendingUpload = () => {
+        setPendingUpload((cur) => {
+            if (cur) URL.revokeObjectURL(cur.url);
+            return null;
+        });
+    };
+    const stageUpload = (file: File | undefined) => {
         if (!file) return;
+        const seeded = uploadTitle.trim() || file.name.replace(/\.[^.]+$/, "");
+        const url = URL.createObjectURL(file);
+        setPendingUpload((cur) => {
+            if (cur) URL.revokeObjectURL(cur.url);
+            return { file, title: seeded.slice(0, STORY_TITLE_MAX), url };
+        });
+    };
+    const confirmUpload = async () => {
+        if (!pendingUpload) return;
+        const title = pendingUpload.title.trim();
+        if (!title) return setNotice("Add a title first.", "error");
         setUploading(true);
-        const r = await uploadCover(file, uploadTitle.trim() || file.name.replace(/\.[^.]+$/, ""), searchType);
+        const r = await uploadCover(pendingUpload.file, title, searchType);
         setUploading(false);
         if (r.error || !r.item) return setNotice(r.error ?? "Upload failed.", "error");
-        if (place(r.item)) setUploadTitle("");
+        if (place(r.item)) {
+            closePendingUpload();
+            setUploadTitle("");
+        }
     };
 
     /** Preset (cols null) or custom rows x cols; resizeDraft ignores anything outside the limits. */
@@ -485,7 +508,7 @@ export function StoryBuilder() {
                 </div>
 
                 {/* Hidden file input, opened by the upload link above or the no-results link below. */}
-                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Upload your own image" data-testid="upload-input" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; uploadOwn(f); }} />
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Upload your own image" data-testid="upload-input" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; stageUpload(f); }} />
 
                 {replacing !== null && draft.items[replacing] && !picking && (
                     <div data-testid="replacing-note" className="mx-4 mb-2 flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs text-purple-200">
@@ -685,6 +708,30 @@ export function StoryBuilder() {
                 onTitleUpdate={(t) => setDraft((d) => ({ ...d, title: t.slice(0, SHARE_TITLE_MAX) }))}
                 onShare={share}
             />
+            {pendingUpload && (
+                <div role="dialog" aria-modal="true" aria-label="Name this story" className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => { if (!uploading) closePendingUpload(); }}>
+                    <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-lg font-bold text-white">Name this story</h2>
+                        <p className="mt-1 text-xs text-zinc-500">This is the title shown on your grid.</p>
+                        <img src={pendingUpload.url} alt="" className="mt-3 mx-auto h-36 w-24 rounded-md object-contain bg-zinc-900" />
+                        <label htmlFor="upload-story-title" className="mt-3 block text-sm font-medium text-zinc-300">Story title</label>
+                        <input
+                            id="upload-story-title"
+                            aria-label="Story title"
+                            value={pendingUpload.title}
+                            maxLength={STORY_TITLE_MAX}
+                            autoFocus
+                            onChange={(e) => setPendingUpload((cur) => cur && { ...cur, title: e.target.value.slice(0, STORY_TITLE_MAX) })}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void confirmUpload(); } }}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 outline-none focus:border-purple-500"
+                        />
+                        <div className="mt-4 flex gap-2">
+                            <button type="button" disabled={uploading} onClick={closePendingUpload} className="flex-1 rounded-lg border border-zinc-700 py-2 text-sm text-zinc-300 hover:bg-zinc-900 disabled:opacity-60">Cancel</button>
+                            <button type="button" disabled={uploading} onClick={() => void confirmUpload()} className="flex-1 rounded-lg bg-purple-600 py-2 text-sm font-semibold text-white hover:bg-purple-500 disabled:opacity-60">{uploading ? "Adding…" : "Add to grid"}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {notice && <StoryToast message={notice.message} type={notice.type} />}
             {hint === "search" && !picking && <SearchHint onClose={() => setHint(null)} anchor={() => document.querySelector('ul[aria-label="Search results"] > li')} />}
             {hint === "ai" && <AISuggestionHint onClose={() => setHint(null)} onTry={() => { setHint(null); setShowRightPanel(true); openTab("suggestions"); }} />}
