@@ -20,7 +20,7 @@ export const DEFAULT_RETRY_AFTER_SEC = 60;
 export const SEARCH_PER_PAGE = 16;
 export const SEARCH_DEBOUNCE_MS = 300;
 /** AniList, Jikan and the web fallback share this. A dead upstream cannot hold the box open. */
-const SEARCH_BUDGET_MS = 2400;
+const SEARCH_BUDGET_MS = 1800;
 
 function limited(parent: AbortSignal | undefined, ms: number): AbortSignal {
     const timed = AbortSignal.timeout(Math.max(1, ms));
