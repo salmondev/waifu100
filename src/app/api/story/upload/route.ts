@@ -6,6 +6,8 @@ import { moderateBytes } from "@/server/moderation/moderator";
 import { STORY_TITLE_MAX } from "@/lib/story/config";
 import { webItemId } from "@/server/story-web-search";
 import { toMediaType } from "@/lib/share-schema";
+import { TEXT_REJECTED } from "@/lib/text-policy";
+import { screenUserTexts } from "@/server/text-screen";
 
 export const runtime = "nodejs";
 
@@ -29,6 +31,8 @@ export async function POST(req: NextRequest) {
     if (file.size > UPLOAD_MAX_BYTES) return NextResponse.json({ error: "Max 2 MB" }, { status: 413 });
     const ext = TYPES[file.type];
     if (!ext) return NextResponse.json({ error: "JPEG, PNG or WebP only" }, { status: 415 });
+
+    if (!(await screenUserTexts([title]))) return NextResponse.json({ error: TEXT_REJECTED }, { status: 400 });
 
     const bytes = Buffer.from(await file.arrayBuffer());
     const { hash, verdict } = await moderateBytes(bytes);

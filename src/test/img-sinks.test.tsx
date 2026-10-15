@@ -32,6 +32,8 @@ const SAFE_VARS: Record<string, { name: string; proof: RegExp }[]> = {
         { name: "next", proof: /const next = tries === 0 \? el\.src : proxied\(/ },
     ],
     "lib/story/export.ts": [{ name: "src", proof: /loadImage\(proxied\(/ }],
+    // Preview of the file the visitor just picked. A blob: URL, discarded if they cancel.
+    "components/story/StoryBuilder.tsx": [{ name: "pendingUpload.url", proof: /URL\.createObjectURL\(file\)/ }],
 };
 
 const sinks: { file: string; expr: string }[] = [];

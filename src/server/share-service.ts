@@ -16,6 +16,9 @@ import {
 import { isValidShareId } from "@/lib/share-keys";
 import { isValidUserId } from "@/lib/user-id";
 import { isStoryLayout, storyViewPath } from "@/lib/story/config";
+import { TEXT_REJECTED } from "@/lib/text-policy";
+import { screenUserTexts } from "@/server/text-screen";
+import { userTextsForShare } from "@/server/user-text";
 
 /** Reads and decodes one share. */
 export const readDecoded = (id: string) =>
@@ -86,11 +89,6 @@ export const createShare = (body: CreateShareBody, opts: { now?: number; id?: st
         const customTitle = typeof body.customTitle === "string" && body.customTitle ? body.customTitle : null;
 
         let finalTitle = kind === "story" ? cleanTitle(customTitle, "story") : customTitle || "Waifu100 Grid";
-        if (userId && customTitle) {
-            const count = yield* repo.bumpTitle(userId, kind === "story" ? finalTitle : customTitle);
-            if (count > 1) finalTitle = `${finalTitle} V.${count}`;
-        }
-
         const imageUrl = typeof body.imageUrl === "string" && body.imageUrl ? body.imageUrl : null;
         let payload: string;
         if (kind === "story") {
@@ -98,12 +96,23 @@ export const createShare = (body: CreateShareBody, opts: { now?: number; id?: st
                 try: () => cleanStoryCells(body.size, body.grid, body.cols),
                 catch: (e) => new InvalidShare({ reason: e instanceof ShareValidationError ? e.message : "Invalid grid data" }),
             });
+            if (!(yield* screenTexts(customTitle, "story", cleaned.cells, null))) return yield* Effect.fail(new InvalidShare({ reason: TEXT_REJECTED }));
+            if (userId && customTitle) {
+                const count = yield* repo.bumpTitle(userId, finalTitle);
+                if (count > 1) finalTitle = `${finalTitle} V.${count}`;
+            }
             payload = JSON.stringify(
                 buildStoryPayload({ title: finalTitle, imageUrl, userId, size: cleaned.size, cols: cleaned.cols, cells: cleaned.cells, titleStyle: body.titleStyle })
             );
         } else {
             const layout = layoutFrom(body.size === undefined ? WAIFU_GRID_SIZE : body.size, body.cols);
             if (!layout) return yield* Effect.fail(new InvalidShare({ reason: "Invalid grid size" }));
+            const grid = cleanWaifuGrid(body.grid, layout.size);
+            if (!(yield* screenTexts(customTitle, "waifu", null, grid))) return yield* Effect.fail(new InvalidShare({ reason: TEXT_REJECTED }));
+            if (userId && customTitle) {
+                const count = yield* repo.bumpTitle(userId, customTitle);
+                if (count > 1) finalTitle = `${finalTitle} V.${count}`;
+            }
             payload = JSON.stringify(
                 buildWaifuPayload({
                     title: finalTitle,
@@ -111,7 +120,7 @@ export const createShare = (body: CreateShareBody, opts: { now?: number; id?: st
                     userId,
                     size: layout.size,
                     cols: layout.cols,
-                    grid: cleanWaifuGrid(body.grid, layout.size),
+                    grid,
                     verdict: body.verdict,
                     verdictFeedback: body.verdictFeedback,
                 })
@@ -182,16 +191,19 @@ export const updateShare = (id: string, caller: string | null, body: CreateShare
                 try: () => cleanStoryCells(layout.size, body.grid, layout.cols),
                 catch: (e) => new InvalidShare({ reason: e instanceof ShareValidationError ? e.message : "Invalid grid data" }),
             });
+            if (!(yield* screenTexts(customTitle, "story", cleaned.cells, null))) return yield* Effect.fail(new InvalidShare({ reason: TEXT_REJECTED }));
             payload = JSON.stringify(
                 buildStoryPayload({ ...meta, size: cleaned.size, cols: cleaned.cols, cells: cleaned.cells, titleStyle: body.titleStyle ?? existing.titleStyle })
             );
         } else {
+            const grid = cleanWaifuGrid(body.grid, layout.size);
+            if (!(yield* screenTexts(customTitle, "waifu", null, grid))) return yield* Effect.fail(new InvalidShare({ reason: TEXT_REJECTED }));
             payload = JSON.stringify(
                 buildWaifuPayload({
                     ...meta,
                     size: layout.size,
                     cols: layout.cols,
-                    grid: cleanWaifuGrid(body.grid, layout.size),
+                    grid,
                     verdict: body.verdict !== undefined ? body.verdict : existing.verdict,
                     verdictFeedback: body.verdictFeedback !== undefined ? body.verdictFeedback : existing.verdictFeedback,
                 })
@@ -202,6 +214,13 @@ export const updateShare = (id: string, caller: string | null, body: CreateShare
         yield* repo.replace(id, payload);
         return { id, url: kind === "story" ? storyViewPath(id) : `/view/${id}`, payload, kind };
     });
+
+const screenTexts = (
+    customTitle: string | null,
+    kind: ShareKind,
+    storyCells: Parameters<typeof userTextsForShare>[2],
+    waifuCells: Parameters<typeof userTextsForShare>[3]
+) => Effect.promise(() => screenUserTexts(userTextsForShare(customTitle, kind, storyCells, waifuCells)));
 
 function ownerOf(raw: string): string | null {
     try {
