@@ -34,7 +34,7 @@ const HTTP = process.env.NEXT_PUBLIC_TOGETHER_HTTP || "http://127.0.0.1:3310";
 const WS = process.env.NEXT_PUBLIC_TOGETHER_WS || "ws://127.0.0.1:3310";
 
 interface Peer { id: string; name: string; color: string; owner: boolean }
-interface Cursor { id: string; name: string; color: string; x: number; y: number; label: boolean }
+interface Cursor { id: string; name: string; color: string; x: number; y: number }
 interface Hold { id: string; color: string; name: string; index: number }
 
 const storyCell = (i: TogetherItem) => ({ key: `${i.src ?? "anilist"}-${i.type}-${i.id}`, image: i.cover, label: i.title });
@@ -57,11 +57,14 @@ function Room({ code }: { code: string }) {
     const stageRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
-    const labelTimers = useRef(new Map<string, number>());
+    const cursorTargets = useRef(new Map<string, Cursor & { at: number }>());
+    const cursorShown = useRef(new Map<string, { x: number; y: number }>());
+    const cursorNodes = useRef(new Map<string, HTMLDivElement>());
+    const cursorSend = useRef({ last: 0, timer: 0, x: 0, y: 0, queued: false });
     const [state, setState] = useState<TogetherState | null>(null);
     const [self, setSelf] = useState<Peer | null>(null);
     const [peers, setPeers] = useState<Peer[]>([]);
-    const [cursors, setCursors] = useState<Cursor[]>([]);
+    const [remoteCursors, setRemoteCursors] = useState<Cursor[]>([]);
     const [holds, setHolds] = useState<Hold[]>([]);
     const [status, setStatus] = useState("Connecting…");
     const [drawer, setDrawer] = useState(false);
@@ -138,12 +141,10 @@ function Room({ code }: { code: string }) {
                     setPeers(msg.peers as Peer[]);
                 } else if (msg.t === "cursor") {
                     const c = msg as unknown as Cursor;
-                    setCursors((list) => [...list.filter((x) => x.id !== c.id), { ...c, label: true }]);
-                    const prev = labelTimers.current.get(c.id);
-                    if (prev) window.clearTimeout(prev);
-                    labelTimers.current.set(c.id, window.setTimeout(() => {
-                        setCursors((list) => list.map((x) => (x.id === c.id ? { ...x, label: false } : x)));
-                    }, 1500));
+                    if (!c.id || !Number.isFinite(c.x) || !Number.isFinite(c.y)) return;
+                    const known = cursorTargets.current.has(c.id);
+                    cursorTargets.current.set(c.id, { ...c, at: performance.now() });
+                    if (!known) setRemoteCursors((list) => list.some((x) => x.id === c.id) ? list : [...list, c]);
                 } else if (msg.t === "hold") {
                     const h = msg as unknown as Hold & { index: number | null };
                     setHolds((list) => {
@@ -152,8 +153,10 @@ function Room({ code }: { code: string }) {
                     });
                 } else if (msg.t === "bye") {
                     const id = String(msg.id);
+                    cursorTargets.current.delete(id);
+                    cursorShown.current.delete(id);
+                    setRemoteCursors((list) => list.filter((c) => c.id !== id));
                     setPeers((list) => list.filter((p) => p.id !== id));
-                    setCursors((list) => list.filter((c) => c.id !== id));
                     setHolds((list) => list.filter((h) => h.id !== id));
                 } else if (msg.t === "ended") {
                     setEndsAt(Date.now());
@@ -166,8 +169,42 @@ function Room({ code }: { code: string }) {
         };
         connect();
         const clock = window.setInterval(() => setNow(Date.now()), 1000);
-        return () => { closed = true; window.clearInterval(clock); wsRef.current?.close(); };
+        return () => {
+            closed = true;
+            window.clearInterval(clock);
+            window.clearTimeout(cursorSend.current.timer);
+            wsRef.current?.close();
+        };
     }, [code]);
+
+    useEffect(() => {
+        let frame = 0;
+        const tick = () => {
+            const stage = stageRef.current;
+            const w = stage?.clientWidth ?? 0;
+            const h = stage?.clientHeight ?? 0;
+            const now = performance.now();
+            if (w > 0 && h > 0) {
+                for (const [id, target] of cursorTargets.current) {
+                    const el = cursorNodes.current.get(id);
+                    if (!el) continue;
+                    const prev = cursorShown.current.get(id);
+                    const dx = prev ? target.x - prev.x : 0;
+                    const dy = prev ? target.y - prev.y : 0;
+                    const shown = !prev || dx * dx + dy * dy > 0.08
+                        ? { x: target.x, y: target.y }
+                        : { x: prev.x + dx * 0.55, y: prev.y + dy * 0.55 };
+                    cursorShown.current.set(id, shown);
+                    el.style.transform = `translate3d(${shown.x * w}px, ${shown.y * h}px, 0)`;
+                    const name = el.querySelector("[data-cursor-name]") as HTMLElement | null;
+                    if (name) name.style.opacity = now - target.at < 1200 ? "1" : "0";
+                }
+            }
+            frame = requestAnimationFrame(tick);
+        };
+        frame = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(frame);
+    }, []);
 
     useEffect(() => {
         const q = query.trim();
@@ -277,8 +314,24 @@ function Room({ code }: { code: string }) {
     return (
         <div ref={stageRef} onPointerMove={(e) => {
             const box = stageRef.current?.getBoundingClientRect();
-            if (!box) return;
-            send({ t: "cursor", x: (e.clientX - box.left) / box.width, y: (e.clientY - box.top) / box.height });
+            if (!box || box.width === 0 || box.height === 0) return;
+            const x = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
+            const y = Math.min(1, Math.max(0, (e.clientY - box.top) / box.height));
+            const slot = cursorSend.current;
+            slot.x = x;
+            slot.y = y;
+            const now = performance.now();
+            const wait = 50 - (now - slot.last);
+            const flush = () => {
+                slot.queued = false;
+                slot.last = performance.now();
+                send({ t: "cursor", x: slot.x, y: slot.y });
+            };
+            if (wait <= 0) flush();
+            else if (!slot.queued) {
+                slot.queued = true;
+                slot.timer = window.setTimeout(flush, wait);
+            }
         }} onPointerDown={(e) => {
             const slot = (e.target as HTMLElement).closest?.("[data-slot]");
             const index = slot ? Number(slot.getAttribute("data-slot")) : null;
@@ -433,13 +486,18 @@ function Room({ code }: { code: string }) {
                     <p className="mt-6 text-center text-xs text-zinc-500">{filled}/{state.size} · drag a cover to another slot · click one to change its picture</p>
             </div>
 
-            <div className="pointer-events-none absolute inset-0 z-40">
-                {cursors.filter((c) => c.id !== self.id).map((c) => (
-                    <div key={c.id} className="absolute" style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%` }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" style={{ color: c.color, filter: `drop-shadow(0 0 4px ${c.color}) drop-shadow(0 0 10px ${c.color})` }}>
+            <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden">
+                {remoteCursors.filter((c) => c.id !== self.id).map((c) => (
+                    <div
+                        key={c.id}
+                        ref={(node) => { if (node) cursorNodes.current.set(c.id, node); else cursorNodes.current.delete(c.id); }}
+                        className="absolute left-0 top-0 will-change-transform"
+                    >
+                        <span aria-hidden className="absolute left-0 top-1 h-3.5 w-3.5 rounded-full" style={{ background: `radial-gradient(circle, ${c.color}88 0%, transparent 70%)` }} />
+                        <svg width="16" height="16" viewBox="0 0 24 24" className="relative" style={{ color: c.color }}>
                             <path fill="currentColor" d="M5 2.5 19.5 12 12 13.2 9.2 21.5 5 2.5Z" />
                         </svg>
-                        <span className="ml-3 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-zinc-950 transition-opacity duration-500" style={{ background: c.color, opacity: c.label ? 1 : 0 }}>{c.name}</span>
+                        <span data-cursor-name className="ml-3 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-zinc-950 opacity-0 transition-opacity duration-500" style={{ background: c.color }}>{c.name}</span>
                     </div>
                 ))}
             </div>
