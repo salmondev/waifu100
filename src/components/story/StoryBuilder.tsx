@@ -449,7 +449,7 @@ export function StoryBuilder() {
                             <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">Waifu100: Character grid</span>
                         </Link>
                         <button type="button" onClick={() => { openTogetherRoom("story").then((code) => { window.location.href = `/story/together/${code}`; }).catch(() => setNotice("Couldn't open a together room.", "error")); }} className={WAIFU_BTN.together}>
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">build grid together</span>
+                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">Build Grid Together</span>
                         </button>
                         <div className="flex gap-2">
                             <button type="button" onClick={saveBoard} disabled={filled === 0} className={cn(WAIFU_BTN.neutral, "flex-1")}>

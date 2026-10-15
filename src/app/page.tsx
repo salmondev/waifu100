@@ -1568,7 +1568,7 @@ export default function Home() {
               }}
               className={WAIFU_BTN.together}
            >
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">build grid together</span>
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">Build Grid Together</span>
            </button>
 
            {/* Own the grids you shared: rename-by-resharing was the only tool
