@@ -13,13 +13,12 @@ import { TypeBadge } from "@/components/story/TypeBadge";
 type ChoiceSource = "anilist" | "banner" | "relation" | "mal" | "web";
 interface Choice { url: string; source: ChoiceSource; label: string; hash?: string }
 
-type SourceName = "anilist" | "jikan" | "web";
-/** Requested in parallel, one request each (T-0010 perf); order = dedupe priority. */
-const SOURCES: SourceName[] = ["anilist", "jikan", "web"];
+type SourceName = "anilist" | "web";
+/** Requested in parallel, one request each; order = dedupe priority. */
+const SOURCES: SourceName[] = ["anilist", "web"];
 
 const SECTIONS: { key: string; title: string; sources: ChoiceSource[]; from: SourceName }[] = [
     { key: "covers", title: "Official covers", sources: ["anilist", "banner"], from: "anilist" },
-    { key: "mal", title: "MyAnimeList pictures", sources: ["mal"], from: "jikan" },
     { key: "related", title: "Related titles", sources: ["relation"], from: "anilist" },
     { key: "web", title: "From the web", sources: ["web"], from: "web" },
 ];
@@ -208,7 +207,7 @@ export function ImagePicker({
                             {uploading && <Loader2 className="w-3 h-3 animate-spin" />} {uploading ? "Checking & uploading…" : "Can't find it? Upload your own image"}
                         </button>
                     </p>
-                    <p className="text-[11px] text-zinc-500">Images from AniList, MyAnimeList (via Jikan) and the web. Every image is safety-checked before it is shown.</p>
+                    <p className="text-[11px] text-zinc-500">Images from AniList and the web. Every image is safety-checked before it is shown.</p>
                 </div>
             </div>
         </div>

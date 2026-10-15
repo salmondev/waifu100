@@ -37,12 +37,12 @@ describe("light novel (NOVEL) type", () => {
         expect(mapAniList([{ id: 1, type: "MANGA", format: "NOVEL", title: { romaji: "LN" }, coverImage: { large: C } }])[0]).toMatchObject({ type: "NOVEL", format: "Light Novel" });
     });
 
-    it("Jikan fallback for NOVEL asks /manga?type=lightnovel", async () => {
+    it("a down AniList does not ask Jikan for a light novel", async () => {
         const calls: string[] = [];
-        const s = createStorySearch({ fetch: (async (u: string) => { calls.push(String(u)); return u.includes("graphql") ? new Response("x", { status: 503 }) : new Response(JSON.stringify({ data: [{ mal_id: 3, title: "LN", images: { jpg: { image_url: C } } }] })); }) as unknown as typeof fetch });
+        const s = createStorySearch({ fetch: (async (u: string) => { calls.push(String(u)); return new Response("x", { status: 503 }); }) as unknown as typeof fetch });
         const r = await s.search("ln title", undefined, "NOVEL");
-        expect(calls[1]).toMatch(/\/manga\?.*type=lightnovel/);
-        expect(r.items[0]).toMatchObject({ type: "NOVEL", src: "mal" });
+        expect(calls.some((u) => u.includes("jikan"))).toBe(false);
+        expect(r.items).toEqual([]);
     });
 });
 

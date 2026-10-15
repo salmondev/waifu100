@@ -28,8 +28,7 @@ interface CharacterResult {
  * 
  * No hardcoded patterns - dynamically searches:
  * 1. AniList (anime database)
- * 2. Jikan/MAL (anime database)
- * 3. Serper (Google) for anything not found in anime DBs
+ * 2. Serper (Google) for anything the anime database did not already name
  */
 export async function POST(request: NextRequest) {
   // const _startTime = Date.now();
@@ -75,7 +74,7 @@ export async function POST(request: NextRequest) {
     const headers = { "Content-Type": "application/json" };
 
     // RUN ALL SOURCES IN PARALLEL
-    const [animeResult, anilistResult, jikanResult, serperResult] = await Promise.allSettled([
+    const [animeResult, anilistResult, serperResult] = await Promise.allSettled([
       
       // Source 1: Check if query is an anime title
       (async (): Promise<CharacterResult[]> => {
@@ -161,28 +160,7 @@ export async function POST(request: NextRequest) {
         } catch { return []; }
       })(),
 
-      // Source 3: Jikan (MAL)
-      (async (): Promise<CharacterResult[]> => {
-        try {
-          const searchName = cleanQuery.split(/\s+/)[0] || cleanQuery;
-          const res = await fetch(`https://api.jikan.moe/v4/characters?q=${encodeURIComponent(searchName)}&limit=10`, {
-            signal: AbortSignal.timeout(1200),
-          });
-          if (!res.ok) return [];
-          const data = await res.json();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (data.data || []).map((c: any) => ({
-            id: c.mal_id,
-            jikan_id: c.mal_id,
-            name: c.name,
-            images: { jpg: { image_url: c.images?.jpg?.image_url || "" } },
-            source: c.anime?.[0]?.anime?.title || "MyAnimeList",
-            _allTitles: [c.anime?.[0]?.anime?.title].filter(Boolean).map((t: string) => t.toLowerCase()),
-          }));
-        } catch { return []; }
-      })(),
-
-      // Source 4: Serper runs with the anime databases, not after them.
+      // Serper runs with the anime databases, not after them.
       // Gemini used to name these pictures and blew the time budget, so the
       // title is taken from the image caption and ranked below a real database hit.
       (async (): Promise<CharacterResult[]> => {
@@ -232,7 +210,6 @@ export async function POST(request: NextRequest) {
     // Add all results
     if (animeResult.status === "fulfilled") allResults.push(...animeResult.value);
     if (anilistResult.status === "fulfilled") allResults.push(...anilistResult.value);
-    if (jikanResult.status === "fulfilled") allResults.push(...jikanResult.value);
     if (serperResult.status === "fulfilled") allResults.push(...serperResult.value);
 
     // Score results based on query match

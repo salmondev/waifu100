@@ -15,11 +15,16 @@ describe("story info", () => {
         expect(JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string).variables).toEqual({ id: 1 });
     });
 
-    it("MAL cells go to Jikan (light novel -> /manga), score scaled to 100", async () => {
-        const f = vi.fn(async () => new Response(JSON.stringify({ data: { title: "Monster", type: "Manga", chapters: 162, score: 9.15, synopsis: "Dr. Tenma [Written by MAL Rewrite]", genres: [{ name: "Mystery" }] } })));
-        const info = await fetchStoryInfo("mal", 9, "NOVEL", f as unknown as typeof fetch);
-        expect(String((f.mock.calls[0] as unknown as [string])[0])).toMatch(/\/v4\/manga\/9$/);
-        expect(info).toMatchObject({ title: "Monster", chapters: 162, score: 92, synopsis: "Dr. Tenma", source: "mal" });
+    it("a stored MAL id is looked up on AniList, not Jikan", async () => {
+        const f = vi.fn(async () => new Response(JSON.stringify({ data: { Media: {
+            type: "MANGA", format: "MANGA", chapters: 162, averageScore: 92, description: "Dr. Tenma",
+            title: { english: "Monster" }, genres: ["Mystery"],
+        } } })));
+        const info = await fetchStoryInfo("mal", 9, "MANGA", f as unknown as typeof fetch);
+        const init = (f.mock.calls[0] as unknown as [string, RequestInit])[1];
+        expect(JSON.parse(init.body as string).variables).toEqual({ idMal: 9, type: "MANGA" });
+        expect(String((f.mock.calls[0] as unknown as [string])[0])).not.toContain("jikan");
+        expect(info).toMatchObject({ title: "Monster", chapters: 162, score: 92, source: "anilist" });
     });
 
     it("not found -> null; upstream failure throws (so it is not cached)", async () => {

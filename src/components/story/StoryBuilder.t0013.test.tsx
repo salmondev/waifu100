@@ -51,8 +51,8 @@ describe("T-0013: clicking a filled story cell", () => {
         await within(dialog).findByTitle("Banner");
         expect(search).not.toHaveBeenCalled();
         expect((screen.getByLabelText("Search anime or manga") as HTMLInputElement).value).toBe("");
-        expect(imageCalls(f)).toBe(3);
-        expect(f.mock.calls.every((c) => /id=154587&type=ANIME&src=anilist&source=(anilist|jikan|web)$/.test(String(c[0])))).toBe(true);
+        expect(imageCalls(f)).toBe(2);
+        expect(f.mock.calls.every((c) => /id=154587&type=ANIME&src=anilist&source=(anilist|web)$/.test(String(c[0])))).toBe(true);
     });
 
     it("picking another image replaces THAT slot (not a duplicate notice, not another slot)", async () => {
@@ -80,7 +80,7 @@ describe("T-0013: clicking a filled story cell", () => {
         fireEvent.click(screen.getByRole("button", { name: "1. Frieren" }));
         await screen.findByTitle("Banner"); // shown straight from cache
         expect(screen.queryByTestId("source-loading")).toBeNull();
-        expect(imageCalls(f)).toBe(3); // still only the first three
+        expect(imageCalls(f)).toBe(2);
     });
 
     it("an uploaded image (no media id) prefills the search box with its title instead", async () => {
@@ -116,26 +116,25 @@ describe("T-0013: clicking a filled story cell", () => {
         vi.stubGlobal("fetch", f);
         render(<StrictMode><ImagePicker item={FRIEREN as never} onPick={() => {}} onClose={() => {}} onUpload={async () => null} /></StrictMode>);
         await screen.findByTitle("Banner");
-        expect(imageCalls(f)).toBe(3);
+        expect(imageCalls(f)).toBe(2);
     });
 
     it("follow-up (1): partial source answers are shown but NOT cached; complete ones are", async () => {
         const f = vi.fn(async (url: string) => {
             const source = new URL(url, "http://x").searchParams.get("source");
-            if (source === "jikan") return new Response(JSON.stringify({ choices: [{ url: "https://cdn.myanimelist.net/p.jpg", source: "mal", label: "MAL 1", hash: "M" }], partial: true }));
+            if (source === "web") return new Response(JSON.stringify({ choices: [{ url: "https://i.pinimg.com/p.jpg", source: "web", label: "Web 1", hash: "W" }], partial: true }));
             return new Response(JSON.stringify({ choices: source === "anilist" ? [{ url: "https://s4.anilist.co/banner.jpg", source: "banner", label: "Banner", hash: "B" }] : [], partial: false }));
         });
         vi.stubGlobal("fetch", f);
         const first = render(<ImagePicker item={FRIEREN as never} onPick={() => {}} onClose={() => {}} onUpload={async () => null} />);
-        await screen.findByTitle("MAL 1"); // partial result is still displayed
+        await screen.findByTitle("Web 1"); // partial result is still displayed
         await screen.findByTitle("Banner");
         first.unmount();
         render(<ImagePicker item={FRIEREN as never} onPick={() => {}} onClose={() => {}} onUpload={async () => null} />);
-        await screen.findByTitle("MAL 1");
+        await screen.findByTitle("Web 1");
         const sources = f.mock.calls.map((c) => new URL(String(c[0]), "http://x").searchParams.get("source"));
-        expect(sources.filter((x) => x === "jikan")).toHaveLength(2); // re-requested
+        expect(sources.filter((x) => x === "web")).toHaveLength(2); // partial, so re-requested
         expect(sources.filter((x) => x === "anilist")).toHaveLength(1); // cached
-        expect(sources.filter((x) => x === "web")).toHaveLength(1); // cached
     });
 
     it("follow-up (2): closing a picker for a DIFFERENT title with the same id keeps the replace-slot state", async () => {
