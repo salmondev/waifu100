@@ -50,21 +50,15 @@ describe("story search", () => {
         expect(JSON.parse(calls[0].body!).query).not.toContain("isAdult");
     });
 
-    it("falls back to Jikan (anime + manga, no sfw filter) on 5xx", async () => {
+    it("falls through to the web fallback on 5xx and does not call Jikan", async () => {
+        const web = [{ id: 9, type: "MANGA" as const, title: "Monster", cover: "https://cdn.example.com/9.jpg", src: "web" as const }];
         const { s, calls } = setup((url) => (url === ANILIST_GRAPHQL ? new Response("x", { status: 503 }) : jikanOk()));
-        const r = await s.search("monster");
-        expect(r.source).toBe("jikan");
-        expect(r.items.map((i) => i.type)).toEqual(["ANIME", "MANGA"]);
-        expect(r.items[1]).toMatchObject({ id: 9, src: "mal", type: "MANGA" });
-        expect(calls.slice(1).map((c) => c.url.match(/v4\/(\w+)\?/)![1]).sort()).toEqual(["anime", "manga"]);
-        expect(calls.some((c) => c.url.includes("sfw"))).toBe(false);
-    });
-
-    it("Jikan fallback: one side failing still returns the other", async () => {
-        const { s } = setup((url) => (url === ANILIST_GRAPHQL ? new Response("x", { status: 502 }) : url.includes("/anime?") ? new Response("x", { status: 500 }) : jikanOk()));
-        const r = await s.search("monster");
-        expect(r.items).toHaveLength(1);
-        expect(r.items[0].type).toBe("MANGA");
+        const wired = createStorySearch({ fetch: (async (url: string) => (url === ANILIST_GRAPHQL ? new Response("x", { status: 503 }) : jikanOk())) as unknown as typeof fetch, now: () => 1_000_000, web: async () => web });
+        const r = await wired.search("monster");
+        expect(r.source).toBe("web");
+        expect(r.items).toEqual(web);
+        expect(calls.every((c) => c.url === ANILIST_GRAPHQL || !c.url.includes("jikan"))).toBe(true);
+        expect((await s.search("monster")).items).toEqual([]);
     });
 
     it("does NOT fall back on other 4xx", async () => {
@@ -83,12 +77,12 @@ describe("story search", () => {
             return jikanOk();
         });
         const first = await s.search("bebop");
-        expect(first.source).toBe("jikan");
+        expect(first.source).toBe("web");
         expect(first.anilistCooldownUntil).toBe(1_000_000 + 30_000);
 
         advance(29_000);
         const during = await s.search("bebop");
-        expect(during.source).toBe("jikan");
+        expect(during.source).toBe("web");
         expect(anilistCalls).toBe(1);
 
         advance(1_000);

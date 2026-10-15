@@ -25,20 +25,19 @@ afterEach(() => {
 });
 
 describe("/api/story/images per-source (T-0010 perf)", () => {
-    it("rate limit is counted ONCE per title across the three source requests", async () => {
+    it("rate limit is counted ONCE per title across the source requests", async () => {
         vi.stubEnv("REDIS_URL", "");
         vi.stubEnv("SERPER_API_KEY", "");
         fetchMedia.mockImplementation(async (_s: string, id: number) => media(id));
-        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: [{ jpg: { large_image_url: "https://cdn.myanimelist.net/p.jpg" } }] }))));
-        const rs = await Promise.all(["anilist", "jikan", "web"].map((s) => get(`id=501&type=ANIME&source=${s}`)));
-        expect(rs.map((r) => r.status)).toEqual([200, 200, 200]);
-        const again = await get("id=501&type=ANIME&source=jikan");
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: [] }))));
+        const rs = await Promise.all(["anilist", "web"].map((s) => get(`id=501&type=ANIME&source=${s}`)));
+        expect(rs.map((r) => r.status)).toEqual([200, 200]);
+        const again = await get("id=501&type=ANIME&source=web");
         expect(again.status).toBe(200);
         expect(consume).toHaveBeenCalledTimes(1);
         expect(fetchMedia).toHaveBeenCalledTimes(1);
-        const [a, j, w] = await Promise.all(rs.map((r) => r.json()));
+        const [a, w] = await Promise.all(rs.map((r) => r.json()));
         expect(a.choices.map((c: { url: string }) => c.url)).toEqual(["https://s4.anilist.co/501.jpg"]);
-        expect(j.choices.map((c: { url: string }) => c.url)).toEqual(["https://cdn.myanimelist.net/p.jpg"]);
         expect(w).toMatchObject({ choices: [], partial: false }); // no Serper key: not a failure
     });
 

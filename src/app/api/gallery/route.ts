@@ -36,10 +36,6 @@ interface AniListResponse {
 const ANILIST_UA = "waifu100/1.0 (+https://waifu100.vercel.app)";
 
 /**
- * Jikan has been returning 504 to every query since MAL went down upstream.
- * Without a cap the gallery waits on a source that is not going to answer.
- */
-const JIKAN_TIMEOUT_MS = 1200;
 /** Every gallery source, including Serper, shares this. Late answers are dropped. */
 const GALLERY_BUDGET_MS = 1800;
 
@@ -62,7 +58,7 @@ function isAnimatedHost(url: string): boolean {
  * Gallery API - Multi-source Image Search
  * 
  * Every source here is keyless and free; they all run in parallel:
- * 1. Official art - AniList, with Jikan (MAL) alongside it
+ * 1. Official art - AniList
  * 2. Safebooru - the deep one, and the only source of real GIFs
  * 3. Fandom wikis - what Google was indexing on the gallery's behalf anyway
  * 4. Konachan - more fanart
@@ -78,7 +74,7 @@ export async function POST(request: NextRequest) {
     const limited = await enforceRateLimit(request, LIMITS.gallery);
     if (limited) return limited;
 
-    const { characterName, animeSource, malId, isGif, debug } = await request.json();
+    const { characterName, animeSource, isGif, debug } = await request.json();
 
     if (!characterName) {
       return NextResponse.json({ error: "Name required" }, { status: 400 });
@@ -91,7 +87,6 @@ export async function POST(request: NextRequest) {
     let serperStatus: string | null = null;
     let konachanStatus: string | null = null;
     let anilistStatus: string | null = null;
-    let jikanStatus: string | null = null;
     // Upstream error body, echoed back only when the caller asks for it.
     let serperError: string | null = null;
 
@@ -182,21 +177,9 @@ export async function POST(request: NextRequest) {
     // The keyless sources, all at once. None of them costs anything, so they
     // all run on every request.
     const sourceJobs = [
-      // 1. OFFICIAL ART - AniList first, Jikan (MyAnimeList) alongside it.
-      //
-      // Jikan used to be the only official source and it has been answering 504
-      // to every query for days (MAL upstream), so `sources.official` was
-      // permanently 0. AniList is keyless, answers in well under a second, and
-      // carries one canonical portrait per character - enough to keep the
-      // section alive on its own.
-      //
-      // Jikan is kept because it returns *several* pictures per character when
-      // MAL is up, which AniList cannot. It runs in parallel rather than only
-      // on AniList's failure: AniList almost always answers, so a true
-      // "only if empty" fallback would mean Jikan never runs again. A short
-      // timeout keeps its outage from holding up the whole gallery.
+      // 1. OFFICIAL ART - one AniList portrait. GIFs are not in this source.
       (async (): Promise<ImageResult[]> => {
-        if (isGif) return []; // Neither source has animations - static JPG/PNG only.
+        if (isGif) return [];
 
         const anilist = async (): Promise<ImageResult[]> => {
           // Series name helps AniList disambiguate common given names, but its
@@ -254,53 +237,12 @@ export async function POST(request: NextRequest) {
           return [];
         };
 
-        const jikan = async (): Promise<ImageResult[]> => {
-          let targetId = malId;
-
-          if (!targetId) {
-            let q = characterName;
-            if (animeSource && animeSource !== "MyAnimeList" && animeSource !== "AniList") {
-              q += ` ${animeSource}`;
-            }
-            const res = await fetch(
-              `https://api.jikan.moe/v4/characters?q=${encodeURIComponent(q)}&limit=1`,
-              { headers: { "User-Agent": ANILIST_UA }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) }
-            );
-            if (!res.ok) {
-              jikanStatus = `http-${res.status}`;
-              return [];
-            }
-            const data = await res.json();
-            targetId = data.data?.[0]?.mal_id;
-          }
-
-          if (!targetId) return [];
-
-          const picRes = await fetch(
-            `https://api.jikan.moe/v4/characters/${targetId}/pictures`,
-            { headers: { "User-Agent": ANILIST_UA }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) }
-          );
-          if (!picRes.ok) {
-            jikanStatus = `http-${picRes.status}`;
-            return [];
-          }
-          const picData = await picRes.json();
-          return (picData.data || []).map((img: { jpg: { image_url: string } }) => ({
-            url: img.jpg.image_url,
-            thumbnail: img.jpg.image_url,
-            title: "Official Art",
-            source: "Official (MAL)",
-          }));
-        };
-
-        const [a, j] = await Promise.allSettled([anilist(), jikan()]);
-        const out: ImageResult[] = [];
-        // AniList first: it is the one that is actually reliable right now.
-        if (a.status === "fulfilled") out.push(...a.value);
-        else console.error("[Gallery] AniList error:", a.reason);
-        if (j.status === "fulfilled") out.push(...j.value);
-        else jikanStatus = jikanStatus ?? "timeout";
-        return out;
+        try {
+          return await anilist();
+        } catch (e) {
+          console.error("[Gallery] AniList error:", e);
+          return [];
+        }
       })(),
 
       // 2. SAFEBOORU - the deepest keyless source, and the only one that
@@ -440,7 +382,7 @@ export async function POST(request: NextRequest) {
       images: uniqueImages,
       sources: {
         serper: !process.env.SERPER_API_KEY ? "no-api-key" : report(serperResult, serperStatus),
-        official: report(officialResult, anilistStatus ?? jikanStatus),
+        official: report(officialResult, anilistStatus),
         safebooru: count(safebooruResult),
         fandom: count(fandomResult),
         fanart: report(fanartResult, konachanStatus),

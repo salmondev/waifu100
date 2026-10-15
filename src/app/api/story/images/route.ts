@@ -76,7 +76,7 @@ async function getMedia(req: NextRequest, src: "anilist" | "mal", id: number, ty
 }
 
 /**
- * GET /api/story/images?id=&type=ANIME|MANGA&src=anilist|mal&source=anilist|jikan|web
+ * GET /api/story/images?id=&type=ANIME|MANGA&src=anilist|mal&source=anilist|web
  * T-0010: one request per SOURCE so the picker fills in progressively. The
  * client sends only ids and a source name; every URL hashed here came from the
  * sources themselves. Per source: 7-day cache, 1 hour when that source failed.

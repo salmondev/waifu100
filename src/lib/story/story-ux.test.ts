@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createStorySearch, normalizeQuery, JIKAN_BASE } from "@/lib/story/search";
+import { createStorySearch, normalizeQuery } from "@/lib/story/search";
 import { DEFAULT_STORY_SIZE, STORY_SIZES, STORY_SIZE_LABELS, isStorySize, storyColumns } from "@/lib/story/config";
 import { emptyDraft, parseDraft } from "@/lib/story/draft";
 import { exportLayout } from "@/lib/story/export";
@@ -11,7 +11,6 @@ function setup(status = 200) {
     const calls: { url: string; body?: string }[] = [];
     const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
         calls.push({ url: String(url), body: init?.body as string | undefined });
-        if (String(url).startsWith(JIKAN_BASE)) return new Response(JSON.stringify({ data: [] }));
         if (status !== 200) return new Response("", { status, headers: { "Retry-After": "30" } });
         const type = JSON.parse(String(init?.body)).variables.type ?? "ANIME";
         return new Response(JSON.stringify(media(type)));
@@ -32,11 +31,11 @@ describe("Thai search", () => {
         expect(JSON.parse(calls[0].body!).variables).toMatchObject({ search: "นารูโตะ", type: "ANIME" });
         expect(r.items[0].title).toBe("NARUTO");
     });
-    it("percent-encodes Thai for the Jikan fallback and only asks the chosen type", async () => {
+    it("a down AniList does not call any other host from this search box", async () => {
         const { s, calls } = setup(503);
-        await s.search("นารูโตะ", undefined, "MANGA");
-        const jikan = calls.filter((c) => c.url.startsWith(JIKAN_BASE));
-        expect(jikan.map((c) => c.url)).toEqual([`${JIKAN_BASE}/manga?q=${encodeURIComponent("นารูโตะ")}&limit=8`]);
+        const r = await s.search("นารูโตะ", undefined, "MANGA");
+        expect(r.items).toEqual([]);
+        expect(calls.map((c) => c.url)).toEqual([expect.stringContaining("graphql")]);
     });
 });
 

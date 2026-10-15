@@ -96,7 +96,7 @@ export function StoryView({ id, title, size, cols = null, items, titleStyle = DE
 
             <div className="mt-8 mb-16 text-zinc-500 text-sm flex flex-col items-center gap-2">
                 <span>Made with <Link href="/story" className="text-purple-400 hover:underline">{STORY_BRAND}</Link></span>
-                <span className="text-[11px] text-zinc-600">Data from AniList{viaMal ? " and MyAnimeList (via Jikan)" : ""}</span>
+                <span className="text-[11px] text-zinc-600">Data from AniList{viaMal ? " and MyAnimeList" : ""}</span>
             </div>
         </div>
     );

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { JIKAN_TIMEOUT_MS, SOURCE_HASH_BUDGET, sourceImageChoices, CHOICES_CACHE_TTL_SEC, choicesTtl, collectCandidates, dedupeByHash, HASH_MAX_BYTES, hashImage, PARTIAL_CACHE_TTL_SEC, storyImageChoices } from "@/server/story-images";
+import { SOURCE_HASH_BUDGET, sourceImageChoices, CHOICES_CACHE_TTL_SEC, choicesTtl, collectCandidates, dedupeByHash, HASH_MAX_BYTES, hashImage, PARTIAL_CACHE_TTL_SEC, storyImageChoices } from "@/server/story-images";
 
 const media = {
     id: 1,
@@ -35,7 +35,7 @@ describe("story image choices (T-0010)", () => {
         expect(out.map((c) => [c.label, c.hash])).toEqual([["a", "H1"], ["b", "H2"]]);
     });
 
-    it("one AniList query by id, Jikan pictures by idMal, web via injected Serper; no key => no web, no error", async () => {
+    it("one AniList query by id, web via injected Serper; no key => no web, no error", async () => {
         const calls: string[] = [];
         const f = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
             calls.push(String(url));
@@ -51,20 +51,20 @@ describe("story image choices (T-0010)", () => {
         });
         let n = 0;
         const r = await storyImageChoices("anilist", 1, "ANIME", { fetch: f as unknown as typeof fetch, webImages: async () => [], hashOf: async () => `h${n++}` });
-        expect(calls[1]).toBe("https://api.jikan.moe/v4/anime/11/pictures");
+        expect(calls.some((u) => u.includes("jikan"))).toBe(false);
         expect(r?.choices.some((c) => c.source === "web")).toBe(false);
-        expect(r?.choices).toHaveLength(4);
+        expect(r?.choices).toHaveLength(3);
         expect(r?.title).toBe("Bebop");
         expect(r?.partial).toBe(false);
     });
 
-    it("Jikan down => partial (short cache), AniList choices still returned", async () => {
+    it("a dead extra host does not mark the AniList choices partial", async () => {
         const f = vi.fn(async (url: RequestInfo | URL) =>
             String(url).includes("graphql") ? new Response(JSON.stringify({ data: { Media: media } })) : new Response("busy", { status: 504 })
         );
         let n = 0;
         const r = await storyImageChoices("anilist", 1, "ANIME", { fetch: f as unknown as typeof fetch, webImages: async () => [], hashOf: async () => `h${n++}` });
-        expect(r?.partial).toBe(true);
+        expect(r?.partial).toBe(false);
         expect(r?.choices.length).toBe(3);
     });
 
@@ -115,27 +115,24 @@ describe("story image choices (T-0010)", () => {
         expect(ok?.partial).toBe(false);
     });
 
-    it("per source: Jikan timeout is 3 s and a Jikan failure marks ONLY jikan partial", async () => {
-        expect(JIKAN_TIMEOUT_MS).toBe(3000);
-        const f = vi.fn(async () => new Response("busy", { status: 504 }));
+    it("per source: a web failure marks only the web source partial", async () => {
         const ctx = { src: "anilist" as const, id: 1, type: "ANIME" as const, media };
-        const deps = { fetch: f as unknown as typeof fetch, webImages: async () => [], hashOf: async (u: string) => u };
-        const [a, j, w] = await Promise.all((["anilist", "jikan", "web"] as const).map((s) => sourceImageChoices(s, ctx, deps)));
-        expect([a.partial, j.partial, w.partial]).toEqual([false, true, false]);
+        const deps = { webImages: async () => [], hashOf: async (u: string) => u };
+        const [a, w] = await Promise.all((["anilist", "web"] as const).map((s) => sourceImageChoices(s, ctx, deps)));
+        expect([a.partial, w.partial]).toEqual([false, false]);
         expect(choicesTtl(a)).toBe(CHOICES_CACHE_TTL_SEC);
-        expect(choicesTtl(j)).toBe(PARTIAL_CACHE_TTL_SEC);
         expect(a.choices.map((c) => c.source)).toEqual(["anilist", "banner", "relation"]);
     });
 
-    it("per source: at most 40 hash fetches per title in total (20 + 10 + 10)", async () => {
-        expect(SOURCE_HASH_BUDGET.anilist + SOURCE_HASH_BUDGET.jikan + SOURCE_HASH_BUDGET.web).toBe(40);
+    it("per source: at most 40 hash fetches per title in total (20 + 20)", async () => {
+        expect(SOURCE_HASH_BUDGET.anilist + SOURCE_HASH_BUDGET.web).toBe(40);
         const many = Array.from({ length: 60 }, (_, i) => `https://img.example.com/${i}.jpg`);
         const big = { ...media, relations: { edges: many.map((u, i) => ({ relationType: "OTHER", node: { id: i, title: { romaji: `R${i}` }, coverImage: { extraLarge: u } } })) } };
         const f = vi.fn(async () => new Response(JSON.stringify({ data: many.map((u) => ({ jpg: { large_image_url: u.replace("img.", "mal.") } })) })));
         const hashOf = vi.fn(async (u: string) => u);
         const ctx = { src: "anilist" as const, id: 1, type: "ANIME" as const, media: big };
         const deps = { fetch: f as unknown as typeof fetch, webImages: async () => many.map((u) => ({ url: u.replace("img.", "web.") })), hashOf };
-        await Promise.all((["anilist", "jikan", "web"] as const).map((s) => sourceImageChoices(s, ctx, deps)));
+        await Promise.all((["anilist", "web"] as const).map((s) => sourceImageChoices(s, ctx, deps)));
         expect(hashOf).toHaveBeenCalledTimes(40);
     });
 

@@ -8,18 +8,16 @@ import { upstreamType, type MediaType, type StoryItem } from "@/lib/share-schema
  * Rules (research notes + Research review, T-0009 U5):
  *  - AniList GraphQL first. No isAdult/sfw filter (decision B): every cover
  *    is shown only through the moderated image proxy instead.
- *  - Jikan (MyAnimeList) only when AniList answers 429 or 5xx.
- *  - A 429's Retry-After is honoured: AniList is not called again until the
- *    cooldown passes; searches during it go straight to Jikan.
+ *  - When AniList answers 429 or 5xx, or is cooling down, search falls through to the web.
+ *  - A 429's Retry-After is honoured: AniList is not called again until the cooldown passes.
  *  - No bulk crawling: one page of results per (debounced) query.
  */
 
 export const ANILIST_GRAPHQL = "https://graphql.anilist.co";
-export const JIKAN_BASE = "https://api.jikan.moe/v4";
 export const DEFAULT_RETRY_AFTER_SEC = 60;
 export const SEARCH_PER_PAGE = 16;
 export const SEARCH_DEBOUNCE_MS = 300;
-/** AniList, Jikan and the web fallback share this. A dead upstream cannot hold the box open. */
+/** AniList and the web fallback share this. A dead upstream cannot hold the box open. */
 const SEARCH_BUDGET_MS = 1800;
 
 function limited(parent: AbortSignal | undefined, ms: number): AbortSignal {
@@ -36,7 +34,7 @@ function limited(parent: AbortSignal | undefined, ms: number): AbortSignal {
     return ctrl.signal;
 }
 
-export type SearchSource = "anilist" | "jikan" | "web";
+export type SearchSource = "anilist" | "web";
 
 export interface SearchResult {
     items: SearchItem[];
@@ -90,16 +88,6 @@ interface AniListMedia {
     coverImage?: { extraLarge?: string | null; large?: string | null; medium?: string | null; color?: string | null } | null;
 }
 
-interface JikanEntry {
-    mal_id?: number;
-    title?: string;
-    title_english?: string | null;
-    type?: string | null;
-    year?: number | null;
-    published?: { prop?: { from?: { year?: number | null } } } | null;
-    images?: { jpg?: { large_image_url?: string | null; image_url?: string | null } };
-}
-
 /** A search hit: a StoryItem plus display-only extras (never stored). */
 export interface SearchItem extends StoryItem {
     format?: string;
@@ -137,26 +125,6 @@ export function mapAniList(media: AniListMedia[]): SearchItem[] {
             ...(m.idMal ? { idMal: m.idMal } : {}),
         }];
     });
-}
-
-export function mapJikan(entries: JikanEntry[], type: MediaType): SearchItem[] {
-    return entries.flatMap((e) => {
-        const cover = e.images?.jpg?.large_image_url || e.images?.jpg?.image_url || "";
-        const title = e.title_english || e.title || "";
-        if (!e.mal_id || !title || !isAllowedCoverUrl(cover)) return [];
-        const year = e.year || e.published?.prop?.from?.year || undefined;
-        return [{ id: e.mal_id, type, title: short(title), cover, src: "mal" as const, idMal: e.mal_id, ...(e.type ? { format: e.type } : {}), ...(year ? { year } : {}) }];
-    });
-}
-
-/** Interleave two lists (anime, manga) so both types show near the top. */
-function interleave<T>(a: T[], b: T[]): T[] {
-    const out: T[] = [];
-    for (let i = 0; i < Math.max(a.length, b.length); i++) {
-        if (a[i]) out.push(a[i]);
-        if (b[i]) out.push(b[i]);
-    }
-    return out;
 }
 
 /**
@@ -214,30 +182,6 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
 
     const inCooldown = () => now() < cooldownUntil;
 
-    async function jikanOne(query: string, type: MediaType, signal?: AbortSignal): Promise<SearchItem[]> {
-        const path = type === "ANIME" ? "anime" : "manga";
-        const kind = type === "NOVEL" ? "&type=lightnovel" : "";
-        const url = `${JIKAN_BASE}/${path}?q=${encodeURIComponent(query)}&limit=${Math.ceil(SEARCH_PER_PAGE / 2)}${kind}`;
-        const res = await doFetch(url, { signal, headers: { Accept: "application/json" } });
-        if (!res.ok) {
-            throw new SearchError(
-                res.status === 429 ? "Search is busy - try again in a few seconds." : "Search is unavailable right now. Please try again shortly.",
-                res.status,
-                res.status === 429 ? parseRetryAfter(res.headers.get("Retry-After"), now()) : undefined
-            );
-        }
-        const body = (await res.json()) as { data?: JikanEntry[] };
-        return mapJikan(body.data ?? [], type);
-    }
-
-    /** Fallback: anime and manga in parallel (or the one asked for); one side failing still shows the other. */
-    async function jikan(query: string, signal?: AbortSignal, type?: MediaType): Promise<SearchItem[]> {
-        if (type) return jikanOne(query, type, signal);
-        const [a, m] = await Promise.allSettled([jikanOne(query, "ANIME", signal), jikanOne(query, "MANGA", signal)]);
-        if (a.status === "rejected" && m.status === "rejected") throw a.reason;
-        return interleave(a.status === "fulfilled" ? a.value : [], m.status === "fulfilled" ? m.value : []);
-    }
-
     /** Recent results per query (T-0013): re-searching the same title (e.g. from a filled cell) costs no request. */
     const cache = new Map<string, { at: number; r: SearchResult }>();
     const CACHE_MS = 5 * 60_000;
@@ -253,7 +197,7 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
         if (deps.resolve && r.source === "anilist" && r.items.length === 0 && text.length >= 2) {
             r = await resolveAndRetry(text, r, signal, type, until);
         }
-        // Only full AniList answers are kept; a Jikan fallback should be retried against AniList.
+        // Only full AniList answers are kept; a web fallback should be retried against AniList.
         if (r.source === "anilist" && text.length >= 2) {
             if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
             cache.set(key, { at: now(), r });
@@ -273,7 +217,7 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
         for (const t of titles) {
             const r = await searchUncached(t, signal, type, until).catch(() => null);
             if (!r) continue;
-            if (r.source === "jikan") source = "jikan";
+            if (r.source === "web") source = "web";
             for (const it of r.items) {
                 const k = `${it.src}:${it.type}:${it.id}`;
                 if (!seen.has(k)) { seen.add(k); items.push(it); }
@@ -282,15 +226,10 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
         return { items: items.slice(0, SEARCH_PER_PAGE), source, anilistCooldownUntil: inCooldown() ? cooldownUntil : null, resolvedTitles: titles };
     }
 
-    /** Jikan and, when wired, Serper. Whoever answers inside the budget wins; a database hit outranks the web. */
+    /** Serper, inside the same budget. Empty when this search box has no web fallback wired. */
     async function backup(q: string, signal: AbortSignal | undefined, type: MediaType | undefined, until: number, cooldown: number | null): Promise<SearchResult> {
-        const sig = limited(signal, until - now());
-        const webP = deps.web ? deps.web(q, type, sig).catch(() => [] as SearchItem[]) : Promise.resolve([] as SearchItem[]);
-        const jikanP = jikan(q, sig, type).catch(() => [] as SearchItem[]);
-        const [fromJikan, fromWeb] = await Promise.all([jikanP, webP]);
-        if (fromJikan.length) return { items: fromJikan, source: "jikan", anilistCooldownUntil: cooldown };
-        if (fromWeb.length) return { items: fromWeb, source: "web", anilistCooldownUntil: cooldown };
-        return { items: [], source: "jikan", anilistCooldownUntil: cooldown };
+        const items = deps.web ? await deps.web(q, type, limited(signal, until - now())).catch(() => [] as SearchItem[]) : [];
+        return { items, source: "web", anilistCooldownUntil: cooldown };
     }
 
     async function searchUncached(query: string, signal: AbortSignal | undefined, type: MediaType | undefined, until: number): Promise<SearchResult> {

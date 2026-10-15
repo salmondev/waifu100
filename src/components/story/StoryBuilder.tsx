@@ -570,7 +570,7 @@ export function StoryBuilder() {
                         {actions}
                     </div>
                 )}
-                <p className="hidden lg:block px-4 py-2 border-t border-zinc-800 text-[10px] text-zinc-600">Data from {source === "jikan" ? "MyAnimeList via Jikan" : "AniList"}. Images are safety-checked.</p>
+                <p className="hidden lg:block px-4 py-2 border-t border-zinc-800 text-[10px] text-zinc-600">Data from {source === "web" ? "the web" : "AniList"}. Images are safety-checked.</p>
             </aside>
 
             {/* MAIN: the board */}

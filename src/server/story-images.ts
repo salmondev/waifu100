@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { safeFetchImage, type SafeFetchOptions } from "@/server/moderation/safe-fetch";
 import { isPublicHttpsUrl } from "@/lib/url-safety";
-import { ANILIST_GRAPHQL, JIKAN_BASE } from "@/lib/story/search";
+import { ANILIST_GRAPHQL } from "@/lib/story/search";
 import { STORY_TITLE_MAX } from "@/lib/story/config";
 import { upstreamType, type MediaType } from "@/lib/share-schema";
 
@@ -9,7 +9,7 @@ import { upstreamType, type MediaType } from "@/lib/share-schema";
  * T-0010: every image choice for one title, for the "pick an image" panel.
  *  - AniList (one query): coverImage extraLarge/large/medium, bannerImage,
  *    relation covers, idMal.
- *  - Jikan /{anime|manga}/{idMal}/pictures.
+ *  - Web images for the title.
  *  - Serper image results (cached; credits are no longer a concern).
  * Deduped by sha256 of the fetched bytes - the same hash /api/img moderates
  * by - so the same picture under different URLs is offered once. Display is
@@ -31,14 +31,12 @@ export interface ImageChoices {
     idMal: number | null;
     color: string | null;
     choices: ImageChoice[];
-    /** A source failed (e.g. Jikan down): cache briefly so it is retried soon. */
+    /** A source failed: cache briefly so it is retried soon. */
     partial: boolean;
 }
 
 export const MAX_CANDIDATES = 40;
 export const HASH_CONCURRENCY = 10;
-/** T-0010 perf: Jikan was the 8 s long pole on every miss. */
-export const JIKAN_TIMEOUT_MS = 3000;
 export const CHOICES_CACHE_TTL_SEC = 7 * 24 * 3600;
 export const PARTIAL_CACHE_TTL_SEC = 3600;
 /** Fetch-for-hash cap. A bigger image is just dropped from the choices (NOT a source failure). */
@@ -49,7 +47,7 @@ export async function hashImage(url: string, opts: Omit<SafeFetchOptions, "maxBy
     return sha256Hex((await safeFetchImage(url, { ...opts, maxBytes: HASH_MAX_BYTES })).bytes);
 }
 
-/** 7 days, or 1 hour when a SOURCE (AniList, Jikan, Serper) failed. Dropped images never count. */
+/** 7 days, or 1 hour when a source (AniList or Serper) failed. Dropped images never count. */
 export function choicesTtl(result: Pick<ImageChoices, "partial">): number {
     return result.partial ? PARTIAL_CACHE_TTL_SEC : CHOICES_CACHE_TTL_SEC;
 }
@@ -152,29 +150,15 @@ export async function storyImageChoices(src: "anilist" | "mal", id: number, type
     const title = media?.title?.english || media?.title?.romaji || "";
 
     let partial = !media;
-    const [mal, web] = await Promise.all([
-        idMal
-            ? f(`${JIKAN_BASE}/${mediaType === "ANIME" ? "anime" : "manga"}/${idMal}/pictures`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) })
-                  .then(async (r) => {
-                      if (!r.ok) throw new Error(String(r.status));
-                      return ((await r.json()) as { data?: { jpg?: { large_image_url?: string; image_url?: string } }[] }).data ?? [];
-                  })
-                  .then((d) => d.map((p) => p.jpg?.large_image_url || p.jpg?.image_url || "").filter(Boolean))
-                  .catch(() => {
-                      partial = true;
-                      return [] as string[];
-                  })
-            : Promise.resolve([] as string[]),
-        title
-            ? deps.webImages(title, mediaType).then(
-                  (w) => w ?? ((partial = true), []),
-                  () => ((partial = true), [])
-              )
-            : Promise.resolve([]),
-    ]);
-    if (!media && mal.length === 0) return null;
+    const web = title
+        ? await deps.webImages(title, mediaType).then(
+              (w) => w ?? ((partial = true), []),
+              () => ((partial = true), [])
+          )
+        : [];
+    if (!media && web.length === 0) return null;
 
-    const choices = await dedupeByHash(collectCandidates(media, mal, web), deps.hashOf);
+    const choices = await dedupeByHash(collectCandidates(media, [], web), deps.hashOf);
     return {
         id: media?.id ?? id,
         type: mediaType,
@@ -190,20 +174,20 @@ export async function storyImageChoices(src: "anilist" | "mal", id: number, type
 /* ------------------------- per-source (streamed picker) ------------------------- */
 /*
  * T-0010 perf: the picker asks for each SOURCE separately, so a slow source
- * (Jikan) never blocks the others. The client sends only id, type, src and a
- * source NAME - never a URL. Every URL hashed here came from AniList, Jikan or
+ * never blocks the other. The client sends only id, type, src and a
+ * source NAME - never a URL. Every URL hashed here came from AniList or
  * Serper, fetched by the server. Each source hashes within its own budget so a
  * title never costs more than 40 hash fetches in total. Cross-source dedupe
  * happens in the client by comparing the server-computed hashes.
  */
 
-export const IMAGE_SOURCES = ["anilist", "jikan", "web"] as const;
+export const IMAGE_SOURCES = ["anilist", "web"] as const;
 export type ImageSourceName = (typeof IMAGE_SOURCES)[number];
 export function isImageSource(v: unknown): v is ImageSourceName {
     return typeof v === "string" && (IMAGE_SOURCES as readonly string[]).includes(v);
 }
 /** Max hash fetches per source; sums to MAX_CANDIDATES (40) per title. */
-export const SOURCE_HASH_BUDGET: Record<ImageSourceName, number> = { anilist: 20, jikan: 10, web: 10 };
+export const SOURCE_HASH_BUDGET: Record<ImageSourceName, number> = { anilist: 20, web: 20 };
 
 export interface SourceChoices {
     source: ImageSourceName;
@@ -247,11 +231,9 @@ export async function sourceImageChoices(
     ctx: { src: "anilist" | "mal"; id: number; type: MediaType; media: MediaById | null },
     deps: SourceDeps
 ): Promise<SourceChoices> {
-    const f = deps.fetch ?? fetch;
     const { media } = ctx;
     const type: MediaType = ctx.type === "NOVEL" ? "NOVEL" : media?.type === "MANGA" ? "MANGA" : media?.type === "ANIME" ? "ANIME" : ctx.type;
     const title = (media?.title?.english || media?.title?.romaji || "").slice(0, STORY_TITLE_MAX);
-    const idMal = media?.idMal ?? (ctx.src === "mal" ? ctx.id : null);
     const base = { source, id: media?.id ?? ctx.id, type, title };
     let partial = false;
     let candidates: ImageChoice[] = [];
@@ -259,19 +241,6 @@ export async function sourceImageChoices(
     if (source === "anilist") {
         if (!media) return { ...base, choices: [], partial: true };
         candidates = collectCandidates(media, [], []);
-    } else if (source === "jikan") {
-        if (!idMal) return { ...base, choices: [], partial: !media }; // no MAL id: nothing to ask, not a failure
-        const urls = await f(`${JIKAN_BASE}/${type === "ANIME" ? "anime" : "manga"}/${idMal}/pictures`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) })
-            .then(async (r) => {
-                if (!r.ok) throw new Error(String(r.status));
-                return ((await r.json()) as { data?: { jpg?: { large_image_url?: string; image_url?: string } }[] }).data ?? [];
-            })
-            .then((d) => d.map((p) => p.jpg?.large_image_url || p.jpg?.image_url || "").filter(Boolean))
-            .catch(() => {
-                partial = true;
-                return [] as string[];
-            });
-        candidates = collectCandidates(null, urls, []);
     } else {
         if (!title) return { ...base, choices: [], partial: !media };
         const web = await deps.webImages(title, type).then(

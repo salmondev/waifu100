@@ -15,7 +15,7 @@ import { MediaGrid, type MediaGridProps } from "@/components/grid/MediaGrid";
  * but its own component: waifu's card is about characters and must not change.
  *
  * The picture is always the cell's own cover (via the moderated /api/img proxy). Words come
- * from /api/story/info by id (AniList, or Jikan for MAL cells). Upload / web cells have no id
+ * from /api/story/info by id (AniList, including a stored MAL id). Upload / web cells have no id
  * to look up, so they show the picture, title and a "Custom" badge only.
  */
 
