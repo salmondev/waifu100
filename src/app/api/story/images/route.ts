@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRedis } from "@/lib/redis";
 import { consume, LIMITS } from "@/lib/rate-limit";
+import { toMediaType, type MediaType } from "@/lib/share-schema";
 import {
     choicesTtl,
     fetchMedia,
@@ -51,7 +52,7 @@ function memoSet(k: string, v: MediaById) {
  * The title's AniList record, cached 7 days. The per-IP limit is consumed
  * HERE, once per new title (not once per source request).
  */
-async function getMedia(req: NextRequest, src: "anilist" | "mal", id: number, type: "ANIME" | "MANGA"): Promise<MediaById | null | Limited> {
+async function getMedia(req: NextRequest, src: "anilist" | "mal", id: number, type: MediaType): Promise<MediaById | null | Limited> {
     const key = mediaCacheKey(src, id, type);
     const mem = memoGet(key);
     if (mem) return mem;
@@ -84,7 +85,7 @@ async function getMedia(req: NextRequest, src: "anilist" | "mal", id: number, ty
 export async function GET(req: NextRequest) {
     const p = req.nextUrl.searchParams;
     const id = Number(p.get("id"));
-    const type = p.get("type") === "MANGA" ? "MANGA" : "ANIME";
+    const type = toMediaType(p.get("type"));
     const src = p.get("src") === "mal" ? "mal" : "anilist";
     const source = p.get("source") ?? "anilist";
     if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Invalid title id." }, { status: 400 });

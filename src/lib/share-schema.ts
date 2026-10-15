@@ -28,7 +28,23 @@ export const SHARE_SCHEMA_VERSION = 2;
 export const WAIFU_GRID_SIZE = 100;
 
 export type ShareKind = "waifu" | "story";
-export type MediaType = "ANIME" | "MANGA";
+/** Story cell type. "NOVEL" (light novel, 2026-10-15) is AniList's MANGA type with format NOVEL. */
+export type MediaType = "ANIME" | "MANGA" | "NOVEL";
+export const MEDIA_TYPES: readonly MediaType[] = ["ANIME", "MANGA", "NOVEL"];
+
+export function isMediaType(v: unknown): v is MediaType {
+    return v === "ANIME" || v === "MANGA" || v === "NOVEL";
+}
+
+/** Parse a query/form value; anything unknown is ANIME (the old default). */
+export function toMediaType(v: unknown): MediaType {
+    return isMediaType(v) ? v : "ANIME";
+}
+
+/** AniList / Jikan only know ANIME and MANGA; a light novel is looked up as MANGA. */
+export function upstreamType(t: MediaType): "ANIME" | "MANGA" {
+    return t === "ANIME" ? "ANIME" : "MANGA";
+}
 
 /** One story cell as the app uses it. */
 export interface StoryItem {
@@ -129,7 +145,7 @@ function decodeStoryCell(entry: unknown, size: number): StoredStoryCell | null {
     const c = entry as Partial<StoredStoryCell> | null;
     if (!c || typeof c.i !== "number" || !Number.isInteger(c.i) || c.i < 0 || c.i >= size) return null;
     if (typeof c.a !== "number" || typeof c.img !== "string") return null;
-    if (c.t !== "ANIME" && c.t !== "MANGA") return null;
+    if (!isMediaType(c.t)) return null;
     const src = c.src === "mal" || c.src === "web" || c.src === "upload" ? c.src : undefined;
     if (!isAllowedStoryImage(src, c.img)) return null;
     return c as StoredStoryCell;
@@ -270,7 +286,7 @@ export function cleanStoryCells(size: unknown, cells: unknown, cols?: unknown): 
         if (!c || typeof c.i !== "number" || !Number.isInteger(c.i) || c.i < 0 || c.i >= size) continue;
         if (seen.has(c.i)) continue;
         if (typeof c.a !== "number" || !Number.isInteger(c.a) || c.a <= 0) continue;
-        if (c.t !== "ANIME" && c.t !== "MANGA") continue;
+        if (!isMediaType(c.t)) continue;
         const src: StorySource = c.src === "mal" || c.src === "web" || c.src === "upload" ? c.src : "anilist";
         if (!isAllowedStoryImage(src, c.img)) continue;
         seen.add(c.i);

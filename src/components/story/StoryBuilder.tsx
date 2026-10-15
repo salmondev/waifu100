@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { friendlyError } from "@/lib/public-errors";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ChevronUp, FolderOpen, Loader2, Plus, Save, Search, Share2, Trash2, Users, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, FolderOpen, ImageUp, Loader2, Plus, Save, Search, Share2, Trash2, Users, X } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { StorySuggest } from "@/components/story/StorySuggest";
 import { StoryShareModal, type StoryShareResult } from "@/components/story/StoryShareModal";
@@ -43,6 +43,8 @@ import type { ShareSummary } from "@/lib/share-summary";
 const toCell = (i: StoryItem) => ({ key: `${i.src ?? "anilist"}-${i.type}-${i.id}`, image: i.cover, label: i.title });
 
 /** POST a file to the moderated story upload; returns the item or a readable error. */
+const TYPE_WORD: Record<MediaType, string> = { ANIME: "anime", MANGA: "manga", NOVEL: "light novel" };
+
 async function uploadCover(file: File, title: string, type: string): Promise<{ item?: StoryItem; error?: string }> {
     if (file.size > 2 * 1024 * 1024) return { error: "That image is larger than 2 MB. Please pick a smaller one." };
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return { error: "Please upload a JPEG, PNG or WebP image." };
@@ -200,7 +202,13 @@ export function StoryBuilder() {
                 }
                 setSource(r.source);
                 setSearchError(null);
-                setSearchNote(r.anilistCooldownUntil ? "AniList is busy for a moment, so these results come from MyAnimeList." : null);
+                setSearchNote(
+                    r.anilistCooldownUntil
+                        ? "AniList is busy for a moment, so these results come from MyAnimeList."
+                        : r.resolvedTitles?.length && r.items.length
+                          ? `Showing results for “${r.resolvedTitles[0]}”.`
+                          : null
+                );
                 setSearched(q);
             } catch (e) {
                 if (ctrl.signal.aborted) return;
@@ -308,7 +316,7 @@ export function StoryBuilder() {
     const uploadOwn = async (file: File | undefined) => {
         if (!file) return;
         setUploading(true);
-        const r = await uploadCover(file, uploadTitle.trim() || file.name.replace(/\.[^.]+$/, ""), "ANIME");
+        const r = await uploadCover(file, uploadTitle.trim() || file.name.replace(/\.[^.]+$/, ""), searchType);
         setUploading(false);
         if (r.error || !r.item) return setNotice(r.error ?? "Upload failed.", "error");
         if (place(r.item)) setUploadTitle("");
@@ -405,7 +413,7 @@ export function StoryBuilder() {
                         <input
                             ref={searchRef}
                             className="w-full bg-zinc-900 border border-zinc-700 rounded-lg py-2 pl-10 pr-9 focus:ring-2 focus:ring-purple-500 outline-none"
-                            placeholder={searchType === "MANGA" ? "Search manga… (ไทย / English / 日本語)" : "Search anime… (ไทย / English / 日本語)"}
+                            placeholder={`Search ${TYPE_WORD[searchType]}… (ไทย / English / 日本語)`}
                             aria-label="Search anime or manga"
                             lang="th"
                             value={query}
@@ -420,9 +428,14 @@ export function StoryBuilder() {
                         ) : null}
                     </div>
                     <SearchModeToggle value={searchType} onChange={setSearchType} />
+                    {/* 2026-10-15: always visible but quiet - a custom cover works for any story, not just these 3 types. */}
+                    <button type="button" data-testid="upload-any" disabled={uploading} onClick={() => { setUploadTitle(q); fileRef.current?.click(); }} className="mt-2 w-full inline-flex items-center justify-center gap-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 disabled:opacity-60">
+                        <ImageUp className="w-3.5 h-3.5 shrink-0" />
+                        <span className="underline underline-offset-2">{uploading ? "Checking & uploading…" : "Upload your own cover — any story (movie, series, game, book…)"}</span>
+                    </button>
                 </div>
 
-                {/* Upload is a fallback only (no-results link below); the input stays hidden. */}
+                {/* Hidden file input, opened by the upload link above or the no-results link below. */}
                 <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Upload your own image" data-testid="upload-input" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; uploadOwn(f); }} />
 
                 {replacing !== null && draft.items[replacing] && !picking && (
@@ -455,7 +468,7 @@ export function StoryBuilder() {
                     ) : q.length >= 2 && searched && !searching && !searchError ? (
                         <div className="text-center py-10 px-4">
                             <div className="border border-dashed border-zinc-800 rounded-lg p-4 bg-zinc-900/20">
-                                <p className="text-zinc-500 text-sm mb-3">No {searchType === "MANGA" ? "manga" : "anime"} matches “{searched}”. Try the English or Japanese title, or switch to {searchType === "MANGA" ? "Anime" : "Manga"}.</p>
+                                <p className="text-zinc-500 text-sm mb-3">No {TYPE_WORD[searchType]} matches “{searched}”. Try the English or Japanese title, or switch to another type.</p>
                                 <button type="button" disabled={uploading} onClick={() => { setUploadTitle(searched); fileRef.current?.click(); }} className="text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-300 disabled:opacity-60">
                                     {/* Kept muted (T-0012 decision: upload is a last-resort fallback), inside waifu's dashed no-results box. */}
                                     {uploading ? "Checking & uploading…" : "Can't find it? Upload your own image"}
@@ -464,7 +477,7 @@ export function StoryBuilder() {
                         </div>
                     ) : !searchError ? (
                         <div className="text-center py-2 lg:py-10 px-4">
-                            <p className="hidden lg:block text-zinc-500 text-sm mb-4">Search for your favorite anime or manga to start.</p>
+                            <p className="hidden lg:block text-zinc-500 text-sm mb-4">Search for your favorite anime, manga or light novel to start.</p>
                             <p className="text-xs text-zinc-600">Tip: select an empty slot first to put a title exactly there.</p>
                         </div>
                     ) : null}

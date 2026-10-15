@@ -7,6 +7,7 @@ import { shareCardPath } from "@/lib/share-card";
 import { cn } from "@/lib/utils";
 import type { ShareSummary } from "@/lib/share-summary";
 import { CompareWithMine } from "@/components/compare/CompareWithMine";
+import { StoryCompareWithMine } from "@/components/story/StoryCompareWithMine";
 import { storyViewPath } from "@/lib/story/config";
 
 interface GridCardProps {
@@ -169,7 +170,7 @@ export function GridCard({
                 A full-width strip along the bottom, because the small chip that
                 used to float over the thumbnail was dark on dark art in the one
                 corner nobody looks at, and people could not find it. */}
-            {isStory ? null : onSelect ? (
+            {onSelect ? (
                 <button
                     type="button"
                     onClick={() => onSelect(grid)}
@@ -191,7 +192,7 @@ export function GridCard({
                 </button>
             ) : (
                 <div className="absolute bottom-[4.75rem] right-3 z-40">
-                    <CompareWithMine shareId={grid.id} variant="card" />
+                    {isStory ? <StoryCompareWithMine shareId={grid.id} variant="card" /> : <CompareWithMine shareId={grid.id} variant="card" />}
                 </div>
             )}
 

@@ -8,6 +8,7 @@ import { readDecoded } from "@/server/share-service";
 import { AppLive } from "@/server/run";
 import { shareCardPath } from "@/lib/share-card";
 import { STORY_BRAND, storySizeLabel } from "@/lib/story/config";
+import { readStoryVerdict } from "@/lib/story/verdict-store";
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -56,5 +57,7 @@ export default async function StorySharePage({ params }: Props) {
     if (!d) redirect("/story");
     // A waifu id typed into the story path goes to its own page.
     if (d.kind !== "story") redirect(`/view/${id}`);
-    return <StoryView id={id} title={d.title} size={d.size} cols={d.cols} items={d.items} titleStyle={d.titleStyle} />;
+    // A stored verdict renders with the page (no request, no spinner), like waifu's verdict on the share.
+    const stored = await readStoryVerdict(id);
+    return <StoryView id={id} title={d.title} size={d.size} cols={d.cols} items={d.items} titleStyle={d.titleStyle} verdict={stored?.verdict ?? null} verdictFeedback={stored?.feedback ?? null} />;
 }

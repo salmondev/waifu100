@@ -16,11 +16,14 @@ describe("GridCard kinds", () => {
         expect(screen.getByTitle("5 of 100 slots filled")).toBeTruthy();
     });
 
-    it("story summary links to /story/v, shows its size, offers no compare", () => {
+    it("story summary links to /story/v, shows its size, offers the story compare", () => {
         render(<GridCard grid={{ ...base, id: "s1", kind: "story", size: 10 }} />);
         expect(screen.getByTestId("kind-badge").textContent).toBe("Story");
-        expect(screen.getByRole("link").getAttribute("href")).toBe("/story/v/s1");
-        expect(screen.queryByTestId("compare")).toBeNull();
+        const hrefs = screen.getAllByRole("link").map((l) => l.getAttribute("href"));
+        expect(hrefs).toContain("/story/v/s1");
+        // Story fork of waifu's card compare: the story picker with this grid in slot B (never waifu's /compare).
+        expect(hrefs).toContain("/story/compare?b=s1");
+        expect(hrefs.some((h) => h?.startsWith("/compare"))).toBe(false);
         expect(screen.getByTitle("5 of 10 slots filled")).toBeTruthy();
     });
 });

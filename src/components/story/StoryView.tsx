@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowLeft, Check, Grid3x3, Link2 } from "lucide-react";
-import { MediaGrid } from "@/components/grid/MediaGrid";
+import { StoryCellGrid } from "@/components/story/StoryCellCard";
 import { DEFAULT_TITLE_STYLE, STORY_BRAND, storyColumns, storyViewPath, type TitleStyle } from "@/lib/story/config";
 import type { StoryItem } from "@/lib/share-schema";
 import { cn } from "@/lib/utils";
 import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
-import { StoryCompareWithMine, StoryPngButton, StoryViewVerdict } from "@/components/story/StoryExtras";
+import { StoryPngButton, StoryViewVerdict } from "@/components/story/StoryExtras";
+import { StoryCompareWithMine } from "@/components/story/StoryCompareWithMine";
+import type { AnalysisResult, VerdictFeedback } from "@/types";
 
 const toCell = (i: StoryItem) => ({ key: `${i.src ?? "anilist"}-${i.type}-${i.id}`, image: i.cover, label: i.title || "Untitled" });
 
@@ -28,7 +30,7 @@ const W = {
 const TITLE_GLOW = { textShadow: "0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(168, 85, 247, 0.2)" };
 const COLUMNS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
-export function StoryView({ id, title, size, cols = null, items, titleStyle = DEFAULT_TITLE_STYLE }: { id: string; title: string; size: number; cols?: number | null; items: (StoryItem | null)[]; titleStyle?: TitleStyle }) {
+export function StoryView({ id, title, size, cols = null, items, titleStyle = DEFAULT_TITLE_STYLE, verdict = null, verdictFeedback = null }: { id: string; title: string; size: number; cols?: number | null; items: (StoryItem | null)[]; titleStyle?: TitleStyle; verdict?: AnalysisResult | null; verdictFeedback?: VerdictFeedback }) {
     const columns = storyColumns(size, cols);
     const count = items.filter(Boolean).length;
     const viaMal = items.some((i) => i?.src === "mal");
@@ -64,7 +66,7 @@ export function StoryView({ id, title, size, cols = null, items, titleStyle = DE
                         {copied ? <Check size={18} className="shrink-0" /> : <Link2 size={18} className="shrink-0" />}
                         <span className="truncate">{copied ? "Link Copied!" : "Copy Link"}</span>
                     </button>
-                    <StoryViewVerdict items={items} sharePath={storyViewPath(id)} gridTitle={title} />
+                    <StoryViewVerdict shareId={id} items={items} sharePath={storyViewPath(id)} gridTitle={title} initialVerdict={verdict} initialFeedback={verdictFeedback} />
                     <StoryPngButton title={title} items={items} titleStyle={titleStyle} cols={cols} label="Save as PNG" className={cn(W.headerBtn, "basis-full lg:basis-auto bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800 disabled:opacity-50")} />
                     <div className="basis-full lg:basis-auto lg:w-full lg:max-w-[232px] flex flex-col items-center lg:items-end gap-2">
                         <StoryCompareWithMine shareId={id} />
@@ -85,7 +87,7 @@ export function StoryView({ id, title, size, cols = null, items, titleStyle = DE
                         </>
                     )}
                     <div className={W.gridFrame} data-testid="story-view-grid">
-                        <MediaGrid items={items} columns={columns} toCell={toCell} titleStyle={titleStyle} />
+                        <StoryCellGrid items={items} columns={columns} toCell={toCell} titleStyle={titleStyle} />
                     </div>
                 </div>
             </div>

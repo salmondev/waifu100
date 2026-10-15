@@ -34,7 +34,7 @@ describe("story board JSON file (parity item 2)", () => {
         const raw = JSON.parse(boardToFile(board()));
         raw.cells.push({ i: 1, a: 9, t: "ANIME", img: "javascript:alert(1)" });
         raw.cells.push({ i: 2, a: -1, t: "ANIME", img: "https://s4.anilist.co/z.jpg" });
-        raw.cells.push({ i: 4, a: 3, t: "NOVEL", img: "https://s4.anilist.co/z.jpg" });
+        raw.cells.push({ i: 4, a: 3, t: "BOOK", img: "https://s4.anilist.co/z.jpg" });
         raw.cells.push({ i: 5, a: 3, t: "ANIME", img: "https://evil.example.com/x.png", src: "upload" });
         raw.cells.push({ i: 99, a: 3, t: "ANIME", img: "https://s4.anilist.co/z.jpg" });
         const { draft, dropped } = boardFromFile(JSON.stringify(raw));

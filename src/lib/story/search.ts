@@ -1,5 +1,5 @@
 import { isAllowedCoverUrl, STORY_TITLE_MAX } from "@/lib/story/config";
-import type { MediaType, StoryItem } from "@/lib/share-schema";
+import { upstreamType, type MediaType, type StoryItem } from "@/lib/share-schema";
 
 /**
  * Anime/manga search for the story builder. Runs in the visitor's browser, so
@@ -27,6 +27,8 @@ export interface SearchResult {
     source: SearchSource;
     /** Set while AniList is cooling down after a 429 (epoch ms). */
     anilistCooldownUntil: number | null;
+    /** The real title(s) the query was resolved to, when AniList found nothing for the text as typed. */
+    resolvedTitles?: string[];
 }
 
 export class SearchError extends Error {
@@ -46,9 +48,9 @@ export class SearchError extends Error {
  * AniList matches Thai titles through its synonyms (e.g. "นารูโตะ" -> NARUTO), so the query
  * text is passed through as-is (Unicode, NFC-normalised), never ASCII-filtered.
  */
-const MEDIA_QUERY = `query ($search: String, $perPage: Int, $type: MediaType) {
+const MEDIA_QUERY = `query ($search: String, $perPage: Int, $type: MediaType, $format_in: [MediaFormat], $format_not_in: [MediaFormat]) {
   Page(perPage: $perPage) {
-    media(search: $search, type: $type, sort: SEARCH_MATCH) {
+    media(search: $search, type: $type, format_in: $format_in, format_not_in: $format_not_in, sort: SEARCH_MATCH) {
       id
       idMal
       type
@@ -108,7 +110,7 @@ export function mapAniList(media: AniListMedia[]): SearchItem[] {
     return media.flatMap((m) => {
         const cover = m.coverImage?.extraLarge || m.coverImage?.large || m.coverImage?.medium || "";
         const title = m.title?.english || m.title?.romaji || "";
-        const type: MediaType | null = m.type === "MANGA" ? "MANGA" : m.type === "ANIME" ? "ANIME" : null;
+        const type: MediaType | null = m.type === "MANGA" ? (m.format === "NOVEL" ? "NOVEL" : "MANGA") : m.type === "ANIME" ? "ANIME" : null;
         if (!m.id || !title || !type || !isAllowedCoverUrl(cover)) return [];
         const year = m.seasonYear || m.startDate?.year || undefined;
         return [{
@@ -155,9 +157,36 @@ export function normalizeQuery(query: string): string {
         .trim();
 }
 
+/**
+ * AniList filter for a search mode: light novels are MANGA with format NOVEL; the manga mode
+ * excludes NOVEL so the two modes do not overlap. No type = the old "both" search.
+ */
+export function typeVariables(type?: MediaType): Record<string, unknown> {
+    if (!type) return {};
+    if (type === "NOVEL") return { type: "MANGA", format_in: ["NOVEL"] };
+    if (type === "MANGA") return { type: "MANGA", format_not_in: ["NOVEL"] };
+    return { type: upstreamType(type) };
+}
+
+/**
+ * Server-side title resolver (/api/story/resolve): informal / Thai / misspelt names -> real titles.
+ * Only asked when AniList found NOTHING, so it never costs anything on a normal search.
+ */
+export type ResolveTitles = (query: string, type: MediaType | undefined, signal?: AbortSignal) => Promise<string[]>;
+
+export const fetchResolve: ResolveTitles = async (query, type, signal) => {
+    const qs = new URLSearchParams({ q: query, ...(type ? { type } : {}) });
+    const res = await fetch(`/api/story/resolve?${qs}`, { signal }).catch(() => null);
+    if (!res?.ok) return [];
+    const body = (await res.json().catch(() => ({}))) as { titles?: unknown };
+    return Array.isArray(body.titles) ? body.titles.filter((t): t is string => typeof t === "string" && !!t.trim()).slice(0, 3) : [];
+};
+
 export interface StorySearchDeps {
     fetch?: typeof fetch;
     now?: () => number;
+    /** Optional fallback for empty AniList answers. Absent = no fallback (tests, server). */
+    resolve?: ResolveTitles;
 }
 
 export function createStorySearch(deps: StorySearchDeps = {}) {
@@ -168,8 +197,9 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
     const inCooldown = () => now() < cooldownUntil;
 
     async function jikanOne(query: string, type: MediaType, signal?: AbortSignal): Promise<SearchItem[]> {
-        const path = type === "MANGA" ? "manga" : "anime";
-        const url = `${JIKAN_BASE}/${path}?q=${encodeURIComponent(query)}&limit=${Math.ceil(SEARCH_PER_PAGE / 2)}`;
+        const path = type === "ANIME" ? "anime" : "manga";
+        const kind = type === "NOVEL" ? "&type=lightnovel" : "";
+        const url = `${JIKAN_BASE}/${path}?q=${encodeURIComponent(query)}&limit=${Math.ceil(SEARCH_PER_PAGE / 2)}${kind}`;
         const res = await doFetch(url, { signal, headers: { Accept: "application/json" } });
         if (!res.ok) {
             throw new SearchError(
@@ -200,13 +230,37 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
         const key = `${type ?? "ALL"}:${text.toLowerCase()}`;
         const hit = cache.get(key);
         if (hit && now() - hit.at < CACHE_MS) return hit.r;
-        const r = await searchUncached(text, signal, type);
+        let r = await searchUncached(text, signal, type);
+        if (deps.resolve && r.source === "anilist" && r.items.length === 0 && text.length >= 2) {
+            r = await resolveAndRetry(text, r, signal, type);
+        }
         // Only full AniList answers are kept; a Jikan fallback should be retried against AniList.
         if (r.source === "anilist" && text.length >= 2) {
             if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
             cache.set(key, { at: now(), r });
         }
         return r;
+    }
+
+    /** AniList had nothing: ask the server for real titles, then search AniList for each (deduped). */
+    async function resolveAndRetry(text: string, empty: SearchResult, signal?: AbortSignal, type?: MediaType): Promise<SearchResult> {
+        const titles = (await deps.resolve!(text, type, signal).catch(() => [] as string[]))
+            .map(normalizeQuery)
+            .filter((t) => t.length >= 2 && t.toLowerCase() !== text.toLowerCase());
+        if (!titles.length) return empty;
+        const seen = new Set<string>();
+        const items: SearchItem[] = [];
+        let source: SearchSource = "anilist";
+        for (const t of titles) {
+            const r = await searchUncached(t, signal, type).catch(() => null);
+            if (!r) continue;
+            if (r.source === "jikan") source = "jikan";
+            for (const it of r.items) {
+                const k = `${it.src}:${it.type}:${it.id}`;
+                if (!seen.has(k)) { seen.add(k); items.push(it); }
+            }
+        }
+        return { items: items.slice(0, SEARCH_PER_PAGE), source, anilistCooldownUntil: inCooldown() ? cooldownUntil : null, resolvedTitles: titles };
     }
 
     async function searchUncached(query: string, signal?: AbortSignal, type?: MediaType): Promise<SearchResult> {
@@ -217,7 +271,7 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
             return { items: await jikan(q, signal, type), source: "jikan", anilistCooldownUntil: cooldownUntil };
         }
 
-        const variables: Record<string, unknown> = { search: q, perPage: SEARCH_PER_PAGE, ...(type ? { type } : {}) };
+        const variables: Record<string, unknown> = { search: q, perPage: SEARCH_PER_PAGE, ...typeVariables(type) };
         const res = await doFetch(ANILIST_GRAPHQL, {
             method: "POST",
             signal,
@@ -242,4 +296,4 @@ export function createStorySearch(deps: StorySearchDeps = {}) {
 }
 
 /** Browser-wide instance, so the cooldown is shared by every search box. */
-export const storySearch = createStorySearch();
+export const storySearch = createStorySearch({ resolve: fetchResolve });

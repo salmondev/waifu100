@@ -7,6 +7,11 @@ import { GitCompareArrows, Loader2, X } from "lucide-react";
 import type { ShareSummary } from "@/lib/share-summary";
 import { shareCardPath } from "@/lib/share-card";
 import { cn } from "@/lib/utils";
+import { storyComparePath } from "@/lib/story/compare";
+
+/** Waifu pairs keep /compare exactly as before; a story pair (same kind only) opens /story/compare. */
+export const comparePathFor = (a: ShareSummary, b: ShareSummary) =>
+    a.kind === "story" && b.kind === "story" ? storyComparePath(a.id, b.id) : `/compare?a=${a.id}&b=${b.id}`;
 
 /**
  * The compare bar that sits above the showcase.
@@ -148,7 +153,7 @@ export function CompareBar({ a, b, active, onFocus, onClear }: CompareBarProps) 
                     aria-busy={navigating}
                     onClick={() =>
                         ready &&
-                        startNavigating(() => router.push(`/compare?a=${a.id}&b=${b.id}`))
+                        startNavigating(() => router.push(comparePathFor(a, b)))
                     }
                     className={cn(
                         "flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all sm:px-5",

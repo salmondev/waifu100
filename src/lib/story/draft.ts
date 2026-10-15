@@ -1,5 +1,5 @@
 import { isStorySize, isStoryLayout, DEFAULT_STORY_SIZE, isAllowedStoryImage, STORY_DRAFT_KEY, DEFAULT_TITLE_STYLE, isTitleStyle, type TitleStyle } from "@/lib/story/config";
-import type { MediaType, StoryItem } from "@/lib/share-schema";
+import { isMediaType, toMediaType, type MediaType, type StoryItem } from "@/lib/share-schema";
 
 /** The builder's local state, saved in localStorage (never sent anywhere). */
 export interface StoryDraft {
@@ -20,7 +20,7 @@ export function emptyDraft(size: number = DEFAULT_STORY_SIZE, cols: number | nul
 
 function isItem(v: unknown): v is StoryItem {
     const i = v as StoryItem | null;
-    return !!i && typeof i.id === "number" && (i.type === "ANIME" || i.type === "MANGA") && typeof i.title === "string" && isAllowedStoryImage(i.src, i.cover);
+    return !!i && typeof i.id === "number" && isMediaType(i.type) && typeof i.title === "string" && isAllowedStoryImage(i.src, i.cover);
 }
 
 /** Tolerant parse: anything odd falls back to an empty draft. */
@@ -31,7 +31,7 @@ export function parseDraft(raw: string | null): StoryDraft {
         const cols = d.cols != null && isStoryLayout(d.size, d.cols) ? d.cols : null;
         const size = cols !== null || isStorySize(d.size) ? (d.size as number) : DEFAULT_STORY_SIZE;
         const items = Array.from({ length: size }, (_, i) => (Array.isArray(d.items) && isItem(d.items[i]) ? d.items[i] : null));
-        return { size, cols, type: d.type === "MANGA" ? "MANGA" : "ANIME", title: typeof d.title === "string" ? d.title.slice(0, 120) : "", items, titleStyle: isTitleStyle(d.titleStyle) ? d.titleStyle : DEFAULT_TITLE_STYLE };
+        return { size, cols, type: toMediaType(d.type), title: typeof d.title === "string" ? d.title.slice(0, 120) : "", items, titleStyle: isTitleStyle(d.titleStyle) ? d.titleStyle : DEFAULT_TITLE_STYLE };
     } catch {
         return emptyDraft();
     }
