@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
 import { StoryPngButton, StoryViewVerdict } from "@/components/story/StoryExtras";
 import { StoryCompareWithMine } from "@/components/story/StoryCompareWithMine";
+import { EditOwnLink } from "@/components/own/EditOwnLink";
 import type { AnalysisResult, VerdictFeedback } from "@/types";
 
 const toCell = (i: StoryItem) => ({ key: `${i.src ?? "anilist"}-${i.type}-${i.id}`, image: i.cover, label: i.title || "Untitled" });
@@ -70,6 +71,7 @@ export function StoryView({ id, title, size, cols = null, items, titleStyle = DE
                     <StoryPngButton title={title} items={items} titleStyle={titleStyle} cols={cols} label="Save as PNG" className={cn(W.headerBtn, "basis-full lg:basis-auto bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800 disabled:opacity-50")} />
                     <div className="basis-full lg:basis-auto lg:w-full lg:max-w-[232px] flex flex-col items-center lg:items-end gap-2">
                         <StoryCompareWithMine shareId={id} />
+                        <EditOwnLink id={id} kind="story" className={cn(W.headerBtn, "bg-zinc-900 text-zinc-200 hover:bg-zinc-800 border border-zinc-800")} />
                     </div>
                 </div>
             </div>

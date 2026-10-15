@@ -36,6 +36,8 @@ import { TypeBadge } from "@/components/story/TypeBadge";
 import { SearchModeToggle } from "@/components/story/SearchModeToggle";
 import type { MediaType } from "@/lib/share-schema";
 import { rememberOwnGrid } from "@/lib/my-grids";
+import { isValidShareId } from "@/lib/share-keys";
+import { loadShareForEdit, storySyncBody, updateOwnShare } from "@/lib/own-share";
 import { AISuggestionHint, ChangeImageHint, SearchHint, StoryToast, type NoticeType } from "@/components/story/StoryHints";
 import { PanelTabs, StoryCommunity, type PanelTab } from "@/components/story/StoryPanels";
 import type { ShareSummary } from "@/lib/share-summary";
@@ -78,6 +80,8 @@ const COMMUNITY_PAGE = 20;
 export function StoryBuilder() {
     const [draft, setDraft] = useState<StoryDraft>(() => emptyDraft());
     const [loaded, setLoaded] = useState(false);
+    const [syncNote, setSyncNote] = useState<string | null>(null);
+    const lastSynced = useRef("");
     const [selected, setSelected] = useState<number | null>(null);
     const [query, setQuery] = useState("");
     /** Anime / manga mode under the search box (default anime). */
@@ -164,11 +168,51 @@ export function StoryBuilder() {
     const fileRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        setDraft(loadDraft());
-        setLoaded(true);
-    }, []);
+        let cancel = false;
+        (async () => {
+            let next = loadDraft();
+            const edit = new URLSearchParams(window.location.search).get("edit");
+            if (edit && isValidShareId(edit)) {
+                const remote = await loadShareForEdit(edit);
+                if (!cancel && remote?.kind === "story" && remote.owned) {
+                    next = {
+                        size: remote.size,
+                        cols: remote.cols,
+                        type: next.type,
+                        title: remote.title,
+                        items: remote.items,
+                        titleStyle: remote.titleStyle,
+                        shareId: edit,
+                    };
+                } else if (!cancel && remote?.kind === "story") {
+                    setNotice("This browser doesn't own that grid, so it stayed on your board.", "info");
+                }
+                if (!cancel) window.history.replaceState(null, "", "/story");
+            }
+            if (cancel) return;
+            setDraft(next);
+            setLoaded(true);
+        })();
+        return () => { cancel = true; };
+    }, [setNotice]);
     useEffect(() => {
         if (loaded) saveDraft(draft);
+    }, [draft, loaded]);
+    useEffect(() => {
+        if (!loaded || !draft.shareId) return;
+        const body = storySyncBody(draft);
+        if (!body) return;
+        const sig = JSON.stringify(body);
+        if (sig === lastSynced.current) return;
+        setSyncNote("Saving…");
+        const t = window.setTimeout(async () => {
+            const res = await updateOwnShare(draft.shareId!, body);
+            if (res.ok) {
+                lastSynced.current = sig;
+                setSyncNote("Saved to your link");
+            } else setSyncNote(null);
+        }, 1200);
+        return () => window.clearTimeout(t);
     }, [draft, loaded]);
     useEffect(() => {
         if (!notice) return;
@@ -340,13 +384,17 @@ export function StoryBuilder() {
     const share = async (title: string): Promise<StoryShareResult> => {
         if (filled === 0) return { error: "Go add some titles first!" };
         const cells = draft.items.flatMap((item, i) => (item ? [toStoredStoryCell(i, item)] : []));
+        const userId = ensureUserId();
+        const payload = { kind: "story", size: draft.size, ...(draft.cols ? { cols: draft.cols } : {}), grid: cells, customTitle: title || undefined, userId, titleStyle: draft.titleStyle };
         let res: Response;
         try {
-            res = await fetch("/api/share", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ kind: "story", size: draft.size, ...(draft.cols ? { cols: draft.cols } : {}), grid: cells, customTitle: title || undefined, userId: ensureUserId(), titleStyle: draft.titleStyle }),
-            });
+            res = draft.shareId
+                ? await updateOwnShare(draft.shareId, payload).then((r) => new Response(JSON.stringify(r.ok ? { id: draft.shareId } : { error: r.error }), { status: r.ok ? 200 : 400 }))
+                : await fetch("/api/share", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
         } catch {
             return { error: "Failed to create share link. Try again." };
         }
@@ -354,6 +402,7 @@ export function StoryBuilder() {
         if (!res.ok || !data.id) {
             return { error: friendlyError(data.error, "") || (res.status === 503 ? "Sharing is unavailable right now (storage offline). Your board is saved on this device." : "Failed to create share link. Try again.") };
         }
+        setDraft((d) => ({ ...d, title, shareId: data.id }));
         rememberOwnGrid({ id: data.id, title: title || `${STORY_BRAND} Grid`, imageUrl: null, createdAt: new Date().toISOString(), hasGif: false, count: filled, kind: "story", size: draft.size, ...(draft.cols ? { cols: draft.cols } : {}) });
         return { id: data.id, viewPath: storyViewPath(data.id) };
     };
@@ -388,7 +437,7 @@ export function StoryBuilder() {
                             </button>
                             <StoryPngButton title={draft.title} items={draft.items} titleStyle={draft.titleStyle} cols={draft.cols} className={WAIFU_BTN.png} label="Save as .png" />
                         </div>
-                        <button type="button" disabled={filled === 0} onClick={() => setConfirm({ title: "Clear Entire Grid?", message: "Are you sure you want to delete all titles? This action cannot be undone unless you have a save file.", confirmText: "Clear Everything", onConfirm: () => { setDraft((d) => ({ ...emptyDraft(d.size, d.cols ?? null), titleStyle: d.titleStyle })); setNotice("Grid cleared successfully!"); } })} className={WAIFU_BTN.clear}>
+                        <button type="button" disabled={filled === 0} onClick={() => setConfirm({ title: "Clear Entire Grid?", message: "Are you sure you want to delete all titles? This action cannot be undone unless you have a save file. Your shared link, if you made one, stays as it is.", confirmText: "Clear Everything", onConfirm: () => { setDraft((d) => ({ ...emptyDraft(d.size, d.cols ?? null), titleStyle: d.titleStyle, shareId: null })); setSyncNote(null); setNotice("Grid cleared successfully!"); } })} className={WAIFU_BTN.clear}>
                             <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" /> Clear Grid
                         </button>
                     </div>
@@ -519,6 +568,7 @@ export function StoryBuilder() {
                             ))}
                         </div>
                         <span className="text-sm text-zinc-500 ml-auto tabular-nums">{filled}/{draft.size}</span>
+                        {syncNote && <span className="text-[11px] text-zinc-500">{syncNote}</span>}
                     </div>
 
                     {/* Title: prominent, labelled, and gently highlighted while empty (never required). */}

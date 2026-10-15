@@ -1,4 +1,5 @@
 import { isStorySize, isStoryLayout, DEFAULT_STORY_SIZE, isAllowedStoryImage, STORY_DRAFT_KEY, DEFAULT_TITLE_STYLE, isTitleStyle, type TitleStyle } from "@/lib/story/config";
+import { isValidShareId } from "@/lib/share-keys";
 import { isMediaType, toMediaType, type MediaType, type StoryItem } from "@/lib/share-schema";
 
 /** The builder's local state, saved in localStorage (never sent anywhere). */
@@ -11,11 +12,13 @@ export interface StoryDraft {
     title: string;
     items: (StoryItem | null)[];
     titleStyle: TitleStyle;
+    /** Set once this board has a public link. Further edits update that same link. */
+    shareId?: string | null;
 }
 
 export function emptyDraft(size: number = DEFAULT_STORY_SIZE, cols: number | null = null): StoryDraft {
     if (!isStoryLayout(size, cols)) { size = DEFAULT_STORY_SIZE; cols = null; }
-    return { size, cols, type: "ANIME", title: "", items: Array.from({ length: size }, () => null), titleStyle: DEFAULT_TITLE_STYLE };
+    return { size, cols, type: "ANIME", title: "", items: Array.from({ length: size }, () => null), titleStyle: DEFAULT_TITLE_STYLE, shareId: null };
 }
 
 function isItem(v: unknown): v is StoryItem {
@@ -31,7 +34,7 @@ export function parseDraft(raw: string | null): StoryDraft {
         const cols = d.cols != null && isStoryLayout(d.size, d.cols) ? d.cols : null;
         const size = cols !== null || isStorySize(d.size) ? (d.size as number) : DEFAULT_STORY_SIZE;
         const items = Array.from({ length: size }, (_, i) => (Array.isArray(d.items) && isItem(d.items[i]) ? d.items[i] : null));
-        return { size, cols, type: toMediaType(d.type), title: typeof d.title === "string" ? d.title.slice(0, 120) : "", items, titleStyle: isTitleStyle(d.titleStyle) ? d.titleStyle : DEFAULT_TITLE_STYLE };
+        return { size, cols, type: toMediaType(d.type), title: typeof d.title === "string" ? d.title.slice(0, 120) : "", items, titleStyle: isTitleStyle(d.titleStyle) ? d.titleStyle : DEFAULT_TITLE_STYLE, shareId: isValidShareId(d.shareId) ? d.shareId : null };
     } catch {
         return emptyDraft();
     }

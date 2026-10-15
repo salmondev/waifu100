@@ -21,6 +21,11 @@ import { ShareModal } from "@/components/share/ShareModal";
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ensureUserId } from "@/lib/user-id";
+import { isValidShareId } from "@/lib/share-keys";
+import { loadShareForEdit, updateOwnShare } from "@/lib/own-share";
+import { defaultWaifuTitle, parseWaifuStorage, resizeWaifuGrid, waifuSyncBody, type WaifuPersisted } from "@/lib/waifu-board";
+import { STORY_SIZES, STORY_SIZE_LABELS, isStoryLayout, storyColumns } from "@/lib/story/config";
+import { CustomSizeControl } from "@/components/story/CustomSizeControl";
 
 // --- Types ---
 interface Notification {
@@ -78,6 +83,13 @@ export default function Home() {
   const [grid, setGrid] = useState<GridCell[]>(() =>
     Array(100).fill(null).map(() => ({ character: null }))
   );
+  const [size, setSize] = useState(100);
+  const [cols, setCols] = useState<number | null>(null);
+  /** Public link this board updates. Null until the first share, or after Clear. */
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [pendingLayout, setPendingLayout] = useState<{ size: number; cols: number | null; lost: number } | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showRightPanel, setShowRightPanel] = useState(false); // Default closed to satisfy mobile requirement
   const [mounted, setMounted] = useState(false);
@@ -316,34 +328,57 @@ export default function Home() {
   }, []);
 
   // --- Persistence ---
+  // Load the local board first, then a ?edit= link replaces it when this browser owns that share.
+  // `hydrated` flips only after that, so the save effect cannot write the empty initial grid over the real one.
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { 
-         const parsed = JSON.parse(saved);
-         if (Array.isArray(parsed)) {
-            setGrid(parsed);
-         } else if (parsed.grid) {
-            setGrid(parsed.grid);
-            if (parsed.verdict) setVerdict(parsed.verdict);
-            if (parsed.verdictFeedback) setVerdictFeedback(parsed.verdictFeedback);
-         }
-      } catch (e) { console.error(e); }
-    }
-  }, []);
+    let cancel = false;
+    (async () => {
+      let next: WaifuPersisted = parseWaifuStorage(localStorage.getItem(STORAGE_KEY));
+      const edit = new URLSearchParams(window.location.search).get("edit");
+      if (edit && isValidShareId(edit)) {
+        const remote = await loadShareForEdit(edit);
+        if (!cancel && remote?.kind === "waifu" && remote.owned) {
+          next = {
+            grid: resizeWaifuGrid(remote.grid, remote.size),
+            size: remote.size,
+            cols: remote.cols,
+            title: remote.title || defaultWaifuTitle(remote.size),
+            shareId: edit,
+            verdict: remote.verdict,
+            verdictFeedback: remote.verdictFeedback,
+          };
+        } else if (!cancel && remote?.kind === "waifu") {
+          showNotification("This browser doesn't own that grid, so it stayed on your board.", "info");
+        }
+        if (!cancel) window.history.replaceState(null, "", "/");
+      }
+      if (cancel) return;
+      setGrid(next.grid);
+      setSize(next.size);
+      setCols(next.cols);
+      setCurrentTitle(next.title);
+      setShareId(next.shareId);
+      if (next.verdict) setVerdict(next.verdict);
+      if (next.verdictFeedback) setVerdictFeedback(next.verdictFeedback);
+      setHydrated(true);
+    })();
+    return () => { cancel = true; };
+  }, [showNotification]);
 
   // Track if we've already shown the storage warning this session
   const storageWarningShown = useRef(false);
 
   useEffect(() => {
+    if (!hydrated) return;
     try {
-      // Save grid + verdict + feedback
-      // We use a wrapper object if verdict exists, otherwise fallback to array for backward compat?
-      // Actually, let's just save the wrapper object. Load logic handles migration.
       const data = {
          grid,
          verdict,
-         verdictFeedback
+         verdictFeedback,
+         size,
+         cols,
+         title: currentTitle,
+         shareId,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       storageWarningShown.current = false; // Reset if save succeeds
@@ -356,7 +391,27 @@ export default function Home() {
          console.warn("Storage Quota Exceeded - changes saved in memory only");
       }
     }
-  }, [grid, showNotification]);
+  }, [hydrated, grid, verdict, verdictFeedback, size, cols, currentTitle, shareId, showNotification]);
+
+  // Once a link exists, edits land on that same link without another Share click.
+  // Local pictures (data:/blob:) wait for Share, which uploads them first.
+  const lastSynced = useRef("");
+  useEffect(() => {
+    if (!hydrated || !shareId) return;
+    const body = waifuSyncBody({ grid, size, cols, title: currentTitle, verdict, verdictFeedback });
+    if (!body) return;
+    const sig = JSON.stringify(body);
+    if (sig === lastSynced.current) return;
+    setSyncNote("Saving…");
+    const t = window.setTimeout(async () => {
+      const res = await updateOwnShare(shareId, body);
+      if (res.ok) {
+        lastSynced.current = sig;
+        setSyncNote("Saved to your link");
+      } else setSyncNote(null);
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [hydrated, shareId, grid, size, cols, currentTitle, verdict, verdictFeedback]);
 
   // --- Community Feed Logic (Manual Refresh Only) ---
   const fetchCommunity = useCallback(async () => {
@@ -967,7 +1022,9 @@ export default function Home() {
         grid: data,
         verdict,
         verdictFeedback,
-        title: currentTitle
+        title: currentTitle,
+        size,
+        ...(cols ? { cols } : {}),
     };
 
     setJsonInput(JSON.stringify(exportData)); 
@@ -1120,7 +1177,10 @@ export default function Home() {
          } catch (e) { /* Ignore title extraction errors */ }
 
          // Create new grid
-         const newGrid = Array(100).fill(null).map(() => ({ character: null as Character | null }));
+         const rawObjForSize = (() => { try { return JSON.parse(input); } catch { return null; } })();
+         const loadedCols = rawObjForSize && !Array.isArray(rawObjForSize) && isStoryLayout(rawObjForSize.size, rawObjForSize.cols) && rawObjForSize.cols != null ? rawObjForSize.cols as number : null;
+         const loadedSize = loadedCols !== null || (rawObjForSize && !Array.isArray(rawObjForSize) && isStoryLayout(rawObjForSize.size, null)) ? rawObjForSize.size as number : 100;
+         const newGrid = Array(loadedSize).fill(null).map(() => ({ character: null as Character | null }));
          let loadedCount = 0;
 
          // Universal Loader (Handles Mixed Formats)
@@ -1151,7 +1211,7 @@ export default function Home() {
              }
 
              // Validate and Fill
-             if (gridIndex >= 0 && gridIndex < 100 && charObj) {
+             if (gridIndex >= 0 && gridIndex < loadedSize && charObj) {
                  newGrid[gridIndex] = {
                      character: {
                          mal_id: charObj.mal_id || Date.now() + index,
@@ -1173,6 +1233,9 @@ export default function Home() {
          if (loadedCount === 0) throw new Error("Data found but no valid characters detected");
 
          setGrid(newGrid);
+         setSize(loadedSize);
+         setCols(loadedCols);
+         setShareId(null);
          setShowSaveLoadModal(false);
          showNotification(`Successfully loaded ${loadedCount} characters!`, 'success');
       } catch(e) {
@@ -1335,6 +1398,21 @@ export default function Home() {
   };
 
   const filledCount = grid.filter(c => c.character).length;
+  const columns = storyColumns(size, cols);
+
+  const applyLayout = (nextSize: number, nextCols: number | null) => {
+    setCurrentTitle((t) => (t === defaultWaifuTitle(size) ? defaultWaifuTitle(nextSize) : t));
+    setGrid((g) => resizeWaifuGrid(g, nextSize));
+    setSize(nextSize);
+    setCols(nextCols);
+  };
+  const requestLayout = (nextSize: number, nextCols: number | null = null) => {
+    if (!isStoryLayout(nextSize, nextCols)) return;
+    if (nextSize === size && nextCols === cols) return;
+    const lost = grid.slice(nextSize).filter((c) => c.character).length;
+    if (lost > 0) setPendingLayout({ size: nextSize, cols: nextCols, lost });
+    else applyLayout(nextSize, nextCols);
+  };
 
   if (!mounted) return null;
 
@@ -1443,10 +1521,10 @@ export default function Home() {
         <div className="p-4 border-t border-zinc-800 bg-zinc-950/50 backdrop-blur">
            <div className="flex justify-between text-sm mb-2">
              <span className="text-zinc-400">Progress</span>
-             <span className="font-bold text-purple-400">{filledCount}/100</span>
+             <span className="font-bold text-purple-400">{filledCount}/{size}</span>
            </div>
            <div className="h-1 bg-zinc-900 rounded-full overflow-hidden mb-4">
-             <div className="h-full bg-purple-500 transition-all duration-500" style={{width: `${filledCount}%`}}/>
+             <div className="h-full bg-purple-500 transition-all duration-500" style={{width: `${size ? (filledCount / size) * 100 : 0}%`}}/>
            </div>
            
            {/* Hidden file input */}
@@ -1806,10 +1884,21 @@ export default function Home() {
                 <p className="text-[10px] text-zinc-500">Search characters on the left, then drag them here. Drag to reorder or drop on red zones to delete.</p>
              </div>
              
+             <div className="export-exclude mb-2 flex flex-wrap items-center gap-2">
+                <div className="flex rounded-lg overflow-hidden border border-zinc-800" role="group" aria-label="Grid size">
+                  {STORY_SIZES.map((s) => (
+                    <button key={s} type="button" onClick={() => requestLayout(s)} aria-pressed={size === s && !cols} className={cn("px-2.5 py-1 text-xs sm:text-sm", size === s && !cols ? "bg-purple-600 text-white font-semibold" : "bg-zinc-900 text-zinc-400 hover:text-white")}>
+                      {STORY_SIZE_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+                <CustomSizeControl rows={Math.ceil(size / columns)} cols={columns} active={!!cols} onApply={(r, c) => requestLayout(r * c, c)} />
+                {syncNote && <span className="text-[11px] text-zinc-500 ml-auto">{syncNote}</span>}
+             </div>
              <MediaGrid
                 items={grid}
-                columns={10}
-                className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full"
+                columns={columns}
+                className="grid gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full"
                 dataAttribute="data-waifu-grid"
                 onMouseLeave={() => { isSelectionDragging.current = false; }}
                 renderCell={(cell, idx) => (
@@ -1896,13 +1985,21 @@ export default function Home() {
         onTitleUpdate={setCurrentTitle}
         verdict={verdict}
         verdictFeedback={verdictFeedback}
+        shareId={shareId}
+        size={size}
+        cols={cols}
+        onShared={setShareId}
         onVerdictGenerate={(v) => {
             setVerdict(v);
             // Also save to localStorage immediately to persist the auto-generated verdict
             const data = {
                 grid,
                 verdict: v,
-                verdictFeedback
+                verdictFeedback,
+                size,
+                cols,
+                title: currentTitle,
+                shareId,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }}
@@ -1913,9 +2010,11 @@ export default function Home() {
         onClose={() => setShowClearConfirm(false)}
         onConfirm={() => {
             // Reset Grid
-            setGrid(Array(100).fill(null).map(() => ({ character: null })));
+            setGrid(resizeWaifuGrid([], size));
+            setShareId(null);
+            setSyncNote(null);
             // Reset Meta
-            setCurrentTitle("My 100 Favorite Characters");
+            setCurrentTitle(defaultWaifuTitle(size));
             setSelectedCharacter(null);
             // Reset AI
             setVerdict(null);
@@ -1928,9 +2027,21 @@ export default function Home() {
             showNotification("Grid cleared successfully!", 'success');
         }}
         title="Clear Entire Grid?"
-        message="Are you sure you want to delete all characters? This action cannot be undone unless you have a save file."
+        message="Are you sure you want to delete all characters? This starts a fresh board on this device. A link you already shared stays as it was."
         confirmText="Clear Everything"
         variant="danger"
+      />
+      <ConfirmModal
+        isOpen={!!pendingLayout}
+        onClose={() => setPendingLayout(null)}
+        onConfirm={() => {
+          if (pendingLayout) applyLayout(pendingLayout.size, pendingLayout.cols);
+          setPendingLayout(null);
+        }}
+        title="Shrink the grid?"
+        message={pendingLayout ? `This removes ${pendingLayout.lost} character(s) from the end of your board.` : ""}
+        confirmText="Shrink"
+        variant="warning"
       />
       <AnalysisModal 
         isOpen={showAnalysisModal}

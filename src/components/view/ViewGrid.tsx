@@ -15,6 +15,8 @@ import {
 } from "@/components/character/CharacterProfile";
 import { prefetchCharacter } from "@/lib/character-cache";
 import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
+import { EditOwnLink } from "@/components/own/EditOwnLink";
+import { storyColumns } from "@/lib/story/config";
 
 interface ViewGridProps {
   grid: GridCell[];
@@ -22,10 +24,9 @@ interface ViewGridProps {
   verdict?: AnalysisResult | null;
   verdictFeedback?: VerdictFeedback;
   shareId?: string;
+  size?: number;
+  cols?: number | null;
 }
-
-// Column labels A-J
-const COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
 export function ViewGrid(props: ViewGridProps) {
   // Every cell opens the same profile card, so the provider wraps the grid
@@ -37,7 +38,7 @@ export function ViewGrid(props: ViewGridProps) {
   );
 }
 
-function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId }: ViewGridProps) {
+function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId, size, cols = null }: ViewGridProps) {
   const openCharacter = useOpenCharacter();
   const [copied, setCopied] = useState(false);
   const [showVerdict, setShowVerdict] = useState(false);
@@ -68,6 +69,10 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
   // never carries whatever query string the visitor arrived with.
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
+
+  const columns = storyColumns(size ?? grid.length, cols);
+  const rows = Math.max(1, Math.ceil(grid.length / columns));
+  const letters = "ABCDEFGHIJ";
 
   const hasGif = grid.some(
     (cell) =>
@@ -216,6 +221,13 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
                    <CompareWithMine shareId={shareId} />
                 </div>
              )}
+             {shareId && (
+                <EditOwnLink
+                  id={shareId}
+                  kind="waifu"
+                  className="flex flex-1 lg:flex-none items-center gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium text-sm sm:text-base lg:min-w-[140px] justify-center bg-zinc-900 text-zinc-200 hover:bg-zinc-800 border border-zinc-800"
+                />
+             )}
          </div>
       </div>
 
@@ -228,20 +240,23 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
       <div className="relative w-full max-w-[950px] mx-auto">
         {/* Column Headers (A-J). Sized as a matching 10-column grid instead of
             a fixed 95px per label, and dropped below lg where there is no room. */}
-        <div className="hidden lg:grid absolute -top-6 inset-x-0 grid-cols-10">
-          {COLUMNS.map((col) => (
+        {columns <= 10 && (
+        <div className="hidden lg:grid absolute -top-6 inset-x-0" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+          {Array.from({ length: columns }, (_, i) => (
             <div
-              key={col}
+              key={i}
               className="text-center text-xs font-medium text-zinc-600/40 select-none"
             >
-              {col}
+              {letters[i] ?? i + 1}
             </div>
           ))}
         </div>
+        )}
 
-        {/* Row Headers (1-10) */}
+        {/* Row Headers */}
+        {rows <= 10 && (
         <div className="hidden lg:flex absolute -left-6 top-0 bottom-0 flex-col">
-          {Array.from({ length: 10 }, (_, i) => (
+          {Array.from({ length: rows }, (_, i) => (
             <div
               key={i}
               className="flex-1 flex items-center justify-center text-xs font-medium text-zinc-600/40 select-none"
@@ -250,9 +265,13 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
             </div>
           ))}
         </div>
+        )}
 
-        {/* Grid */}
-        <div className="grid grid-cols-10 grid-rows-10 gap-0 w-full aspect-square border-2 border-zinc-800 bg-black shadow-2xl shadow-purple-900/20">
+        {/* Grid. Square cells, so the frame's ratio follows the layout. */}
+        <div
+          className="grid gap-0 w-full border-2 border-zinc-800 bg-black shadow-2xl shadow-purple-900/20"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, aspectRatio: `${columns} / ${rows}` }}
+        >
           {grid.map((cell, idx) => (
             <div
               key={idx}

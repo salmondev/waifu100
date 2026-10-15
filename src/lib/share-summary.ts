@@ -83,7 +83,10 @@ export function summarizeShare(id: string, rawJson: string): ShareSummary | null
             imageUrl: parsed.meta?.imageUrl || null,
             createdAt: parsed.meta?.createdAt,
             hasGif,
-            count: cells.filter((cell) => cell?.character).length,
+            count: decoded?.count ?? cells.filter((cell) => cell?.character).length,
+            // Absent size still means 100, so a classic waifu summary stays the old shape.
+            ...(decoded && decoded.size !== 100 ? { size: decoded.size } : {}),
+            ...(decoded?.cols ? { cols: decoded.cols } : {}),
         };
     } catch {
         return null;

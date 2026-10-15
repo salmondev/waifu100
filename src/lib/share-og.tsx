@@ -61,11 +61,10 @@ export function ogLayout(kind: 'waifu' | 'story' = 'waifu', size = 100, cols?: n
         const cellH = Math.floor(cell * STORY_CELL_RATIO);
         return { columns, rows, total: size, cell, cellH, width: columns * cell, height: rows * cellH };
     }
-    const columns = COLUMNS;
-    const total = COLUMNS * COLUMNS;
-    const rows = Math.ceil(total / columns);
+    const columns = storyColumns(size, cols);
+    const rows = Math.ceil(size / columns);
     const cell = Math.floor(GRID_SIZE / Math.max(columns, rows));
-    return { columns, rows, total, cell, cellH: cell, width: columns * cell, height: rows * cell };
+    return { columns, rows, total: size, cell, cellH: cell, width: columns * cell, height: rows * cell };
 }
 
 // --- Font -------------------------------------------------------------------

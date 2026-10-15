@@ -27,6 +27,8 @@ export interface ShareRepoShape {
     readonly getRaw: (id: string) => Effect.Effect<string | null, RedisUnavailable>;
     readonly getRawMany: (ids: string[]) => Effect.Effect<(string | null)[], RedisUnavailable>;
     readonly create: (input: CreateShareInput) => Effect.Effect<void, RedisUnavailable>;
+    /** Replaces the payload only. Feed score and owner index stay where they are. */
+    readonly replace: (id: string, payload: string) => Effect.Effect<void, RedisUnavailable>;
     readonly remove: (id: string, owner: string | null) => Effect.Effect<void, RedisUnavailable>;
     /** HINCRBY on the owner's title counter; returns the new count. */
     readonly bumpTitle: (userId: string, title: string) => Effect.Effect<number, RedisUnavailable>;
@@ -67,6 +69,7 @@ export const ShareRepoLive = Layer.succeed(ShareRepo, {
             const txError = results?.find(([err]) => err)?.[0];
             if (txError) throw txError;
         }),
+    replace: (id, payload) => redis((r) => r.set(shareKey(id), payload).then(() => undefined)),
     remove: (id, owner) =>
         redis(async (r) => {
             const tx = r.multi().del(shareKey(id)).zrem(FEED_KEY, id).zrem(STORY_FEED_KEY, id);
@@ -108,6 +111,7 @@ export function makeMemoryShareRepo() {
                 if (kind === "story") z(STORY_FEED_KEY).set(id, createdAt);
                 if (userId) z(userSharesKey(userId)).set(id, createdAt);
             }),
+        replace: (id, payload) => Effect.sync(() => { strings.set(shareKey(id), payload); }),
         remove: (id, owner) =>
             Effect.sync(() => {
                 strings.delete(shareKey(id));

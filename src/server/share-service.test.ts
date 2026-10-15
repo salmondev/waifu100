@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
 import { makeMemoryShareRepo, FEED_KEY, STORY_FEED_KEY } from "@/server/share-repo";
-import { createShare, deleteShare, readDecoded } from "@/server/share-service";
+import { createShare, deleteShare, editorShare, readDecoded, updateShare } from "@/server/share-service";
 
 const USER = "123e4567-e89b-42d3-a456-426614174000";
 const cover = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx1-x.jpg";
@@ -59,6 +59,24 @@ describe("share service (memory Redis)", () => {
         const res = await run(createShare({ kind: "story", size: 7, grid: [] }).pipe(Effect.provide(mem.layer)));
         expect("err" in res && res.err._tag).toBe("InvalidShare");
         expect(mem.strings.size).toBe(0);
+    });
+
+    it("owner update keeps the id and the feed score; a stranger cannot", async () => {
+        const mem = makeMemoryShareRepo();
+        await run(createShare({ grid: [{ i: 0, m: 1, n: "A", img: "https://x/a.jpg" }], customTitle: "Mine", userId: USER, size: 100 }, { id: "abc123", now: 1000 }).pipe(Effect.provide(mem.layer)));
+        const stranger = await run(updateShare("abc123", null, { size: 9, grid: [{ i: 0, m: 2, n: "B", img: "https://x/b.jpg" }] }).pipe(Effect.provide(mem.layer)));
+        expect("err" in stranger && stranger.err._tag).toBe("Forbidden");
+        const owner = await run(
+            updateShare("abc123", USER, { kind: "waifu", size: 9, customTitle: "Mine", grid: [{ i: 0, m: 2, n: "B", img: "https://x/b.jpg" }] }).pipe(Effect.provide(mem.layer))
+        );
+        expect("ok" in owner && owner.ok.url).toBe("/view/abc123");
+        const stored = JSON.parse(mem.strings.get("waifu100:share:abc123")!);
+        expect(stored.meta).toMatchObject({ title: "Mine", size: 9, userId: USER, createdAt: stored.meta.createdAt });
+        expect(stored.grid[0].character.name).toBe("B");
+        expect(mem.zsets.get(FEED_KEY)!.get("abc123")).toBe(1000);
+        const decoded = await Effect.runPromise(readDecoded("abc123").pipe(Effect.provide(mem.layer)));
+        expect(editorShare(decoded, true).owned).toBe(true);
+        expect(editorShare(decoded, true).grid[0]?.character?.name).toBe("B");
     });
 
     it("delete: owner ok, stranger forbidden, cleans story feed", async () => {

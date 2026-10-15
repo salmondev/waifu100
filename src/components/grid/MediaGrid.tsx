@@ -160,7 +160,7 @@ export function MediaGrid<T>({
 
     if (renderCell) {
         return (
-            <div className={className ?? "grid gap-1.5 w-full"} style={className ? undefined : { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} data-testid="media-grid" onMouseLeave={onMouseLeave} {...extra}>
+            <div className={className ?? "grid gap-1.5 w-full"} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} data-testid="media-grid" onMouseLeave={onMouseLeave} {...extra}>
                 {items.map((item, index) => renderCell(item as T, index))}
             </div>
         );
