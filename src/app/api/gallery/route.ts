@@ -41,7 +41,7 @@ const ANILIST_UA = "waifu100/1.0 (+https://waifu100.vercel.app)";
  */
 const JIKAN_TIMEOUT_MS = 1200;
 /** Every gallery source, including Serper, shares this. Late answers are dropped. */
-const GALLERY_BUDGET_MS = 2400;
+const GALLERY_BUDGET_MS = 1800;
 
 /**
  * Animation-first hosts. They serve GIFs through .webp/.mp4 derivatives, so the

@@ -6,7 +6,7 @@ import { serperFetch } from "@/server/serper-budget";
 const searchCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 /** The whole search, including a dead upstream, has to answer inside this. */
-const SEARCH_BUDGET_MS = 2400;
+const SEARCH_BUDGET_MS = 1800;
 
 // Simple rate limiting
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
