@@ -1,7 +1,7 @@
 import type { AnalysisResult, GridCell, VerdictFeedback } from "@/types";
 import { isValidShareId } from "@/lib/share-keys";
 import { WAIFU_GRID_SIZE } from "@/lib/share-schema";
-import { isStoryLayout, isStorySize } from "@/lib/story/config";
+import { DEFAULT_TITLE_STYLE, isStoryLayout, isStorySize, isTitleStyle, type TitleStyle } from "@/lib/story/config";
 
 export function defaultWaifuTitle(size: number): string {
     return size === 100 ? "My 100 Favorite Characters" : `My ${size} Favorite Characters`;
@@ -12,6 +12,7 @@ export interface WaifuPersisted {
     size: number;
     cols: number | null;
     title: string;
+    titleStyle: TitleStyle;
     shareId: string | null;
     verdict: AnalysisResult | null;
     verdictFeedback: VerdictFeedback;
@@ -32,6 +33,7 @@ function blank(): WaifuPersisted {
         size: WAIFU_GRID_SIZE,
         cols: null,
         title: defaultWaifuTitle(WAIFU_GRID_SIZE),
+        titleStyle: DEFAULT_TITLE_STYLE,
         shareId: null,
         verdict: null,
         verdictFeedback: null,
@@ -53,6 +55,7 @@ export function parseWaifuStorage(raw: string | null): WaifuPersisted {
             size,
             cols,
             title: typeof meta.title === "string" && meta.title.trim() ? meta.title : defaultWaifuTitle(size),
+            titleStyle: isTitleStyle(meta.titleStyle) ? meta.titleStyle : DEFAULT_TITLE_STYLE,
             shareId: isValidShareId(meta.shareId) ? meta.shareId : null,
             verdict: (meta.verdict as AnalysisResult | null) ?? null,
             verdictFeedback: (meta.verdictFeedback as VerdictFeedback) ?? null,

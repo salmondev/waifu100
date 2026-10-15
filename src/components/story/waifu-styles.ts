@@ -15,4 +15,6 @@ export const WAIFU_BTN = {
     clear: "w-full py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group",
     /** AI Suggestions "Generate Ideas" */
     ideas: "w-full py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 transition-opacity cursor-pointer disabled:cursor-not-allowed",
+    /** build grid together, same on waifu and story */
+    together: "w-full py-2 mb-2 bg-zinc-900/60 hover:bg-zinc-800 border border-purple-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all cursor-pointer",
 } as const;

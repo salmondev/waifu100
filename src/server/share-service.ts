@@ -72,6 +72,8 @@ export interface CreateShareBody {
     userId?: unknown;
     /** Story only (T-0010): overlay | below | hidden. */
     titleStyle?: unknown;
+    /** True only when the board was published from a together session. */
+    together?: unknown;
 }
 
 /**
@@ -102,7 +104,7 @@ export const createShare = (body: CreateShareBody, opts: { now?: number; id?: st
                 if (count > 1) finalTitle = `${finalTitle} V.${count}`;
             }
             payload = JSON.stringify(
-                buildStoryPayload({ title: finalTitle, imageUrl, userId, size: cleaned.size, cols: cleaned.cols, cells: cleaned.cells, titleStyle: body.titleStyle })
+                buildStoryPayload({ title: finalTitle, imageUrl, userId, size: cleaned.size, cols: cleaned.cols, cells: cleaned.cells, titleStyle: body.titleStyle, together: body.together === true })
             );
         } else {
             const layout = layoutFrom(body.size === undefined ? WAIFU_GRID_SIZE : body.size, body.cols);
@@ -123,6 +125,8 @@ export const createShare = (body: CreateShareBody, opts: { now?: number; id?: st
                     grid,
                     verdict: body.verdict,
                     verdictFeedback: body.verdictFeedback,
+                    titleStyle: body.titleStyle,
+                    together: body.together === true,
                 })
             );
         }
@@ -183,7 +187,7 @@ export const updateShare = (id: string, caller: string | null, body: CreateShare
         const customTitle = typeof body.customTitle === "string" && body.customTitle.trim() ? body.customTitle.trim() : null;
         const title = customTitle ? (kind === "story" ? cleanTitle(customTitle, "story") : customTitle) : existing.title;
         const imageUrl = typeof body.imageUrl === "string" && body.imageUrl ? body.imageUrl : existing.imageUrl;
-        const meta = { title, imageUrl, userId: existing.userId, createdAt: existing.createdAt ?? undefined };
+        const meta = { title, imageUrl, userId: existing.userId, createdAt: existing.createdAt ?? undefined, together: body.together === true || existing.together };
 
         let payload: string;
         if (kind === "story") {
@@ -206,6 +210,7 @@ export const updateShare = (id: string, caller: string | null, body: CreateShare
                     grid,
                     verdict: body.verdict !== undefined ? body.verdict : existing.verdict,
                     verdictFeedback: body.verdictFeedback !== undefined ? body.verdictFeedback : existing.verdictFeedback,
+                    titleStyle: body.titleStyle ?? existing.titleStyle,
                 })
             );
         }

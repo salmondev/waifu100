@@ -25,9 +25,10 @@ interface ShareModalProps {
   size?: number;
   cols?: number | null;
   onShared?: (id: string) => void;
+  titleStyle?: string;
 }
 
-export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate, verdict, verdictFeedback, onVerdictGenerate, shareId, size, cols, onShared }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate, verdict, verdictFeedback, onVerdictGenerate, shareId, size, cols, onShared, titleStyle }: ShareModalProps) {
   const [step, setStep] = useState<'customize' | 'result'>('customize');
   const [customTitle, setCustomTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -184,7 +185,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                 imageUrl: imageUrl, // Single thumbnail URL
                 userId, // Owner of record: drives versioning and delete rights
                 verdict: finalVerdict,
-                verdictFeedback
+                verdictFeedback,
+                titleStyle,
              })
          });
 

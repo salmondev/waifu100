@@ -61,7 +61,7 @@ export function useOpenCharacter(): OpenFn {
 
 type Loaded = LoadedCharacter;
 
-function Card({ character, onClose }: { character: CharacterRef; onClose: () => void }) {
+function Card({ character, onClose, onChangeImage }: { character: CharacterRef; onClose: () => void; onChangeImage?: () => void }) {
     /**
      * Which AniList character this card is showing. Null means "whoever the
      * name and the grid's source resolve to"; a number means the reader looked
@@ -364,6 +364,9 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
                         )}
                     </div>
 
+                    {onChangeImage && (
+                        <button type="button" onClick={onChangeImage} className="mt-3 self-start rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:border-purple-500">Change image</button>
+                    )}
                     {!loading && body && (
                         <p className="mt-3 shrink-0 text-[11px] text-zinc-600">
                             {translationPending
@@ -387,7 +390,7 @@ function Card({ character, onClose }: { character: CharacterRef; onClose: () => 
     );
 }
 
-export function CharacterProfileProvider({ children }: { children: ReactNode }) {
+export function CharacterProfileProvider({ children, onChangeImage }: { children: ReactNode; onChangeImage?: () => void }) {
     const [character, setCharacter] = useState<CharacterRef | null>(null);
 
     const open = useCallback((next: CharacterRef) => setCharacter(next), []);
@@ -410,7 +413,7 @@ export function CharacterProfileProvider({ children }: { children: ReactNode }) 
         <OpenContext.Provider value={value}>
             {children}
             {character && (
-                <Card key={character.name} character={character} onClose={close} />
+                <Card key={character.name} character={character} onClose={close} onChangeImage={onChangeImage} />
             )}
         </OpenContext.Provider>
     );

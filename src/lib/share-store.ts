@@ -4,6 +4,7 @@ import { ShareRepo } from "@/server/share-repo";
 import { runApp } from "@/server/run";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { decodeShare, type ShareKind, type StoryItem } from "@/lib/share-schema";
+import { DEFAULT_TITLE_STYLE, type TitleStyle } from "@/lib/story/config";
 
 /**
  * Reading a stored share back into a grid.
@@ -34,6 +35,8 @@ export interface StoredShare {
     cols: number | null;
     /** Story cells (all null for a waifu share). */
     items: (StoryItem | null)[];
+    /** Where cell names sit. Old shares read as overlay. */
+    titleStyle: TitleStyle;
 }
 
 export function parseShare(id: string, raw: string): StoredShare | null {
@@ -53,6 +56,7 @@ export function parseShare(id: string, raw: string): StoredShare | null {
         size: d.size,
         cols: d.cols,
         items: d.items,
+        titleStyle: d.titleStyle ?? DEFAULT_TITLE_STYLE,
     };
 }
 

@@ -24,8 +24,10 @@ import { ensureUserId } from "@/lib/user-id";
 import { isValidShareId } from "@/lib/share-keys";
 import { loadShareForEdit, updateOwnShare } from "@/lib/own-share";
 import { defaultWaifuTitle, parseWaifuStorage, resizeWaifuGrid, waifuSyncBody, type WaifuPersisted } from "@/lib/waifu-board";
-import { STORY_SIZES, STORY_SIZE_LABELS, isStoryLayout, storyColumns } from "@/lib/story/config";
+import { STORY_SIZES, STORY_SIZE_LABELS, TITLE_STYLES, TITLE_STYLE_LABELS, isStoryLayout, storyColumns, type TitleStyle } from "@/lib/story/config";
 import { CustomSizeControl } from "@/components/story/CustomSizeControl";
+import { openTogetherRoom } from "@/components/together/TogetherBoard";
+import { WAIFU_BTN } from "@/components/story/waifu-styles";
 
 // --- Types ---
 interface Notification {
@@ -84,6 +86,7 @@ export default function Home() {
     Array(100).fill(null).map(() => ({ character: null }))
   );
   const [size, setSize] = useState(100);
+  const [titleStyle, setTitleStyle] = useState<TitleStyle>("overlay");
   const [cols, setCols] = useState<number | null>(null);
   /** Public link this board updates. Null until the first share, or after Clear. */
   const [shareId, setShareId] = useState<string | null>(null);
@@ -343,6 +346,7 @@ export default function Home() {
             size: remote.size,
             cols: remote.cols,
             title: remote.title || defaultWaifuTitle(remote.size),
+            titleStyle: remote.titleStyle ?? "overlay",
             shareId: edit,
             verdict: remote.verdict,
             verdictFeedback: remote.verdictFeedback,
@@ -358,6 +362,7 @@ export default function Home() {
       setCols(next.cols);
       setCurrentTitle(next.title);
       setShareId(next.shareId);
+      setTitleStyle(next.titleStyle);
       if (next.verdict) setVerdict(next.verdict);
       if (next.verdictFeedback) setVerdictFeedback(next.verdictFeedback);
       setHydrated(true);
@@ -379,6 +384,7 @@ export default function Home() {
          cols,
          title: currentTitle,
          shareId,
+         titleStyle,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       storageWarningShown.current = false; // Reset if save succeeds
@@ -391,7 +397,7 @@ export default function Home() {
          console.warn("Storage Quota Exceeded - changes saved in memory only");
       }
     }
-  }, [hydrated, grid, verdict, verdictFeedback, size, cols, currentTitle, shareId, showNotification]);
+  }, [hydrated, grid, verdict, verdictFeedback, size, cols, currentTitle, shareId, titleStyle, showNotification]);
 
   // Once a link exists, edits land on that same link without another Share click.
   // Local pictures (data:/blob:) wait for Share, which uploads them first.
@@ -1555,6 +1561,16 @@ export default function Home() {
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-300 to-purple-300">Story100: Anime &amp; Manga grid</span>
            </NextLink>
 
+           <button
+              type="button"
+              onClick={() => {
+                openTogetherRoom("waifu").then((room) => { window.location.href = `/story/together/${room}`; }).catch(() => showNotification("Couldn't open a together room.", "error"));
+              }}
+              className={WAIFU_BTN.together}
+           >
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">build grid together</span>
+           </button>
+
            {/* Own the grids you shared: rename-by-resharing was the only tool
                people had, and there was no way to take one down at all. */}
            <NextLink
@@ -1893,6 +1909,14 @@ export default function Home() {
                   ))}
                 </div>
                 <CustomSizeControl rows={Math.ceil(size / columns)} cols={columns} active={!!cols} onApply={(r, c) => requestLayout(r * c, c)} />
+                <div className="flex rounded-lg overflow-hidden border border-zinc-800 text-xs" role="group" aria-label="Title position">
+                  <span className="px-2 py-1.5 bg-zinc-950 text-zinc-500">Titles</span>
+                  {TITLE_STYLES.map((t) => (
+                    <button key={t} type="button" onClick={() => setTitleStyle(t)} aria-pressed={titleStyle === t} className={cn("px-2.5 py-1.5", titleStyle === t ? "bg-zinc-700 text-white font-semibold" : "bg-zinc-900 text-zinc-400 hover:text-white")}>
+                      {TITLE_STYLE_LABELS[t]}
+                    </button>
+                  ))}
+                </div>
                 {syncNote && <span className="text-[11px] text-zinc-500 ml-auto">{syncNote}</span>}
              </div>
              <MediaGrid
@@ -1943,11 +1967,16 @@ export default function Home() {
                               loading="eager"
                               className="pointer-events-none select-none"
                             />
-                           <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-1 pointer-events-none">
-                              <p className="text-[10px] text-white font-bold text-center px-1 truncate w-full shadow-black drop-shadow-md">
+                           {titleStyle !== "hidden" && (
+                           <div className={cn(
+                              "absolute inset-x-0 z-20 flex items-end justify-center pb-1 pointer-events-none",
+                              titleStyle === "below" ? "bottom-0 bg-black/80 py-1" : "inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"
+                           )}>
+                              <p className="text-[10px] text-white font-bold text-center px-1 truncate w-full drop-shadow-md">
                                  {cell.character.name}
                               </p>
                            </div>
+                           )}
                         </>
                      ) : ( 
                         <div className="w-full h-full flex items-center justify-center text-zinc-900 font-bold text-xs select-none">
@@ -1989,6 +2018,7 @@ export default function Home() {
         size={size}
         cols={cols}
         onShared={setShareId}
+        titleStyle={titleStyle}
         onVerdictGenerate={(v) => {
             setVerdict(v);
             // Also save to localStorage immediately to persist the auto-generated verdict
