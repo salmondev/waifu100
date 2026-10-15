@@ -46,7 +46,7 @@ function Fact({ label, value }: { label: string; value: ReactNode }) {
     );
 }
 
-export function StoryCellCard({ item, onClose }: { item: StoryItem; onClose: () => void }) {
+export function StoryCellCard({ item, onClose, onChangeImage }: { item: StoryItem; onClose: () => void; onChangeImage?: () => void }) {
     const lookup = hasLookup(item);
     const [state, setState] = useState<InfoState>(() => {
         const key = storyInfoKey(item);
@@ -163,6 +163,9 @@ export function StoryCellCard({ item, onClose }: { item: StoryItem; onClose: () 
                         )}
                     </div>
 
+                    {onChangeImage && (
+                        <button type="button" onClick={onChangeImage} className="mt-3 self-start rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:border-purple-500">Change image</button>
+                    )}
                     {info?.url && (
                         <a href={info.url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 self-start text-xs text-zinc-500 hover:text-zinc-300">
                             {info.source === "mal" ? "MyAnimeList" : "AniList"} <ExternalLink size={12} />

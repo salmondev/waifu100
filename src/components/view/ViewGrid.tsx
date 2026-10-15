@@ -16,7 +16,7 @@ import {
 import { prefetchCharacter } from "@/lib/character-cache";
 import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
 import { EditOwnLink } from "@/components/own/EditOwnLink";
-import { storyColumns } from "@/lib/story/config";
+import { storyColumns, type TitleStyle } from "@/lib/story/config";
 
 interface ViewGridProps {
   grid: GridCell[];
@@ -26,6 +26,7 @@ interface ViewGridProps {
   shareId?: string;
   size?: number;
   cols?: number | null;
+  titleStyle?: TitleStyle;
 }
 
 export function ViewGrid(props: ViewGridProps) {
@@ -38,7 +39,7 @@ export function ViewGrid(props: ViewGridProps) {
   );
 }
 
-function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId, size, cols = null }: ViewGridProps) {
+function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId, size, cols = null, titleStyle = "overlay" }: ViewGridProps) {
   const openCharacter = useOpenCharacter();
   const [copied, setCopied] = useState(false);
   const [showVerdict, setShowVerdict] = useState(false);
@@ -319,14 +320,16 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
                    {/* Hover caption, desktop only: a phone cell is ~35px wide,
                        so this would be unreadable there - a tap opens the card,
                        which is readable at any size. */}
+                   {titleStyle !== "hidden" && (
                    <div className={cn(
-                      "absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-2 transition-opacity duration-200 pointer-events-none hidden sm:block",
-                      "opacity-0 group-hover:opacity-100"
+                      "absolute inset-x-0 z-20 p-1 pointer-events-none",
+                      titleStyle === "below" ? "bottom-0 bg-black/80" : "bottom-0 bg-gradient-to-t from-black/90 to-transparent pt-4"
                    )}>
                       <p className="text-[10px] font-bold truncate text-white text-center leading-tight">
                           {cell.character.name}
                       </p>
                    </div>
+                   )}
                  </>
               ) : (
                   <div className="w-full h-full flex items-center justify-center opacity-10">

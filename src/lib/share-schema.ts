@@ -86,6 +86,8 @@ export interface DecodedShare {
     count: number;
     /** Story only (T-0010); "overlay" for old shares. */
     titleStyle: TitleStyle;
+    /** Published from a build-grid-together session. Absent on every other share. */
+    together: boolean;
     verdict: AnalysisResult | null;
     verdictFeedback: VerdictFeedback;
 }
@@ -219,6 +221,7 @@ export function decodeShareObject(parsed: unknown): DecodedShare | null {
         createdAt: asString(meta.createdAt),
         userId: asString(meta.userId),
         titleStyle: isTitleStyle(meta.titleStyle) ? meta.titleStyle : DEFAULT_TITLE_STYLE,
+        together: meta.together === true,
         grid,
         items,
         images,
@@ -243,6 +246,8 @@ export interface ShareMetaInput {
     imageUrl?: string | null;
     userId?: string | null;
     createdAt?: string;
+    /** Set only by a together-session publish. Omitted otherwise so old payloads stay unchanged. */
+    together?: boolean;
 }
 
 function baseMeta(kind: ShareKind, input: ShareMetaInput, size: number) {
@@ -255,6 +260,7 @@ function baseMeta(kind: ShareKind, input: ShareMetaInput, size: number) {
         v: SHARE_SCHEMA_VERSION,
         kind,
         size,
+        ...(input.together ? { together: true } : {}),
     };
 }
 
@@ -270,12 +276,13 @@ export function buildWaifuPayload(
         cols?: number | null;
         verdict?: unknown;
         verdictFeedback?: unknown;
+        titleStyle?: unknown;
     }
 ) {
     const cols = input.cols != null && isStoryLayout(input.size, input.cols) ? input.cols : null;
     const size = cols !== null || isStorySize(input.size) ? (input.size as number) : WAIFU_GRID_SIZE;
     return {
-        meta: { ...baseMeta("waifu", input, size), ...(cols != null ? { cols } : {}) },
+        meta: { ...baseMeta("waifu", input, size), ...(cols != null ? { cols } : {}), titleStyle: isTitleStyle(input.titleStyle) ? input.titleStyle : DEFAULT_TITLE_STYLE },
         grid: sanitizeWaifuCells(input.grid),
         verdict: input.verdict,
         verdictFeedback: input.verdictFeedback,

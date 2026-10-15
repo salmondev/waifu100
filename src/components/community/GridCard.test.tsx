@@ -25,5 +25,13 @@ describe("GridCard kinds", () => {
         expect(hrefs).toContain("/story/compare?b=s1");
         expect(hrefs.some((h) => h?.startsWith("/compare"))).toBe(false);
         expect(screen.getByTitle("5 of 10 slots filled")).toBeTruthy();
+        expect(screen.queryByTestId("together-badge")).toBeNull();
+    });
+
+    it("a together publish shows a Together tag with the other chips", () => {
+        render(<GridCard grid={{ ...base, id: "s1", kind: "story", size: 9, together: true, title: "meow" }} />);
+        const badge = screen.getByTestId("together-badge");
+        expect(badge.textContent).toBe("Together");
+        expect(badge.compareDocumentPosition(screen.getByRole("heading", { name: "meow" })) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     });
 });

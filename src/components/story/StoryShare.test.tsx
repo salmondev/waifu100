@@ -91,7 +91,7 @@ describe("story actions follow waifu's sidebar", () => {
         const bar = await screen.findByTestId("story-actions");
         await waitFor(() => expect(within(bar).getByRole("button", { name: /Ask AI About My Taste/ })).toBeTruthy());
         const names = within(bar).getAllByRole("button").map((b) => b.textContent?.trim());
-        expect(names).toEqual(["Save board", "Load board", "Ask AI About My Taste", "Share", "Save as .png", "Clear Grid"]);
+        expect(names).toEqual(["build grid together", "Save board", "Load board", "Ask AI About My Taste", "Share", "Save as .png", "Clear Grid"]);
         expect(within(bar).getByRole("button", { name: /^Share$/ }).className).toBe(WAIFU_BTN.share);
         expect(within(bar).getByRole("button", { name: /Save as .png/ }).className).toBe(WAIFU_BTN.png);
         expect(within(bar).getByRole("button", { name: /Clear Grid/ }).className).toBe(WAIFU_BTN.clear);

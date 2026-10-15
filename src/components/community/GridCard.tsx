@@ -105,9 +105,11 @@ export function GridCard({
                         {grid.title || "Untitled Grid"}
                     </h3>
 
-                    <div className="flex items-center justify-between mt-3 text-xs text-zinc-500 gap-2">
-                        <div className="flex items-center gap-3 min-w-0">
-                            <span className="flex items-center gap-1.5 shrink-0">
+                    {/* Date and fill count on one line. Chips always sit on the
+                        next, so a wrapping Together or GIF pill can't climb into the count. */}
+                    <div className="mt-3 flex flex-col gap-4 text-xs text-zinc-500">
+                        <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5" />
                                 {grid.createdAt
                                     ? new Date(grid.createdAt).toLocaleDateString(undefined, {
@@ -123,7 +125,7 @@ export function GridCard({
                             <span
                                 title={`${grid.count} of ${slots} slots filled`}
                                 className={
-                                    "flex items-center gap-1 shrink-0 tabular-nums " +
+                                    "flex items-center gap-1 tabular-nums " +
                                     (isComplete ? "text-amber-400 font-semibold" : "")
                                 }
                             >
@@ -133,12 +135,21 @@ export function GridCard({
                             </span>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
+                            {grid.together && (
+                                <span
+                                    data-testid="together-badge"
+                                    className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white shadow-[0_4px_10px_rgba(168,85,247,0.45)]"
+                                >
+                                    <span className="h-1 w-1 rounded-full bg-white" />
+                                    Together
+                                </span>
+                            )}
                             {/* Which mode made this grid; old shares have no kind and are waifu. */}
                             <span
                                 data-testid="kind-badge"
                                 className={cn(
-                                    "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest",
+                                    "inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest",
                                     isStory ? "bg-sky-500/20 text-sky-300" : "bg-pink-500/15 text-pink-300"
                                 )}
                             >
@@ -149,15 +160,14 @@ export function GridCard({
                             {grid.hasGif && (
                                 <span
                                     title="This grid contains animated characters"
-                                    className="gif-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest text-white"
+                                    className="gif-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white"
                                 >
                                     <span className="h-1 w-1 rounded-full bg-white/90 animate-pulse" />
                                     GIF
                                 </span>
                             )}
 
-                            {/* ID Badge */}
-                            <span className="font-mono bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] text-zinc-600 uppercase tracking-widest">
+                            <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-zinc-600">
                                 {grid.id.slice(0, 5)}
                             </span>
                         </div>

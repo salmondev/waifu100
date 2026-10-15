@@ -89,5 +89,6 @@ export default async function ViewSharePage({ params }: ServerPageProps) {
     shareId={id}
     size={data.size}
     cols={data.cols}
+    titleStyle={data.titleStyle}
   />;
 }

@@ -25,6 +25,8 @@ export interface ShareSummary {
     size?: number;
     /** Story custom layout columns; absent = preset layout of `size`. */
     cols?: number;
+    /** Present only when the grid was published from a together session. */
+    together?: boolean;
     /**
      * Story feed responses only: up to 4 cell image URLs for a card without an imageUrl.
      * Filled in per request from the payload (read-only) and never written to the summary cache.
@@ -74,6 +76,7 @@ export function summarizeShare(id: string, rawJson: string): ShareSummary | null
                 kind: "story",
                 size: decoded.size,
                 ...(decoded.cols ? { cols: decoded.cols } : {}),
+                ...(decoded.together ? { together: true } : {}),
             };
         }
 
@@ -87,6 +90,7 @@ export function summarizeShare(id: string, rawJson: string): ShareSummary | null
             // Absent size still means 100, so a classic waifu summary stays the old shape.
             ...(decoded && decoded.size !== 100 ? { size: decoded.size } : {}),
             ...(decoded?.cols ? { cols: decoded.cols } : {}),
+            ...(decoded?.together ? { together: true } : {}),
         };
     } catch {
         return null;

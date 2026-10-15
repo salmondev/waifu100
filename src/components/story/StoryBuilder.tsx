@@ -31,6 +31,7 @@ import { emptyDraft, loadDraft, placeItem, resizeDraft, saveDraft, type StoryDra
 import { SEARCH_DEBOUNCE_MS, storySearch, type SearchItem, type SearchSource } from "@/lib/story/search";
 import { toStoredStoryCell, type StoryItem } from "@/lib/share-schema";
 import { ensureUserId } from "@/lib/user-id";
+import { openTogetherRoom } from "@/components/together/TogetherBoard";
 import { StoryPngButton, StoryVerdict } from "@/components/story/StoryExtras";
 import { canPickImagesFor, ImagePicker, pickerKey } from "@/components/story/ImagePicker";
 import { TypeBadge } from "@/components/story/TypeBadge";
@@ -444,6 +445,12 @@ export function StoryBuilder() {
                             <Users className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
                             <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-300">Community Showcase</span>
                         </Link>
+                        <Link href="/" className="w-full py-2 mb-2 bg-zinc-900/60 hover:bg-zinc-800 border border-purple-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all">
+                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">Waifu100: Character grid</span>
+                        </Link>
+                        <button type="button" onClick={() => { openTogetherRoom("story").then((code) => { window.location.href = `/story/together/${code}`; }).catch(() => setNotice("Couldn't open a together room.", "error")); }} className={WAIFU_BTN.together}>
+                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">build grid together</span>
+                        </button>
                         <div className="flex gap-2">
                             <button type="button" onClick={saveBoard} disabled={filled === 0} className={cn(WAIFU_BTN.neutral, "flex-1")}>
                                 <Save className="w-4 h-4 text-green-400" /> Save board
@@ -471,12 +478,8 @@ export function StoryBuilder() {
         <div className="min-h-screen lg:h-screen w-full bg-black text-white flex flex-col lg:flex-row lg:overflow-hidden">
             {/* LEFT: search + upload (stacks on top on mobile) */}
             <aside className="w-full lg:w-80 bg-zinc-950 border-b lg:border-b-0 lg:border-r border-zinc-800 flex flex-col shrink-0 lg:h-full">
-                <div className="p-4 border-b border-zinc-800 flex justify-between items-center gap-2">
+                <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
                     <h1 className="text-xl font-bold bg-gradient-to-r from-sky-400 to-purple-500 bg-clip-text text-transparent">{STORY_BRAND}</h1>
-                    <nav className="flex items-center gap-1.5 text-xs">
-                        <Link href="/" className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-purple-500/60">Waifu100</Link>
-                        <Link href="/community?kind=story" className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-purple-500/60 inline-flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Community</Link>
-                    </nav>
                 </div>
 
                 <div className="px-4 pt-4 pb-2">

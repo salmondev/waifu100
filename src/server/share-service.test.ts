@@ -55,7 +55,23 @@ describe("share service (memory Redis)", () => {
         expect(mem.zsets.get(STORY_FEED_KEY)!.has("s1")).toBe(true);
         expect(mem.zsets.get(FEED_KEY)!.has("s1")).toBe(true);
         const d = await Effect.runPromise(readDecoded("s1").pipe(Effect.provide(mem.layer)));
-        expect(d).toMatchObject({ kind: "story", size: 9, count: 1, verdict: null });
+        expect(d).toMatchObject({ kind: "story", size: 9, count: 1, verdict: null, together: false });
+    });
+
+    it("a together publish is marked, and a later edit keeps the mark", async () => {
+        const mem = makeMemoryShareRepo();
+        await run(
+            createShare(
+                { kind: "story", size: 9, grid: [{ i: 0, a: 1, t: "ANIME", img: cover, n: "Bebop" }], customTitle: "meow", userId: USER, together: true },
+                { id: "tg1", now: 5 }
+            ).pipe(Effect.provide(mem.layer))
+        );
+        expect(JSON.parse(mem.strings.get("waifu100:share:tg1")!).meta.together).toBe(true);
+        await run(
+            updateShare("tg1", USER, { kind: "story", size: 9, grid: [{ i: 0, a: 1, t: "ANIME", img: cover, n: "Bebop" }] }).pipe(Effect.provide(mem.layer))
+        );
+        const d = await Effect.runPromise(readDecoded("tg1").pipe(Effect.provide(mem.layer)));
+        expect(d.together).toBe(true);
     });
 
     it("rejects bad story input with InvalidShare", async () => {
