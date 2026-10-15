@@ -325,7 +325,7 @@ export async function renderShareOg({ title, images, count, kind = 'waifu', size
                     }}
                 >
                     {story
-                        ? `${count}/${layout.total} titles · ${STORY_BRAND} · Data from AniList`
+                        ? `${count}/${layout.total} titles · ${STORY_BRAND}`
                         : `${count}/100 characters · waifu100`}
                 </div>
             </div>
