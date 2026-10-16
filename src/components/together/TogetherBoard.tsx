@@ -49,6 +49,27 @@ export async function openTogetherRoom(kind: TogetherKind = "story"): Promise<st
     return data.code;
 }
 
+/** Asks before a new room is created. Both entry buttons use this so the copy stays one place. */
+export function TogetherStartConfirm({ open, kind, onClose, onError }: { open: boolean; kind: TogetherKind; onClose: () => void; onError: () => void }) {
+    return (
+        <ConfirmModal
+            isOpen={open}
+            accessible
+            variant="info"
+            title="Start an Online Session?"
+            message="This creates a live room so you and anyone with the link can build one grid together. It starts empty, lasts 6 hours, and does not copy the board you have open now."
+            confirmText="Start session"
+            cancelText="Not now"
+            onClose={onClose}
+            onConfirm={() => {
+                openTogetherRoom(kind)
+                    .then((code) => { window.location.href = `/story/together/${code}`; })
+                    .catch(() => onError());
+            }}
+        />
+    );
+}
+
 export function TogetherBoard({ code }: { code: string }) {
     return <Room code={code} />;
 }
