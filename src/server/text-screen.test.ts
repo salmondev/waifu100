@@ -21,11 +21,17 @@ describe("screenUserTexts", () => {
 
     it("blocks only the label the model marks, and remembers it", async () => {
         vi.stubEnv("GEMINI_API_KEY", "test-key");
-        generateContent.mockResolvedValueOnce({ response: { text: () => "ALLOW\nBLOCK" } });
+        generateContent.mockResolvedValueOnce({ response: { text: () => '{"results":[{"ok":true},{"ok":false,"why":"slur"}]}' } });
         expect(await screenUserTexts(["Frieren", "slur here"])).toBe(false);
         generateContent.mockClear();
         expect(await screenUserTexts(["slur here"])).toBe(false);
         expect(generateContent).not.toHaveBeenCalled();
+    });
+
+    it("a bare refusal with no safety reason is allowed", async () => {
+        vi.stubEnv("GEMINI_API_KEY", "test-key");
+        generateContent.mockResolvedValueOnce({ response: { text: () => "BLOCK" } });
+        expect(await screenUserTexts(["simon x HOIIII like together"])).toBe(true);
     });
 
     it("allows the batch when the model reply is unusable", async () => {

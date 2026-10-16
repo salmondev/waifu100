@@ -17,6 +17,7 @@ import {
     CREATE_WINDOW_MS,
     UPGRADE_LIMIT,
     UPGRADE_WINDOW_MS,
+    adminBearerOk,
     allowedOrigin,
     burst,
     cleanPeerName,
@@ -48,6 +49,7 @@ interface Room {
     state: TogetherState;
     /** Durable share id, once the host publishes. Lives with the room, not a browser. */
     shareId: string | null;
+    createdAt: number;
     expiresAt: number;
     timer: ReturnType<typeof setTimeout>;
     peers: Map<WebSocket, Peer>;
@@ -207,6 +209,7 @@ Bun.serve<SocketData>({
         if (req.method === "POST" && url.pathname === "/rooms") {
             return createRoom(req, server);
         }
+        if (url.pathname.startsWith("/admin/")) return adminRoute(req, url);
         return new Response("build grid together", { headers: corsHeaders(origin) });
     },
 });
@@ -237,17 +240,77 @@ function join(ws: WebSocket & { data: SocketData }, msg: Record<string, unknown>
     broadcast(room, { t: "peers", peers: peerList(room) }, ws);
 }
 
+/** Drops one connection. They can open the link again; nothing is remembered. */
+function dropPeer(room: Room, id: string) {
+    for (const [sock, other] of room.peers) {
+        if (other.id !== id) continue;
+        send(sock, { t: "kicked" });
+        sock.close();
+        return true;
+    }
+    return false;
+}
+
 /** Host drops one connection. The person can open the link again; nothing is remembered. */
 function kick(room: Room, peer: Peer, msg: Record<string, unknown>) {
     if (!peer.owner) return;
     const id = typeof msg.id === "string" ? msg.id : "";
     if (!id || id === peer.id || id.length > 80) return;
-    for (const [sock, other] of room.peers) {
-        if (other.id !== id) continue;
-        send(sock, { t: "kicked" });
-        sock.close();
-        return;
+    dropPeer(room, id);
+}
+
+function adminSecret(): string {
+    return (process.env.TOGETHER_ADMIN_TOKEN ?? "").trim();
+}
+
+function roomAdminRow(room: Room) {
+    return {
+        code: room.code,
+        kind: room.state.kind ?? "story",
+        title: room.state.title || "Untitled grid",
+        size: room.state.size,
+        filled: room.state.items.filter(Boolean).length,
+        createdAt: room.createdAt,
+        expiresAt: room.expiresAt,
+        shareId: room.shareId,
+        peers: [...room.peers.values()].map(({ id, name, owner }) => ({ id, name, owner })),
+    };
+}
+
+/** Local desk only. The bearer is the secret; there is no browser origin on this path. */
+async function adminRoute(req: Request, url: URL): Promise<Response> {
+    const secret = adminSecret();
+    if (!secret) return new Response("not found", { status: 404 });
+    if (!adminBearerOk(req.headers.get("authorization"), secret)) {
+        return Response.json({ error: "Unauthorized." }, { status: 401 });
     }
+    if (req.method === "GET" && url.pathname === "/admin/rooms") {
+        const roomsOut = [...rooms.values()]
+            .map(roomAdminRow)
+            .sort((a, b) => b.createdAt - a.createdAt);
+        return Response.json({ rooms: roomsOut });
+    }
+    if (req.method !== "POST") return new Response("not found", { status: 404 });
+    let body: { code?: unknown; id?: unknown } = {};
+    try {
+        body = (await req.json()) as { code?: unknown; id?: unknown };
+    } catch {
+        return Response.json({ error: "Invalid request." }, { status: 400 });
+    }
+    const code = typeof body.code === "string" ? body.code : "";
+    const room = rooms.get(code);
+    if (!room) return Response.json({ error: "That session has already ended." }, { status: 404 });
+    if (url.pathname === "/admin/rooms/end") {
+        endRoom(code);
+        return Response.json({ ok: true, code });
+    }
+    if (url.pathname === "/admin/rooms/kick") {
+        const id = typeof body.id === "string" ? body.id : "";
+        if (!id || id.length > 80) return Response.json({ error: "Unknown person." }, { status: 400 });
+        if (!dropPeer(room, id)) return Response.json({ error: "That person already left." }, { status: 404 });
+        return Response.json({ ok: true, code, id });
+    }
+    return new Response("not found", { status: 404 });
 }
 
 async function createRoom(req: Request, server: { requestIP?: (r: Request) => { address?: string } | null }): Promise<Response> {
@@ -269,9 +332,10 @@ async function createRoom(req: Request, server: { requestIP?: (r: Request) => { 
     let id = code();
     while (rooms.has(id)) id = code();
     const ownerToken = crypto.randomUUID();
-    const expiresAt = Date.now() + SESSION_MS;
+    const createdAt = Date.now();
+    const expiresAt = createdAt + SESSION_MS;
     const timer = setTimeout(() => endRoom(id), SESSION_MS);
-    rooms.set(id, { code: id, ownerToken, state: base, shareId: null, expiresAt, timer, peers: new Map() });
+    rooms.set(id, { code: id, ownerToken, state: base, shareId: null, createdAt, expiresAt, timer, peers: new Map() });
     return Response.json({ code: id, ownerToken }, { headers });
 }
 

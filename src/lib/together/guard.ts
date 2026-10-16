@@ -1,3 +1,5 @@
+import { safeEqual } from "@/lib/secret-auth";
+
 /**
  * Limits for the together room server.
  *
@@ -100,6 +102,19 @@ export function createGauge(max: number) {
             else counts.set(key, n);
         },
     };
+}
+
+/**
+ * Bearer token for the room server's admin list. Fail closed: a blank secret
+ * never matches, and the value has to be sent as `Authorization: Bearer`.
+ */
+export function adminBearerOk(authorization: string | null | undefined, secret: string | null | undefined): boolean {
+    const expected = (secret ?? "").trim();
+    if (!expected) return false;
+    const raw = (authorization ?? "").trim();
+    const got = /^Bearer\s+/i.test(raw) ? raw.replace(/^Bearer\s+/i, "").trim() : "";
+    if (!got) return false;
+    return safeEqual(got, expected);
 }
 
 /** In-place burst limit for one connection. Drops the hit when it does not fit. */

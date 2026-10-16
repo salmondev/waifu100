@@ -59,6 +59,7 @@ export function StoryShareModal({ isOpen, onClose, hasItems, initialTitle, onTit
         setError(null);
         setLoadingState("Saving...");
         try {
+            onTitleUpdate?.(customTitle.trim());
             const r = await onShare(customTitle.trim());
             if (!r.id || !r.viewPath) throw new Error(r.error || "");
             setViewPath(r.viewPath);
@@ -110,7 +111,7 @@ export function StoryShareModal({ isOpen, onClose, hasItems, initialTitle, onTit
                                         id="story-share-title"
                                         type="text"
                                         value={customTitle}
-                                        onChange={(e) => { setCustomTitle(e.target.value); onTitleUpdate?.(e.target.value); }}
+                                        onChange={(e) => setCustomTitle(e.target.value)}
                                         onKeyDown={(e) => { if (e.key === "Enter" && !isLoading) void handleGenerateLink(); }}
                                         maxLength={SHARE_TITLE_MAX}
                                         className="w-full mt-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500 placeholder-zinc-600 transition-all"

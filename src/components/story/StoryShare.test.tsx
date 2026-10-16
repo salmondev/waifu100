@@ -48,10 +48,11 @@ describe("story share: confirm modal first (waifu ShareModal pattern)", () => {
         const dialog = await openShare();
         const input = within(dialog).getByLabelText("Grid Title") as HTMLInputElement;
         fireEvent.change(input, { target: { value: "  Edited title  " } });
-        expect((screen.getByRole("textbox", { name: "Grid title" }) as HTMLInputElement).value).toBe("  Edited title  ");
+        expect((screen.getByRole("textbox", { name: "Grid title" }) as HTMLInputElement).value).toBe("My board");
         await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: /Generate Link/ })); });
         expect(shareCalls).toHaveLength(1);
-        expect(shareCalls[0].body).toMatchObject({ kind: "story", customTitle: "Edited title" });
+        expect(shareCalls[0].body).toMatchObject({ kind: "story", customTitle: "Edited title", screen: true });
+        expect((screen.getByRole("textbox", { name: "Grid title" }) as HTMLInputElement).value).toBe("Edited title");
         expect(await within(dialog).findByTestId("share-url")).toHaveProperty("textContent", `${window.location.origin}/story/v/abc123`);
         expect(within(dialog).getByRole("button", { name: /Copy Link/ })).toBeTruthy();
         expect(within(dialog).getByRole("button", { name: /Post on X/ })).toBeTruthy();

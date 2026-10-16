@@ -38,28 +38,34 @@ export async function screenUserTexts(texts: string[]): Promise<boolean> {
     return true;
 }
 
+const BLOCK_WHY = new Set(["minor-sexual", "slur", "threat", "dox", "scam", "abuse"]);
+
 async function screenChunk(chunk: string[]): Promise<boolean> {
     const numbered = chunk.map((t, i) => `${i + 1}. ${t.replace(/\s+/g, " ")}`).join("\n");
     const prompt = `You check short labels a person typed for their own fan grid: a grid title, or the name of a show, movie, game, book, or character.
-Reply with exactly one word per label, in order, either ALLOW or BLOCK. No other text.
-
-ALLOW names in any language, nicknames, jokes, informal wording, and titles that sound dark, violent, or strange as fiction.
-BLOCK only basic safety problems: sexual content involving anyone under 18, slurs, threats of real-world violence, doxxing, scams, or text that is clearly abuse rather than a name.
+A title that pairs names with "x", "like", or "and" is a normal fan title. If you are not sure, allow it.
+Reply with ONLY JSON of this shape: {"results":[{"ok":true},{"ok":false,"why":"slur"}]}
+One result per label, same order. "why" is required when ok is false, and must be one of: minor-sexual, slur, threat, dox, scam, abuse.
+Allow names in any language, nicknames, jokes, informal wording, and titles that sound dark, violent, or strange as fiction.
+Refuse only: sexual content involving anyone under 18, slurs, threats of real-world violence, doxxing, scams, or text that is clearly abuse rather than a name.
 
 Labels:
 ${numbered}`;
     try {
         const reply = (await getFlashModel().generateContent(prompt)).response.text();
-        const words = reply.trim().toUpperCase().split(/\s+/).filter(Boolean);
-        if (words.length !== chunk.length || words.some((w) => w !== "ALLOW" && w !== "BLOCK")) {
+        const start = reply.indexOf("{");
+        const end = reply.lastIndexOf("}");
+        const parsed = start >= 0 && end > start ? JSON.parse(reply.slice(start, end + 1)) as { results?: { ok?: boolean; why?: string }[] } : null;
+        const results = parsed?.results;
+        if (!Array.isArray(results) || results.length !== chunk.length) {
             console.error("[text-screen] unexpected reply, allowing");
             return true;
         }
         let allOk = true;
-        words.forEach((w, i) => {
-            const ok = w === "ALLOW";
-            remember(chunk[i], ok);
-            if (!ok) allOk = false;
+        results.forEach((row, i) => {
+            const blocked = row?.ok === false && BLOCK_WHY.has(row.why ?? "");
+            remember(chunk[i], !blocked);
+            if (blocked) allOk = false;
         });
         return allOk;
     } catch (e) {

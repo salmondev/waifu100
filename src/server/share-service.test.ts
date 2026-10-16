@@ -81,6 +81,24 @@ describe("share service (memory Redis)", () => {
         expect(mem.strings.size).toBe(0);
     });
 
+    it("an autosave does not screen text; the submit flag does", async () => {
+        const mem = makeMemoryShareRepo();
+        await run(createShare({ grid: [{ i: 0, m: 1, n: "A", img: "https://x/a.jpg" }], customTitle: "Mine", userId: USER }, { id: "ed1" }).pipe(Effect.provide(mem.layer)));
+        vi.mocked(screenUserTexts).mockClear();
+        const autosave = await run(
+            updateShare("ed1", USER, { kind: "waifu", size: 100, customTitle: "Still typing", grid: [{ i: 0, m: 1, n: "A", img: "https://x/a.jpg" }] }).pipe(Effect.provide(mem.layer))
+        );
+        expect("ok" in autosave).toBe(true);
+        expect(screenUserTexts).not.toHaveBeenCalled();
+        vi.mocked(screenUserTexts).mockResolvedValueOnce(false);
+        const submit = await run(
+            updateShare("ed1", USER, { kind: "waifu", size: 100, customTitle: "nope", screen: true, grid: [{ i: 0, m: 1, n: "A", img: "https://x/a.jpg" }] }).pipe(Effect.provide(mem.layer))
+        );
+        expect("err" in submit && "reason" in submit.err && submit.err.reason).toBe(TEXT_REJECTED);
+        expect(JSON.parse(mem.strings.get("waifu100:share:ed1")!).meta.title).toBe("Still typing");
+        vi.mocked(screenUserTexts).mockResolvedValue(true);
+    });
+
     it("a refused title is not stored", async () => {
         vi.mocked(screenUserTexts).mockResolvedValueOnce(false);
         const mem = makeMemoryShareRepo();

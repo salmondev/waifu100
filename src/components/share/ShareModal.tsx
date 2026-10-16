@@ -38,9 +38,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
   const [loadingState, setLoadingState] = useState<string>("");
 
   // Seed the form when the modal OPENS, not on every initialTitle change.
-  // Typing pushes the value up through onTitleUpdate, which comes straight back
-  // down as initialTitle - so clearing the field used to re-run this effect with
-  // an empty string and slam the default title back in mid-edit.
+  // The field stays local until the link is created, so typing does not write
+  // the board title or start a save on each character.
   const wasOpen = useRef(false);
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
@@ -181,7 +180,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                 size,
                 ...(cols ? { cols } : {}),
                 grid: cleanGridData, 
-                customTitle: customTitle.trim(), 
+                customTitle: customTitle.trim(),
+                screen: true, 
                 imageUrl: imageUrl, // Single thumbnail URL
                 userId, // Owner of record: drives versioning and delete rights
                 verdict: finalVerdict,
@@ -213,6 +213,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
              size,
              ...(cols ? { cols } : {}),
          });
+         onTitleUpdate?.(customTitle.trim());
          onShared?.(data.id);
 
          const fullUrl = `${window.location.origin}/view/${data.id}`;
@@ -284,10 +285,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                             <input 
                                 type="text"
                                 value={customTitle}
-                                onChange={(e) => {
-                                    setCustomTitle(e.target.value);
-                                    onTitleUpdate?.(e.target.value);
-                                }}
+                                onChange={(e) => setCustomTitle(e.target.value)}
                                 maxLength={50}
                                 className="w-full mt-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500 placeholder-zinc-600 transition-all"
                                 placeholder="e.g. My Anime Harem"
