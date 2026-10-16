@@ -70,8 +70,9 @@ export function cleanTogetherCell(kind: TogetherKind, value: unknown): TogetherC
     return kind === "waifu" ? cleanWaifuCell(value) : cleanTogetherItem(value);
 }
 
-/** Apply one edit. Returns null when the room rejects it (occupied cell, duplicate, guest renaming). */
+/** Apply one edit. Returns null when the room rejects it (occupied cell, duplicate, guest renaming, or a message that is not an op). */
 export function applyTogetherOp(state: TogetherState, op: TogetherOp, owner: boolean): TogetherState | null {
+    if (!op || typeof op !== "object" || typeof op.t !== "string") return null;
     if (op.t === "title") {
         if (!owner) return null;
         const title = typeof op.title === "string" ? op.title.slice(0, STORY_TITLE_MAX) : "";
