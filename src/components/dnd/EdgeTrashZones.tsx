@@ -65,6 +65,19 @@ function useCanvasInsets(active: boolean, canvas?: RefObject<HTMLElement | null>
     return active && canvas ? b : null;
 }
 
+/** A single drop target, shown only while dragging. Wide enough for a thumb, short enough to leave the grid visible. */
+export function TrashDock({ active }: { active: boolean }) {
+    if (!active) return null;
+    return (
+        <div className="fixed bottom-4 left-1/2 z-[55] -translate-x-1/2">
+            <TrashZone id={TRASH_LEFT_ID} className="flex h-14 min-w-40 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-red-400 bg-red-950/90 px-4 text-sm font-semibold text-red-100 shadow-lg">
+                <Trash2 className="h-5 w-5 shrink-0" />
+                Drop to remove
+            </TrashZone>
+        </div>
+    );
+}
+
 export function EdgeTrashZones({ active, canvas }: { active: boolean; canvas?: RefObject<HTMLElement | null> }) {
     const b = useCanvasInsets(active, canvas);
     if (!active) return null;
