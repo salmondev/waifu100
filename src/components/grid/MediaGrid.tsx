@@ -17,7 +17,7 @@ import { FittedImage } from "@/components/media/FittedImage";
 import { Trash2, X } from "lucide-react";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { DragPreview, DRAGGING_CLASS, DROP_OVER_CLASS, useGridSensors } from "@/components/dnd/dnd-config";
-import { EdgeTrashZones, isTrashId, withTrashFirst } from "@/components/dnd/EdgeTrashZones";
+import { EdgeTrashZones, TrashDock, isTrashId, withTrashFirst } from "@/components/dnd/EdgeTrashZones";
 import { cn } from "@/lib/utils";
 
 /**
@@ -64,6 +64,8 @@ export interface MediaGridProps<T> {
     titleStyle?: "overlay" | "below" | "hidden";
     /** Show a waifu-style drag-to-delete zone while dragging (needs onRemove). */
     trashZone?: boolean;
+    /** One compact drop target instead of the edge strips. For touch, where the cell X is hard to hit. */
+    trashDock?: boolean;
     /** Element the edge trash strips are anchored to (the canvas); defaults to the viewport. */
     trashCanvas?: RefObject<HTMLElement | null>;
 }
@@ -150,6 +152,7 @@ export function MediaGrid<T>({
     dataAttribute,
     onMouseLeave,
     trashZone = false,
+    trashDock = false,
     trashCanvas,
 }: MediaGridProps<T>) {
     const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -301,7 +304,9 @@ export function MediaGrid<T>({
             <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
                 {dragged ? <DragPreview src={dragged.image} alt={dragged.label} aspect={aspect} /> : null}
             </DragOverlay>
-            <EdgeTrashZones active={!!(trashZone && onRemove && dragFrom !== null)} canvas={trashCanvas} />
+            {trashDock
+                ? <TrashDock active={!!(onRemove && dragFrom !== null)} />
+                : <EdgeTrashZones active={!!(trashZone && onRemove && dragFrom !== null)} canvas={trashCanvas} />}
         </DndContext>
     );
 }

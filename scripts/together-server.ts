@@ -41,6 +41,8 @@ interface Peer {
     owner: boolean;
     opsAt: number[];
     noiseAt: number[];
+    /** Stable per browser, so a refresh does not grant a second vote. */
+    voterId: string;
 }
 
 interface Room {
@@ -96,6 +98,7 @@ function publicState(room: Room) {
         title: room.state.title ?? "",
         titleStyle: room.state.titleStyle ?? "overlay",
         items: room.state.items,
+        showSeen: room.state.showSeen !== false,
         shareId: room.shareId,
         expiresAt: room.expiresAt,
     };
@@ -152,6 +155,25 @@ Bun.serve<SocketData>({
                 if (!burst(peer.noiseAt, NOISE_PER_SEC, 1000)) return;
                 const index = msg.index === null ? null : Number(msg.index);
                 broadcast(room, { t: "hold", id: peer.id, name: peer.name, color: peer.color, index: Number.isInteger(index) ? index : null }, ws);
+                return;
+            }
+            if (msg.t === "seen") {
+                if (!burst(peer.opsAt, OPS_PER_SEC, 1000)) return;
+                const i = Number(msg.i);
+                let next = null;
+                try {
+                    next = applyTogetherOp(room.state, { t: "seen", i }, peer.owner, peer.voterId);
+                } catch {
+                    next = null;
+                }
+                if (!next) {
+                    send(ws, { t: "state", ...publicState(room) });
+                    return;
+                }
+                room.state = next;
+                const payload = { t: "state", ...publicState(room) };
+                send(ws, payload);
+                broadcast(room, payload, ws);
                 return;
             }
             if (msg.t === "kick") return kick(room, peer, msg);
@@ -232,7 +254,8 @@ function join(ws: WebSocket & { data: SocketData }, msg: Record<string, unknown>
     const name = wanted && !used.has(wanted) ? wanted : NAMES.find((n) => !used.has(n)) ?? `Guest ${room.peers.size + 1}`;
     const color = COLORS[room.peers.size % COLORS.length];
     const owner = typeof msg.token === "string" && msg.token === room.ownerToken;
-    const peer: Peer = { id: crypto.randomUUID(), name, color, owner, opsAt: [], noiseAt: [] };
+    const given = typeof msg.voter === "string" && /^[0-9a-f-]{36}$/i.test(msg.voter) ? msg.voter : "";
+    const peer: Peer = { id: crypto.randomUUID(), name, color, owner, opsAt: [], noiseAt: [], voterId: given || crypto.randomUUID() };
     room.peers.set(ws, peer);
     ws.data.peer = peer;
     ws.data.room = room;

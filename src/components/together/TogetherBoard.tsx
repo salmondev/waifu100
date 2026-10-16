@@ -24,7 +24,7 @@ import {
     type TitleStyle,
 } from "@/lib/story/config";
 import { SEARCH_DEBOUNCE_MS, storySearch, type SearchItem } from "@/lib/story/search";
-import { applyTogetherOp, isWaifuCell, type TogetherItem, type TogetherKind, type TogetherOp, type TogetherState, type WaifuCell } from "@/lib/together/ops";
+import { applyTogetherOp, isWaifuCell, seenLoudAt, type TogetherItem, type TogetherKind, type TogetherOp, type TogetherState, type WaifuCell } from "@/lib/together/ops";
 import { toStoredStoryCell, type MediaType } from "@/lib/share-schema";
 import { ensureUserId, USER_ID_HEADER } from "@/lib/user-id";
 import { friendlyError } from "@/lib/public-errors";
@@ -38,6 +38,19 @@ interface Cursor { id: string; name: string; color: string; x: number; y: number
 interface Hold { id: string; color: string; name: string; index: number }
 
 const storyCell = (i: TogetherItem) => ({ key: `${i.src ?? "anilist"}-${i.type}-${i.id}`, image: i.cover, label: i.title });
+
+function readVoterId(): string {
+    const key = "together-voter";
+    try {
+        const existing = localStorage.getItem(key);
+        if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+        const id = crypto.randomUUID();
+        localStorage.setItem(key, id);
+        return id;
+    } catch {
+        return crypto.randomUUID();
+    }
+}
 const waifuCell = (i: WaifuCell) => ({ key: `w-${i.mal_id}-${i.name}`, image: i.img, label: i.name });
 
 /** A new session is an empty board on the room server. Nothing is copied from this browser's saved grid. */
@@ -84,6 +97,7 @@ function Room({ code }: { code: string }) {
     const cursorSend = useRef({ last: 0, timer: 0, x: 0, y: 0, queued: false });
     const titleFocus = useRef(false);
     const titleSend = useRef(0);
+    const voterRef = useRef("");
     const [state, setState] = useState<TogetherState | null>(null);
     const [self, setSelf] = useState<Peer | null>(null);
     const [peers, setPeers] = useState<Peer[]>([]);
@@ -120,6 +134,13 @@ function Room({ code }: { code: string }) {
         if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
     }, []);
 
+    const markSeen = useCallback((i: number) => {
+        const voter = voterRef.current || readVoterId();
+        voterRef.current = voter;
+        setState((cur) => (cur ? applyTogetherOp(cur, { t: "seen", i }, true, voter) ?? cur : cur));
+        send({ t: "seen", i });
+    }, [send]);
+
     const commit = useCallback((op: TogetherOp) => {
         setState((cur) => (cur && self ? applyTogetherOp(cur, op, self.owner) ?? cur : cur));
         send({ t: "op", op });
@@ -136,7 +157,9 @@ function Room({ code }: { code: string }) {
             wsRef.current = socket;
             socket.onopen = () => {
                 setStatus("");
-                socket.send(JSON.stringify({ t: "join", code, token, name }));
+                const voter = readVoterId();
+                voterRef.current = voter;
+                socket.send(JSON.stringify({ t: "join", code, token, name, voter }));
             };
             socket.onmessage = (ev) => {
                 const msg = JSON.parse(String(ev.data)) as Record<string, unknown>;
@@ -481,6 +504,7 @@ function Room({ code }: { code: string }) {
                                     <button key={t} type="button" aria-pressed={(state.titleStyle ?? "overlay") === t} onClick={() => commit({ t: "style", titleStyle: t })} className={cn("px-2.5 py-1.5", (state.titleStyle ?? "overlay") === t ? "bg-purple-600 font-semibold text-white" : "bg-zinc-900 text-zinc-400 hover:text-white")}>{TITLE_STYLE_LABELS[t]}</button>
                                 ))}
                             </div>
+                            <button type="button" aria-pressed={state.showSeen !== false} onClick={() => commit({ t: "seenShow", on: state.showSeen === false })} className={cn("rounded-lg border px-2.5 py-1.5 text-xs font-semibold", state.showSeen !== false ? "border-purple-500/40 bg-purple-500/15 text-purple-100" : "border-zinc-800 bg-zinc-900 text-zinc-400")}>Seen numbers</button>
                         </div>
                     ) : (
                         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -537,15 +561,40 @@ function Room({ code }: { code: string }) {
                             onSelect={onSelect}
                             onMove={(from, to) => commit({ t: "swap", from, to })}
                             onRemove={(i) => commit({ t: "lift", i })}
+                            trashDock
                         />
-                        <div className="pointer-events-none absolute inset-0 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-                            {state.items.map((_, i) => {
+                        <div className="pointer-events-none absolute inset-0 z-30 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+                            {state.items.map((cell, i) => {
                                 const h = holdAt.get(i);
-                                return <div key={i} className={state.kind === "waifu" ? "aspect-square" : "aspect-[2/3]"} style={h ? { boxShadow: `inset 0 0 0 2px ${h.color}` } : undefined} />;
+                                const seen = cell?.seen ?? [];
+                                const count = seen.length;
+                                const mine = !!voterRef.current && seen.includes(voterRef.current);
+                                const label = cell ? (isWaifuCell(cell) ? cell.name : cell.title) : "";
+                                const loud = count >= seenLoudAt(peers.length);
+                                const showSeen = state.showSeen !== false;
+                                return (
+                                    <div key={i} className={cn("pointer-events-none relative", state.kind === "waifu" ? "aspect-square" : "aspect-[2/3]")} style={h ? { boxShadow: `inset 0 0 0 2px ${h.color}` } : undefined}>
+                                        {cell && showSeen && (
+                                            <button
+                                                type="button"
+                                                aria-pressed={mine}
+                                                aria-label={mine ? `You've seen ${label}. ${count} here have.` : `I've seen ${label}. ${count} here have.`}
+                                                onPointerDown={(e) => e.stopPropagation()}
+                                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); markSeen(i); }}
+                                                className={cn(
+                                                    "pointer-events-auto absolute left-1/2 top-0.5 z-30 min-w-4 -translate-x-1/2 rounded-full px-1 text-center text-[10px] font-bold tabular-nums leading-4",
+                                                    loud ? "bg-amber-400 text-zinc-950" : mine ? "bg-white text-zinc-950" : count > 0 ? "bg-black/80 text-white" : "bg-black/45 text-zinc-200 ring-1 ring-white/25"
+                                                )}
+                                            >
+                                                {count}
+                                            </button>
+                                        )}
+                                    </div>
+                                );
                             })}
                         </div>
                     </div>
-                    <p className="mt-6 text-center text-xs text-zinc-500">{filled}/{state.size} · drag a cover to another slot · click one to change its picture</p>
+                    <p className="mt-6 text-center text-xs text-zinc-500">{filled}/{state.size} · drag a cover to another slot · click one to change its picture{state.showSeen !== false ? " · the number is how many of you have seen it, amber when it is common" : ""} · drag onto Drop to remove</p>
             </div>
 
             <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden">

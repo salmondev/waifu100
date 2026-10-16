@@ -2,8 +2,8 @@ import { isStoryLayout, isTitleStyle, STORY_TITLE_MAX, DEFAULT_STORY_SIZE, DEFAU
 import { isMediaType, type MediaType, type StoryItem } from "@/lib/share-schema";
 import { isPublicHttpsUrl } from "@/lib/url-safety";
 
-/** One story cell in a together room. Covers must be public https. */
-export type TogetherItem = StoryItem;
+/** One story cell in a together room. Covers must be public https. `seen` is who has watched it, and is not part of a published share. */
+export type TogetherItem = StoryItem & { seen?: string[] };
 
 /** One waifu cell. `img` is the picture currently on the grid. */
 export interface WaifuCell {
@@ -11,6 +11,7 @@ export interface WaifuCell {
     name: string;
     img: string;
     source?: string;
+    seen?: string[];
 }
 
 export type TogetherKind = "story" | "waifu";
@@ -23,6 +24,8 @@ export interface TogetherState {
     title: string;
     titleStyle: TitleStyle;
     items: (TogetherCell | null)[];
+    /** Host can hide the seen counts. Absent means shown. */
+    showSeen?: boolean;
 }
 
 export type TogetherOp =
@@ -33,7 +36,15 @@ export type TogetherOp =
     | { t: "layout"; size: number; cols: number | null }
     | { t: "style"; titleStyle: TitleStyle }
     | { t: "kind"; kind: TogetherKind }
-    | { t: "cover"; i: number; cover: string };
+    | { t: "cover"; i: number; cover: string }
+    | { t: "seen"; i: number }
+    | { t: "seenShow"; on: boolean };
+
+/** How many "seen" marks turn the number amber: 60% of the people in the room, rounded to the nearest whole. Nine people turns yellow at 5. */
+export function seenLoudAt(people: number): number {
+    if (!Number.isFinite(people) || people <= 0) return 1;
+    return Math.max(1, Math.round(people * 0.6));
+}
 
 export function isWaifuCell(cell: TogetherCell): cell is WaifuCell {
     return "mal_id" in cell;
@@ -45,7 +56,7 @@ export function emptyTogether(size = DEFAULT_STORY_SIZE, cols: number | null = n
     const ok = isStoryLayout(size, cols);
     const s = ok ? size : DEFAULT_STORY_SIZE;
     const c = ok ? cols : null;
-    return { kind, size: s, cols: c, title: title.slice(0, STORY_TITLE_MAX), titleStyle: isTitleStyle(titleStyle) ? titleStyle : DEFAULT_TITLE_STYLE, items: Array.from({ length: s }, () => null) };
+    return { kind, size: s, cols: c, title: title.slice(0, STORY_TITLE_MAX), titleStyle: isTitleStyle(titleStyle) ? titleStyle : DEFAULT_TITLE_STYLE, items: Array.from({ length: s }, () => null), showSeen: true };
 }
 
 export function cleanTogetherItem(value: unknown): TogetherItem | null {
@@ -70,8 +81,8 @@ export function cleanTogetherCell(kind: TogetherKind, value: unknown): TogetherC
     return kind === "waifu" ? cleanWaifuCell(value) : cleanTogetherItem(value);
 }
 
-/** Apply one edit. Returns null when the room rejects it (occupied cell, duplicate, guest renaming, or a message that is not an op). */
-export function applyTogetherOp(state: TogetherState, op: TogetherOp, owner: boolean): TogetherState | null {
+/** Apply one edit. Returns null when the room rejects it (occupied cell, duplicate, guest renaming, or a message that is not an op). `voterId` is only used by a seen toggle. */
+export function applyTogetherOp(state: TogetherState, op: TogetherOp, owner: boolean, voterId?: string): TogetherState | null {
     if (!op || typeof op !== "object" || typeof op.t !== "string") return null;
     if (op.t === "title") {
         if (!owner) return null;
@@ -113,6 +124,20 @@ export function applyTogetherOp(state: TogetherState, op: TogetherOp, owner: boo
     if (op.t === "kind") {
         if (!owner || (op.kind !== "story" && op.kind !== "waifu") || op.kind === state.kind) return null;
         return { ...state, kind: op.kind, items: Array.from({ length: state.size }, () => null) };
+    }
+    if (op.t === "seenShow") {
+        if (!owner || typeof op.on !== "boolean") return null;
+        return { ...state, showSeen: op.on };
+    }
+    if (op.t === "seen") {
+        if (!voterId || !Number.isInteger(op.i) || op.i < 0 || op.i >= state.size) return null;
+        const cell = state.items[op.i];
+        if (!cell) return null;
+        const seen = (cell.seen ?? []).filter((id) => id !== voterId);
+        if (!cell.seen?.includes(voterId)) seen.push(voterId);
+        const items = state.items.slice();
+        items[op.i] = { ...cell, seen };
+        return { ...state, items };
     }
     if (op.t === "cover") {
         const cell = state.items[op.i];
