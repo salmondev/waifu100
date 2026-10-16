@@ -9,6 +9,7 @@ import type { ShareSummary } from "@/lib/share-summary";
 import { CompareWithMine } from "@/components/compare/CompareWithMine";
 import { StoryCompareWithMine } from "@/components/story/StoryCompareWithMine";
 import { storyViewPath } from "@/lib/story/config";
+import { TogetherBadge } from "@/components/community/TogetherBadge";
 
 interface GridCardProps {
     grid: ShareSummary;
@@ -136,15 +137,7 @@ export function GridCard({
                         </div>
 
                         <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
-                            {grid.together && (
-                                <span
-                                    data-testid="together-badge"
-                                    className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white shadow-[0_4px_10px_rgba(168,85,247,0.45)]"
-                                >
-                                    <span className="h-1 w-1 rounded-full bg-white" />
-                                    Together
-                                </span>
-                            )}
+                            {grid.together && <TogetherBadge />}
                             {/* Which mode made this grid; old shares have no kind and are waifu. */}
                             <span
                                 data-testid="kind-badge"
