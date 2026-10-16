@@ -26,7 +26,7 @@ import { loadShareForEdit, updateOwnShare } from "@/lib/own-share";
 import { defaultWaifuTitle, parseWaifuStorage, resizeWaifuGrid, waifuSyncBody, type WaifuPersisted } from "@/lib/waifu-board";
 import { STORY_SIZES, STORY_SIZE_LABELS, TITLE_STYLES, TITLE_STYLE_LABELS, isStoryLayout, storyColumns, type TitleStyle } from "@/lib/story/config";
 import { CustomSizeControl } from "@/components/story/CustomSizeControl";
-import { openTogetherRoom } from "@/components/together/TogetherBoard";
+import { TogetherStartConfirm } from "@/components/together/TogetherBoard";
 import { WAIFU_BTN } from "@/components/story/waifu-styles";
 
 // --- Types ---
@@ -108,6 +108,7 @@ export default function Home() {
 
   // --- State: Notifications ---
   const [notification, setNotification] = useState<Notification | null>(null);
+  const [togetherOpen, setTogetherOpen] = useState(false);
 
 
 
@@ -1563,9 +1564,7 @@ export default function Home() {
 
            <button
               type="button"
-              onClick={() => {
-                openTogetherRoom("waifu").then((room) => { window.location.href = `/story/together/${room}`; }).catch(() => showNotification("Couldn't open a together room.", "error"));
-              }}
+              onClick={() => setTogetherOpen(true)}
               className={WAIFU_BTN.together}
            >
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">Build Grid Together</span>
@@ -2035,6 +2034,7 @@ export default function Home() {
         }}
       />
 
+      <TogetherStartConfirm open={togetherOpen} kind="waifu" onClose={() => setTogetherOpen(false)} onError={() => showNotification("Couldn't open a together room.", "error")} />
       <ConfirmModal 
         isOpen={showClearConfirm}
         onClose={() => setShowClearConfirm(false)}

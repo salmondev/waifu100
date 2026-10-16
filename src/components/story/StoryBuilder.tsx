@@ -31,7 +31,7 @@ import { emptyDraft, loadDraft, placeItem, resizeDraft, saveDraft, type StoryDra
 import { SEARCH_DEBOUNCE_MS, storySearch, type SearchItem, type SearchSource } from "@/lib/story/search";
 import { toStoredStoryCell, type StoryItem } from "@/lib/share-schema";
 import { ensureUserId } from "@/lib/user-id";
-import { openTogetherRoom } from "@/components/together/TogetherBoard";
+import { TogetherStartConfirm } from "@/components/together/TogetherBoard";
 import { StoryPngButton, StoryVerdict } from "@/components/story/StoryExtras";
 import { canPickImagesFor, ImagePicker, pickerKey } from "@/components/story/ImagePicker";
 import { TypeBadge } from "@/components/story/TypeBadge";
@@ -163,6 +163,7 @@ export function StoryBuilder() {
     const searchRef = useRef<HTMLInputElement>(null);
     /** Parity item 3: in-app confirm (same ConfirmModal as waifu) instead of window.confirm. */
     const [confirm, setConfirm] = useState<{ title: string; message: string; confirmText: string; variant?: "danger" | "warning" | "info"; onConfirm: () => void } | null>(null);
+    const [togetherOpen, setTogetherOpen] = useState(false);
     const loadRef = useRef<HTMLInputElement>(null);
     const [uploadTitle, setUploadTitle] = useState("");
     const [uploading, setUploading] = useState(false);
@@ -448,7 +449,7 @@ export function StoryBuilder() {
                         <Link href="/" className="w-full py-2 mb-2 bg-zinc-900/60 hover:bg-zinc-800 border border-purple-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all">
                             <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">Waifu100: Character grid</span>
                         </Link>
-                        <button type="button" onClick={() => { openTogetherRoom("story").then((code) => { window.location.href = `/story/together/${code}`; }).catch(() => setNotice("Couldn't open a together room.", "error")); }} className={WAIFU_BTN.together}>
+                        <button type="button" onClick={() => setTogetherOpen(true)} className={WAIFU_BTN.together}>
                             <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">Build Grid Together</span>
                         </button>
                         <div className="flex gap-2">
@@ -693,6 +694,7 @@ export function StoryBuilder() {
                 </div>
             </aside>
 
+            <TogetherStartConfirm open={togetherOpen} kind="story" onClose={() => setTogetherOpen(false)} onError={() => setNotice("Couldn't open a together room.", "error")} />
             <ConfirmModal
                 accessible
                 isOpen={!!confirm}
