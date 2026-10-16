@@ -52,7 +52,7 @@ const NOTHING: WebProfile = { series: null, description: null, th: null, sources
 
 function cacheKey(name: string, source: string | null | undefined): string {
     const hint = usableSeriesHint(source) ? normalizeName(source).sort().join(" ") : "";
-    return `waifu100:cweb:v1:${matchKey(name)}|${hint}`;
+    return `waifu100:cweb:v2:${matchKey(name)}|${hint}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -179,7 +179,8 @@ END OF SEARCH RESULTS
 
 Rules:
 - Use ONLY facts stated in the search results. You may not use anything you know from elsewhere, and you may not guess.
-- If the results are about several different characters who share this name, or you cannot tell which one they describe, set "found" to false. Do not pick one to be helpful.
+- If the user named a series, write about the character from that series whenever the results mention it. Ignore other people who only share the name.
+- If the user did not name a series and the results describe several different characters, or you cannot tell which one they describe, set "found" to false. Do not pick one to be helpful.
 - If the results are clearly about a real person, a product, or anything that is not a fictional character, set "found" to false.
 - "series" is the work they are from - a game, anime, manga, VTuber agency or franchise - exactly as the results name it.
 - "en" is 2-4 plain sentences: who they are, their role in that work, and what they are known for. No spoilers about how a story ends. No marketing language.

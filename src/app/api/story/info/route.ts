@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withRedis } from "@/lib/redis";
 import { consume, LIMITS } from "@/lib/rate-limit";
 import { toMediaType } from "@/lib/share-schema";
-import { fetchStoryInfo, infoCacheKey, INFO_HIT_TTL_SEC, INFO_MISS_TTL_SEC } from "@/server/story-info";
+import { fetchStoryInfo, infoCacheKey, storyRecordSuspect, INFO_HIT_TTL_SEC, INFO_MISS_TTL_SEC } from "@/server/story-info";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +14,11 @@ export async function GET(req: NextRequest) {
     const id = Number(p.get("id"));
     const type = toMediaType(p.get("type"));
     const src = p.get("src") === "mal" ? "mal" : "anilist";
+    const title = (p.get("title") || "").slice(0, 120);
     if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Invalid title id." }, { status: 400 });
 
     const hasRedis = !!process.env.REDIS_URL;
-    const key = infoCacheKey(src, id, type);
+    const key = infoCacheKey(src, id, type, title);
     const hit = hasRedis ? await withRedis((r) => r.get(key)).catch(() => null) : null;
     if (hit) {
         try {
@@ -31,12 +32,13 @@ export async function GET(req: NextRequest) {
     }
     let info;
     try {
-        info = await fetchStoryInfo(src, id, type);
+        info = await fetchStoryInfo(src, id, type, fetch, title);
     } catch {
         return NextResponse.json({ error: "Details are unavailable right now." }, { status: 502 });
     }
     if (hasRedis) {
-        await withRedis((r) => r.set(key, JSON.stringify(info), "EX", info ? INFO_HIT_TTL_SEC : INFO_MISS_TTL_SEC)).catch(() => {});
+        const settled = info && !storyRecordSuspect(info, type, title);
+        await withRedis((r) => r.set(key, JSON.stringify(info), "EX", settled ? INFO_HIT_TTL_SEC : INFO_MISS_TTL_SEC)).catch(() => {});
     }
     return NextResponse.json({ info, cached: false }, { headers: CACHE_HEADERS });
 }

@@ -23,13 +23,13 @@ type InfoState = { status: "loading" } | { status: "ok"; info: StoryInfo | null 
 
 /** Per-tab cache: re-opening a card costs no request. Failures are not kept. */
 const infoCache = new Map<string, StoryInfo | null>();
-export const storyInfoKey = (i: StoryItem) => `${i.src === "mal" ? "mal" : "anilist"}:${i.type}:${i.id}`;
+export const storyInfoKey = (i: StoryItem) => `${i.src === "mal" ? "mal" : "anilist"}:${i.type}:${i.id}:${i.title.trim().toLowerCase()}`;
 export const hasLookup = (i: StoryItem) => i.src !== "upload" && i.src !== "web";
 
 export async function loadStoryInfo(item: StoryItem, signal?: AbortSignal): Promise<StoryInfo | null> {
     const key = storyInfoKey(item);
     if (infoCache.has(key)) return infoCache.get(key) ?? null;
-    const qs = new URLSearchParams({ id: String(item.id), type: item.type, src: item.src === "mal" ? "mal" : "anilist" });
+    const qs = new URLSearchParams({ id: String(item.id), type: item.type, src: item.src === "mal" ? "mal" : "anilist", title: item.title });
     const res = await fetch(`/api/story/info?${qs}`, { signal });
     if (!res.ok) throw new Error(String(res.status));
     const info = ((await res.json()) as { info?: StoryInfo | null }).info ?? null;

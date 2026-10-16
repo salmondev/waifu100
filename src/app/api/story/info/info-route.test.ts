@@ -22,7 +22,7 @@ describe("/api/story/info", () => {
         fetchStoryInfo.mockResolvedValue({ title: "T", type: "NOVEL" });
         const a = await get("id=5&type=NOVEL");
         expect(await a.json()).toMatchObject({ info: { title: "T" }, cached: false });
-        expect(fetchStoryInfo).toHaveBeenCalledWith("anilist", 5, "NOVEL");
+        expect(fetchStoryInfo).toHaveBeenCalledWith("anilist", 5, "NOVEL", expect.any(Function), "");
         const b = await get("id=5&type=NOVEL");
         expect(await b.json()).toMatchObject({ info: { title: "T" }, cached: true });
         expect(fetchStoryInfo).toHaveBeenCalledTimes(1);
