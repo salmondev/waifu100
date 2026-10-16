@@ -82,6 +82,8 @@ function Room({ code }: { code: string }) {
     const cursorShown = useRef(new Map<string, { x: number; y: number }>());
     const cursorNodes = useRef(new Map<string, HTMLDivElement>());
     const cursorSend = useRef({ last: 0, timer: 0, x: 0, y: 0, queued: false });
+    const titleFocus = useRef(false);
+    const titleSend = useRef(0);
     const [state, setState] = useState<TogetherState | null>(null);
     const [self, setSelf] = useState<Peer | null>(null);
     const [peers, setPeers] = useState<Peer[]>([]);
@@ -160,6 +162,7 @@ function Room({ code }: { code: string }) {
                     rememberShare(kind, next.shareId);
                     setState((cur) => {
                         const merged = cur ? { ...cur, ...next, items: next.items } : next;
+                        if (titleFocus.current && cur) merged.title = cur.title;
                         return { ...merged, kind: merged.kind ?? "story", titleStyle: merged.titleStyle ?? "overlay", cols: merged.cols ?? null };
                     });
                 } else if (msg.t === "peers") {
@@ -205,6 +208,7 @@ function Room({ code }: { code: string }) {
             closed = true;
             window.clearInterval(clock);
             window.clearTimeout(cursorSend.current.timer);
+            window.clearTimeout(titleSend.current);
             wsRef.current?.close();
         };
     }, [code, joinNonce]);
@@ -291,7 +295,7 @@ function Room({ code }: { code: string }) {
         const grid = kind === "story"
             ? state.items.flatMap((cell, i) => (!cell || isWaifuCell(cell) ? [] : [toStoredStoryCell(i, cell)]))
             : state.items.flatMap((cell, i) => (!cell || !isWaifuCell(cell) ? [] : [{ i, m: cell.mal_id, n: cell.name, img: cell.img, s: cell.source }]));
-        const body = { kind, size: state.size, ...(state.cols ? { cols: state.cols } : {}), grid, customTitle: state.title || undefined, titleStyle: state.titleStyle, userId, together: true };
+        const body = { kind, size: state.size, ...(state.cols ? { cols: state.cols } : {}), grid, customTitle: state.title || undefined, titleStyle: state.titleStyle, userId, together: true, screen: true };
         setPublishing(true);
         setPublishError(null);
         const res = await fetch(shareId ? `/api/share/${shareId}` : "/api/share", {
@@ -397,9 +401,12 @@ function Room({ code }: { code: string }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                     {self.owner && (
-                        <button type="button" disabled={filled === 0 || publishing} onClick={() => setPublishOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/20 px-3 py-2 text-sm font-medium text-sky-300 hover:bg-sky-500/30 disabled:opacity-50">
+                        <button type="button" disabled={filled === 0 || publishing} onClick={() => { setPublishError(null); setPublishOpen(true); }} className="inline-flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/20 px-3 py-2 text-sm font-medium text-sky-300 hover:bg-sky-500/30 disabled:opacity-50">
                             {publishing ? "Publishing…" : sharePath ? "Update share" : "Publish"}
                         </button>
+                    )}
+                    {sharePath && (
+                        <a href={sharePath} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm font-medium text-sky-300 hover:bg-sky-500/20">View</a>
                     )}
                     <Link href={state.kind === "waifu" ? "/community" : "/community?kind=story"} target="_blank" rel="noreferrer" className={cn("inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm", SHOWCASE_LINK_CLASS)}>Community Showcase</Link>
                     <button type="button" onClick={() => { navigator.clipboard.writeText(window.location.href).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }).catch(() => undefined); }} className={cn("inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors", copied ? "border border-green-500/20 bg-green-500/20 text-green-400" : "border border-transparent bg-purple-600/20 text-purple-400 hover:bg-purple-600/30")}>
@@ -409,6 +416,9 @@ function Room({ code }: { code: string }) {
                     <Link href={state.kind === "waifu" ? "/" : "/story"} className="px-2 text-sm text-zinc-500 hover:text-zinc-300">Leave</Link>
                 </div>
             </header>
+            {publishError ? (
+                <p className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-200">{publishError}</p>
+            ) : null}
             <aside className={cn("absolute bottom-0 left-0 top-0 z-30 flex w-full max-w-sm flex-col border-r border-zinc-800 bg-zinc-950/95 backdrop-blur transition-transform", drawer ? "translate-x-0" : "-translate-x-full")}>
                 <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
                     <p className="text-sm font-semibold">Search</p>
@@ -500,7 +510,14 @@ function Room({ code }: { code: string }) {
                                 value={state.title}
                                 maxLength={STORY_TITLE_MAX}
                                 placeholder="Name your grid, e.g. อนิเมะที่ชอบที่สุด 2026"
-                                onChange={(e) => { const title = e.target.value.slice(0, STORY_TITLE_MAX); setState((cur) => cur ? { ...cur, title } : cur); send({ t: "op", op: { t: "title", title } }); }}
+                                onFocus={() => { titleFocus.current = true; }}
+                                onBlur={(e) => { titleFocus.current = false; window.clearTimeout(titleSend.current); const title = e.target.value.slice(0, STORY_TITLE_MAX); send({ t: "op", op: { t: "title", title } }); }}
+                                onChange={(e) => {
+                                    const title = e.target.value.slice(0, STORY_TITLE_MAX);
+                                    setState((cur) => cur ? { ...cur, title } : cur);
+                                    window.clearTimeout(titleSend.current);
+                                    titleSend.current = window.setTimeout(() => send({ t: "op", op: { t: "title", title } }), 400);
+                                }}
                                 className={cn("w-full rounded-xl bg-zinc-900 px-4 py-3 text-center text-lg font-bold outline-none transition-colors placeholder:font-medium placeholder:text-zinc-500", state.title.trim() ? "border border-zinc-700 focus:border-purple-500" : "border-2 border-dashed border-purple-500/60 bg-purple-500/5 focus:border-solid focus:border-purple-400")}
                             />
                         ) : (
@@ -547,11 +564,6 @@ function Room({ code }: { code: string }) {
                 ))}
             </div>
 
-            {publishError ? (
-                <p className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 text-xs text-amber-300">{publishError}</p>
-            ) : sharePath ? (
-                <p className="pointer-events-auto absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-300"><a className="text-sky-300 hover:underline" href={sharePath}>{sharePath}</a></p>
-            ) : null}
             <ConfirmModal
                 isOpen={kick !== null}
                 accessible

@@ -74,6 +74,11 @@ export interface CreateShareBody {
     titleStyle?: unknown;
     /** True only when the board was published from a together session. */
     together?: unknown;
+    /**
+     * Text is checked only on a final submit (create, or an update that says so).
+     * Autosave while someone is still typing must not call the check.
+     */
+    screen?: unknown;
 }
 
 /**
@@ -169,6 +174,8 @@ export function editorShare(share: DecodedShare, owned: boolean) {
 /**
  * PUT /api/share/[id]. The creating browser rewrites the same id.
  * Feed position, owner and createdAt stay. Title versioning does not run.
+ * Text is checked only when the caller sets `screen` (the share button). A
+ * background save while the title is still being typed does not.
  */
 export const updateShare = (id: string, caller: string | null, body: CreateShareBody) =>
     Effect.gen(function* () {
@@ -195,13 +202,13 @@ export const updateShare = (id: string, caller: string | null, body: CreateShare
                 try: () => cleanStoryCells(layout.size, body.grid, layout.cols),
                 catch: (e) => new InvalidShare({ reason: e instanceof ShareValidationError ? e.message : "Invalid grid data" }),
             });
-            if (!(yield* screenTexts(customTitle, "story", cleaned.cells, null))) return yield* Effect.fail(new InvalidShare({ reason: TEXT_REJECTED }));
+            if (body.screen === true && !(yield* screenTexts(customTitle, "story", cleaned.cells, null))) return yield* Effect.fail(new InvalidShare({ reason: TEXT_REJECTED }));
             payload = JSON.stringify(
                 buildStoryPayload({ ...meta, size: cleaned.size, cols: cleaned.cols, cells: cleaned.cells, titleStyle: body.titleStyle ?? existing.titleStyle })
             );
         } else {
             const grid = cleanWaifuGrid(body.grid, layout.size);
-            if (!(yield* screenTexts(customTitle, "waifu", null, grid))) return yield* Effect.fail(new InvalidShare({ reason: TEXT_REJECTED }));
+            if (body.screen === true && !(yield* screenTexts(customTitle, "waifu", null, grid))) return yield* Effect.fail(new InvalidShare({ reason: TEXT_REJECTED }));
             payload = JSON.stringify(
                 buildWaifuPayload({
                     ...meta,

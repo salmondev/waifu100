@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedOrigin, burst, cleanPeerName, clientIp, createGauge, createWindow, messageWithinLimit } from "@/lib/together/guard";
+import { adminBearerOk, allowedOrigin, burst, cleanPeerName, clientIp, createGauge, createWindow, messageWithinLimit } from "@/lib/together/guard";
 
 describe("together guard", () => {
     it("allows the site, its previews, and local dev only", () => {
@@ -40,6 +40,15 @@ describe("together guard", () => {
         expect(burst(bucket, 2, 1000, 20)).toBe(false);
         expect(messageWithinLimit("{\"t\":\"cursor\"}")).toBe(true);
         expect(messageWithinLimit("x".repeat(20_000))).toBe(false);
+    });
+
+    it("admin bearer fails closed unless the secret matches", () => {
+        expect(adminBearerOk("Bearer desk-token", "")).toBe(false);
+        expect(adminBearerOk("Bearer desk-token", "   ")).toBe(false);
+        expect(adminBearerOk(null, "desk-token")).toBe(false);
+        expect(adminBearerOk("desk-token", "desk-token")).toBe(false);
+        expect(adminBearerOk("Bearer other", "desk-token")).toBe(false);
+        expect(adminBearerOk("Bearer desk-token", "desk-token")).toBe(true);
     });
 
     it("reads the client address from the first forwarded hop", () => {

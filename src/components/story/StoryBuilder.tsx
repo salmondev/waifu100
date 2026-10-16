@@ -410,7 +410,7 @@ export function StoryBuilder() {
         if (filled === 0) return { error: "Go add some titles first!" };
         const cells = draft.items.flatMap((item, i) => (item ? [toStoredStoryCell(i, item)] : []));
         const userId = ensureUserId();
-        const payload = { kind: "story", size: draft.size, ...(draft.cols ? { cols: draft.cols } : {}), grid: cells, customTitle: title || undefined, userId, titleStyle: draft.titleStyle };
+        const payload = { kind: "story", size: draft.size, ...(draft.cols ? { cols: draft.cols } : {}), grid: cells, customTitle: title || undefined, userId, titleStyle: draft.titleStyle, screen: true };
         let res: Response;
         try {
             res = draft.shareId
@@ -607,7 +607,7 @@ export function StoryBuilder() {
                         <input
                             id="story-grid-title"
                             value={draft.title}
-                            onChange={(e) => setDraft({ ...draft, title: e.target.value.slice(0, SHARE_TITLE_MAX) })}
+                            onChange={(e) => { const title = e.target.value.slice(0, SHARE_TITLE_MAX); setDraft((d) => ({ ...d, title })); }}
                             placeholder="Name your grid, e.g. อนิเมะที่ชอบที่สุด 2026"
                             aria-label="Grid title"
                             aria-describedby="story-grid-title-hint"
