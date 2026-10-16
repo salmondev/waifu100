@@ -109,6 +109,9 @@ function Room({ code }: { code: string }) {
     const [publishError, setPublishError] = useState<string | null>(null);
     const [endsAt, setEndsAt] = useState<number | null>(null);
     const [now, setNow] = useState(() => Date.now());
+    const [kick, setKick] = useState<Peer | null>(null);
+    const [removed, setRemoved] = useState(false);
+    const [joinNonce, setJoinNonce] = useState(0);
 
     const send = useCallback((msg: unknown) => {
         const ws = wsRef.current;
@@ -125,6 +128,7 @@ function Room({ code }: { code: string }) {
         const name = sessionStorage.getItem("together-name") ?? "";
         let socket: WebSocket;
         let closed = false;
+        let stayClosed = false;
         const connect = () => {
             socket = new WebSocket(WS);
             wsRef.current = socket;
@@ -182,11 +186,18 @@ function Room({ code }: { code: string }) {
                 } else if (msg.t === "ended") {
                     setEndsAt(Date.now());
                     setStatus("This session has ended.");
+                } else if (msg.t === "kicked") {
+                    stayClosed = true;
+                    setRemoved(true);
+                    setState(null);
+                    setSelf(null);
+                    setStatus("The host removed you from this session.");
+                    socket.close();
                 } else if (msg.t === "error") {
                     setStatus(String(msg.error ?? "Couldn't join this room."));
                 }
             };
-            socket.onclose = () => { if (!closed) { setStatus("Reconnecting…"); window.setTimeout(connect, 800); } };
+            socket.onclose = () => { if (!closed && !stayClosed) { setStatus("Reconnecting…"); window.setTimeout(connect, 800); } };
         };
         connect();
         const clock = window.setInterval(() => setNow(Date.now()), 1000);
@@ -196,7 +207,7 @@ function Room({ code }: { code: string }) {
             window.clearTimeout(cursorSend.current.timer);
             wsRef.current?.close();
         };
-    }, [code]);
+    }, [code, joinNonce]);
 
     useEffect(() => {
         let frame = 0;
@@ -319,7 +330,14 @@ function Room({ code }: { code: string }) {
     };
 
     if (!state || !self) {
-        return <div className="min-h-screen bg-black text-zinc-300 grid place-items-center"><p>{status || "Joining…"}</p></div>;
+        return (
+            <div className="min-h-screen bg-black text-zinc-300 grid place-items-center gap-4">
+                <p>{status || "Joining…"}</p>
+                {removed && (
+                    <button type="button" onClick={() => { setRemoved(false); setStatus("Connecting…"); setJoinNonce((n) => n + 1); }} className="rounded-lg border border-purple-500/30 bg-purple-600/20 px-4 py-2 text-sm font-medium text-purple-200 hover:bg-purple-600/30">Join again</button>
+                )}
+            </div>
+        );
     }
 
     const columns = storyColumns(state.size, state.cols);
@@ -367,7 +385,13 @@ function Room({ code }: { code: string }) {
                             <span className={cn("text-sm font-medium tabular-nums tracking-wide", remain === 0 ? "text-zinc-500" : "text-amber-300")}>{remain === 0 ? "ended" : clock}</span>
                         </span>
                         {peers.map((p) => (
-                            <span key={p.id} className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: p.color, boxShadow: `0 0 8px ${p.color}` }} />{p.name}{p.id === self.id ? " (you)" : ""}{p.owner ? " · host" : ""}</span>
+                            <span key={p.id} className="inline-flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full" style={{ background: p.color, boxShadow: `0 0 8px ${p.color}` }} />
+                                {p.name}{p.id === self.id ? " (you)" : ""}{p.owner ? " · host" : ""}
+                                {self.owner && p.id !== self.id && (
+                                    <button type="button" aria-label={`Remove ${p.name}`} onClick={() => setKick(p)} className="rounded px-1 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200">Remove</button>
+                                )}
+                            </span>
                         ))}
                     </div>
                 </div>
@@ -528,6 +552,17 @@ function Room({ code }: { code: string }) {
             ) : sharePath ? (
                 <p className="pointer-events-auto absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-300"><a className="text-sky-300 hover:underline" href={sharePath}>{sharePath}</a></p>
             ) : null}
+            <ConfirmModal
+                isOpen={kick !== null}
+                accessible
+                variant="warning"
+                title={kick ? `Remove ${kick.name}?` : "Remove them?"}
+                message="They leave this session now. They can open the link and join again. Nothing else happens."
+                confirmText="Remove"
+                cancelText="Keep"
+                onClose={() => setKick(null)}
+                onConfirm={() => { if (kick) send({ t: "kick", id: kick.id }); }}
+            />
             <ConfirmModal
                 isOpen={publishOpen}
                 accessible

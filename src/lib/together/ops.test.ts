@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyTogetherOp, emptyTogether, type TogetherItem } from "@/lib/together/ops";
+import { applyTogetherOp, emptyTogether, type TogetherItem, type TogetherOp } from "@/lib/together/ops";
 
 const item = (id: number, title = `T${id}`): TogetherItem => ({ id, type: "ANIME", title, cover: `https://s4.anilist.co/${id}.jpg`, src: "anilist" });
 
@@ -34,5 +34,11 @@ describe("together room ops", () => {
         expect(s.items[4]).toBeNull();
         expect(applyTogetherOp(s, { t: "title", title: "Ours" }, false)).toBeNull();
         expect(applyTogetherOp(s, { t: "title", title: "Ours" }, true)?.title).toBe("Ours");
+    });
+
+    it("a message that is not an op is ignored", () => {
+        const s = emptyTogether(9);
+        expect(applyTogetherOp(s, null as unknown as TogetherOp, true)).toBeNull();
+        expect(applyTogetherOp(s, { t: "nope" } as unknown as TogetherOp, true)).toBeNull();
     });
 });
