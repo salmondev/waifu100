@@ -17,6 +17,8 @@ import { prefetchCharacter } from "@/lib/character-cache";
 import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
 import { EditOwnLink } from "@/components/own/EditOwnLink";
 import { storyColumns, type TitleStyle } from "@/lib/story/config";
+import { TogetherViewInvite } from "@/components/together/TogetherViewInvite";
+import { TogetherBadge } from "@/components/community/TogetherBadge";
 
 interface ViewGridProps {
   grid: GridCell[];
@@ -27,6 +29,7 @@ interface ViewGridProps {
   size?: number;
   cols?: number | null;
   titleStyle?: TitleStyle;
+  together?: boolean;
 }
 
 export function ViewGrid(props: ViewGridProps) {
@@ -39,7 +42,7 @@ export function ViewGrid(props: ViewGridProps) {
   );
 }
 
-function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId, size, cols = null, titleStyle = "overlay" }: ViewGridProps) {
+function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback, shareId, size, cols = null, titleStyle = "overlay", together = false }: ViewGridProps) {
   const openCharacter = useOpenCharacter();
   const [copied, setCopied] = useState(false);
   const [showVerdict, setShowVerdict] = useState(false);
@@ -140,7 +143,7 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
           `order` puts the grid's name first on a phone, where it is the only
           thing telling the visitor what they just opened. */}
       <div className="w-full max-w-[1000px] flex flex-col items-stretch gap-4 lg:grid lg:grid-cols-3 lg:items-center lg:gap-0 px-3 sm:px-4 mb-6 sm:mb-8">
-         <div className="order-2 lg:order-none flex flex-row lg:flex-col items-center lg:items-start justify-center gap-2">
+         <div className="order-2 lg:order-none flex flex-row flex-wrap lg:flex-col items-center lg:items-start justify-center gap-2">
              {/* Most visitors arrive from the showcase; sending them back there was
                  impossible without the browser's own back button. */}
              <Link
@@ -160,10 +163,16 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
                 <Grid3x3 size={18} className="shrink-0" />
                 <span className="truncate">Create Your Own</span>
              </Link>
+             {together && (
+                <TogetherViewInvite
+                  kind="waifu"
+                  className="flex basis-full lg:basis-auto flex-1 lg:flex-none items-center justify-center lg:justify-start gap-2 px-3 sm:px-4 py-2 bg-zinc-900 rounded-lg text-sm sm:text-base text-purple-300 hover:text-white hover:bg-zinc-800 transition-colors lg:min-w-[190px] border border-purple-500/30"
+                />
+             )}
          </div>
 
          {/* Center Title */}
-         <div className="order-1 lg:order-none flex flex-col items-center justify-center gap-2 min-w-0">
+         <div className="order-1 lg:order-none flex flex-col items-center justify-center gap-3 min-w-0">
              <h1
                 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400 bg-clip-text text-transparent px-2 sm:px-4 text-center pb-1 break-words max-w-full"
                 style={{
@@ -172,6 +181,10 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
              >
                  {title}
              </h1>
+
+             {(together || hasGif) && (
+             <div className="flex flex-col items-center gap-2">
+             {together && <TogetherBadge size="md" />}
 
              {/* Same chip as the showcase card, so a grid keeps its badge when opened. */}
              {hasGif && (
@@ -182,6 +195,8 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
                    <span className="h-1.5 w-1.5 rounded-full bg-white/90 animate-pulse" />
                    GIF
                 </span>
+             )}
+             </div>
              )}
          </div>
 

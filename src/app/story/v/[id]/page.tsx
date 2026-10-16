@@ -59,5 +59,5 @@ export default async function StorySharePage({ params }: Props) {
     if (d.kind !== "story") redirect(`/view/${id}`);
     // A stored verdict renders with the page (no request, no spinner), like waifu's verdict on the share.
     const stored = await readStoryVerdict(id);
-    return <StoryView id={id} title={d.title} size={d.size} cols={d.cols} items={d.items} titleStyle={d.titleStyle} verdict={stored?.verdict ?? null} verdictFeedback={stored?.feedback ?? null} />;
+    return <StoryView id={id} title={d.title} size={d.size} cols={d.cols} items={d.items} titleStyle={d.titleStyle} verdict={stored?.verdict ?? null} verdictFeedback={stored?.feedback ?? null} together={d.together} />;
 }

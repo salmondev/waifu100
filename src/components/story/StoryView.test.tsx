@@ -40,4 +40,14 @@ describe("story view page follows waifu's view page", () => {
         render(<StoryView id="b" title="t" size={10} items={Array.from({ length: 10 }, () => null)} />);
         expect(screen.queryByText("J")).toBeNull();
     });
+    it("a together grid invites the reader to start a session; other grids do not", () => {
+        render(<StoryView id="abc" title="t" size={9} items={Array.from({ length: 9 }, () => null)} />);
+        expect(screen.queryByRole("button", { name: "Build Grid Together" })).toBeNull();
+        cleanup();
+        render(<StoryView id="abc" title="t" size={9} together items={Array.from({ length: 9 }, () => null)} />);
+        expect(screen.getByRole("button", { name: "Build Grid Together" })).toBeTruthy();
+        const badge = screen.getByTestId("together-badge");
+        expect(badge.textContent).toBe("Together");
+        expect(badge.compareDocumentPosition(screen.getByRole("heading", { level: 1 })) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    });
 });

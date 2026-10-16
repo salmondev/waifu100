@@ -37,6 +37,8 @@ export interface StoredShare {
     items: (StoryItem | null)[];
     /** Where cell names sit. Old shares read as overlay. */
     titleStyle: TitleStyle;
+    /** Published from an online session. */
+    together: boolean;
 }
 
 export function parseShare(id: string, raw: string): StoredShare | null {
@@ -57,6 +59,7 @@ export function parseShare(id: string, raw: string): StoredShare | null {
         cols: d.cols,
         items: d.items,
         titleStyle: d.titleStyle ?? DEFAULT_TITLE_STYLE,
+        together: d.together === true,
     };
 }
 

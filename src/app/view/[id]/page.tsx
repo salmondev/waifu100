@@ -90,5 +90,6 @@ export default async function ViewSharePage({ params }: ServerPageProps) {
     size={data.size}
     cols={data.cols}
     titleStyle={data.titleStyle}
+    together={data.together}
   />;
 }
