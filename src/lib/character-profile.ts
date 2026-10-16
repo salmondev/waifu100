@@ -114,7 +114,8 @@ const EMPTY_ANSWER: ProfileAnswer = {
  * silently wrong in a way no reader could detect - so it is abandoned rather
  * than trusted. scripts/prune-cache.mjs deletes the old keys outright.
  */
-const V = "v3";
+/** v4: a confident AniList hit that named the wrong series, and a cached "nothing found", are not reused. */
+const V = "v4";
 
 /**
  * One question, one key, one round trip.
@@ -251,8 +252,9 @@ function saveAnswer(key: string, answer: CachedAnswer, ttl?: number): Promise<vo
 }
 
 /** The cached shape as the route wants it. */
-function toAnswer(cached: CachedAnswer): ProfileAnswer {
+function toAnswer(cached: CachedAnswer, source?: string | null): ProfileAnswer {
     const profile = cached.profile ?? EMPTY_PROFILE;
+    const hintDisagrees = usableSeriesHint(source) && !agreesWithHint(source, profile.series);
     return {
         profile,
         confidence: cached.confidence,
@@ -260,8 +262,9 @@ function toAnswer(cached: CachedAnswer): ProfileAnswer {
         th: cached.th ?? null,
         // Worth a web lookup only if one has not already happened: an unknown
         // character stays unknown, and a second search would just spend the
-        // Serper budget to learn that again.
-        enrichable: !cached.researched && (profile.unknown || cached.confidence === "low"),
+        // Serper budget to learn that again. A confident AniList hit that
+        // names a different series than the grid is the same kind of miss.
+        enrichable: !cached.researched && (profile.unknown || cached.confidence === "low" || hintDisagrees),
         webSources: cached.webSources ?? [],
     };
 }
@@ -288,7 +291,7 @@ export async function getCharacterProfile(
 
     const key = answerCacheKey(name, source);
     const cached = await readAnswer(key);
-    if (cached) return toAnswer(cached);
+    if (cached) return toAnswer(cached, source);
 
     let candidates: AniListCandidate[] = [];
     try {
@@ -311,7 +314,7 @@ export async function getCharacterProfile(
             th: null,
         };
         await saveAnswer(key, miss);
-        return toAnswer(miss);
+        return toAnswer(miss, source);
     }
 
     const profile = toProfile(match.best.candidate, match.best.series);
@@ -336,7 +339,7 @@ export async function getCharacterProfile(
         th,
     };
     await saveAnswer(key, answer);
-    return toAnswer(answer);
+    return toAnswer(answer, source);
 }
 
 /**
@@ -425,7 +428,7 @@ export async function enrichFromWeb(
         };
     }
 
-    const current = toAnswer(cached);
+    const current = toAnswer(cached, source);
     if (!current.enrichable) return current;
 
     const web = await researchCharacter(name, source);
@@ -435,19 +438,18 @@ export async function enrichFromWeb(
     if (!web.description) {
         const marked: CachedAnswer = { ...cached, researched: true };
         await saveAnswer(key, marked, provisional ? PROVISIONAL_TTL_SEC : undefined);
-        return toAnswer(marked);
+        return toAnswer(marked, source);
     }
 
     const anilistFitsTheGrid = agreesWithHint(source, cached.profile?.series);
-    const webFitsTheGrid = agreesWithHint(source, web.series);
     const replace =
         cached.profile.unknown ||
-        (!anilistFitsTheGrid && (webFitsTheGrid || !usableSeriesHint(source)));
+        (usableSeriesHint(source) && !anilistFitsTheGrid && !!web.description);
 
     if (!replace) {
         const marked: CachedAnswer = { ...cached, researched: true };
         await saveAnswer(key, marked, provisional ? PROVISIONAL_TTL_SEC : undefined);
-        return toAnswer(marked);
+        return toAnswer(marked, source);
     }
 
     const profile: CharacterProfile = {
@@ -482,7 +484,7 @@ export async function enrichFromWeb(
         researched: true,
     };
     await saveAnswer(key, answer, provisional ? PROVISIONAL_TTL_SEC : undefined);
-    return toAnswer(answer);
+    return toAnswer(answer, source);
 }
 
 /* -------------------------------------------------------------------------- */

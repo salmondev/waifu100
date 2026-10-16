@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { cleanSynopsis, fetchStoryInfo, mapAniListInfo } from "@/server/story-info";
+import { cleanSynopsis, fetchStoryInfo, mapAniListInfo, storyRecordSuspect } from "@/server/story-info";
 
 describe("story info", () => {
     it("AniList by id: plain-text synopsis and basic facts; light novel stays NOVEL", async () => {
@@ -36,5 +36,25 @@ describe("story info", () => {
         expect(cleanSynopsis("")).toBeNull();
         expect(cleanSynopsis("x".repeat(2000))!.length).toBeLessThanOrEqual(1501);
         expect(mapAniListInfo({ title: {} }, "ANIME")).toBeNull();
+    });
+
+    it("a music-video record is suspect for an anime the grid already named", () => {
+        const mv = { title: "Idol", altTitles: [], type: "ANIME" as const, synopsis: null, format: "Music", year: 2023, status: null, episodes: 1, chapters: null, volumes: null, genres: [], score: null, url: null, source: "anilist" as const };
+        expect(storyRecordSuspect(mv, "ANIME", "Oshi no Ko")).toBe(true);
+        expect(storyRecordSuspect(mv, "ANIME", "Idol MV")).toBe(false);
+        expect(storyRecordSuspect({ ...mv, format: "TV", title: "Oshi no Ko" }, "ANIME", "Oshi no Ko")).toBe(false);
+    });
+
+    it("replaces a music-video id with the anime the cell is actually titled", async () => {
+        const f = vi.fn(async (_url: string, init?: RequestInit) => {
+            const body = JSON.parse(String(init?.body)) as { variables: { id?: number } };
+            if (body.variables.id) {
+                return new Response(JSON.stringify({ data: { Media: { type: "ANIME", format: "MUSIC", title: { english: "Idol" }, description: "A song" } } }));
+            }
+            return new Response(JSON.stringify({ data: { Page: { media: [{ type: "ANIME", format: "TV", episodes: 11, title: { english: "Oshi no Ko" }, description: "Idols" }] } } }));
+        });
+        const info = await fetchStoryInfo("anilist", 1, "ANIME", f as unknown as typeof fetch, "Oshi no Ko");
+        expect(info).toMatchObject({ title: "Oshi no Ko", format: "TV", episodes: 11 });
+        expect(f).toHaveBeenCalledTimes(2);
     });
 });
