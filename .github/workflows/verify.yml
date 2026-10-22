@@ -1,0 +1,31 @@
+name: verify
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: npx playwright install --with-deps chromium
+      # No secrets: verify uses dummy env (tests/e2e/safe-env.mjs) and mocks all APIs.
+      - run: npm run verify
+      - run: npm run security:secrets
+      - name: dependency audit (report only)
+        run: npm audit --omit=dev --audit-level=high || true
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: node_modules/.cache/playwright/
+          retention-days: 7
