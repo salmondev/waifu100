@@ -564,6 +564,8 @@ function Room({ code }: { code: string }) {
                             trashDock
                         />
                         <div className="pointer-events-none absolute inset-0 z-30 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+                            {/* The voter id (a ref) is set once on connect; reading it here keeps the existing render timing. */}
+                            {/* eslint-disable-next-line react-hooks/refs */}
                             {state.items.map((cell, i) => {
                                 const h = holdAt.get(i);
                                 const seen = cell?.seen ?? [];

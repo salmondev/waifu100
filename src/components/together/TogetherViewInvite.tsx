@@ -23,7 +23,7 @@ export function TogetherViewInvite({ kind, className }: { kind: TogetherKind; cl
                 <Users size={18} className="shrink-0" />
                 <span className="truncate">Build Grid Together</span>
             </button>
-            {failed && <p className="basis-full text-center text-xs text-amber-300 lg:text-left">Couldn't open a together room.</p>}
+            {failed && <p className="basis-full text-center text-xs text-amber-300 lg:text-left">Couldn&apos;t open a together room.</p>}
             <TogetherStartConfirm
                 open={open}
                 kind={kind}

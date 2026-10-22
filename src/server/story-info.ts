@@ -216,7 +216,7 @@ export async function fetchStoryInfo(src: "anilist" | "mal", id: number, type: M
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`anilist ${res.status}`);
     const body = (await res.json()) as { data?: { Media?: AniListInfo | null } };
-    let info = body.data?.Media ? mapAniListInfo(body.data.Media, type) : null;
+    const info = body.data?.Media ? mapAniListInfo(body.data.Media, type) : null;
     if (!title.trim() || !storyRecordSuspect(info, type, title)) return info;
     const better = await searchByTitle(title.trim(), type, f);
     if (better && !storyRecordSuspect(better, type, title)) return better;
