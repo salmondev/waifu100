@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serperFetch } from "@/server/serper-budget";
+import { clientIp } from "@/lib/rate-limit";
 
 // Simple in-memory cache (resets on server restart)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limiting
-    const clientIP = request.headers.get("x-forwarded-for") || "unknown";
+    const clientIP = clientIp(request); // first hop only; the raw header list made every proxy chain its own bucket
     const now = Date.now();
     const rateData = rateLimitMap.get(clientIP);
     
