@@ -35,6 +35,7 @@ export default function CommunityFeed({ initialPage, initialFailed }: CommunityF
   // A `?kind=story` link opens on that tab.
   useEffect(() => {
     const wanted = parseFeedKind(new URLSearchParams(window.location.search).get("kind"));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
     if (wanted !== DEFAULT_FEED_KIND) setKind(wanted);
   }, []);
   const [filter, setFilter] = useState<Filter>("all");

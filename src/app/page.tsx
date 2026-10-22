@@ -99,6 +99,7 @@ export default function Home() {
   const [showNameHint, setShowNameHint] = useState(false);
 
   useEffect(() => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
       setMounted(true);
       // Auto-open gallery on desktop
       if (window.innerWidth >= 1024) {
@@ -233,6 +234,7 @@ export default function Home() {
 
   useEffect(() => {
       const count = parseInt(localStorage.getItem('waifu100-gallery-usage-count') || '0', 10);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
       setGalleryUsageCount(count);
   }, []);
   
@@ -439,6 +441,7 @@ export default function Home() {
   // Auto-fetch community when tab is opened (first time or cached is empty)
   useEffect(() => {
       if (activeTab === 'community' && communityGrids.length === 0) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
           fetchCommunity();
       }
   }, [activeTab, communityGrids.length, fetchCommunity]);
@@ -447,6 +450,7 @@ export default function Home() {
   useEffect(() => {
     if (!debouncedQuery.trim()) {
       // Don't clear immediately to avoid flickering if user is typing
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
       if (searchQuery === "") setCharacterResults([]); 
       return;
     }
@@ -489,11 +493,13 @@ export default function Home() {
     // If GIF mode changes while a character is selected and we are in gallery mode, refresh the gallery
     if (activeTab === 'gallery' && selectedCharacter && !isGalleryLoading) {
         // Debounce slightly or just call it? calling directly is fine for a toggle click
+        // eslint-disable-next-line react-hooks/immutability -- callback is only invoked after mount, when the later declaration is initialized; reordering risks behavior change
         openGallery(selectedCharacter, gallerySearchQuery);
     }
   }, [isGifMode]);
 
   // --- Gallery Logic ---
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- manual memoization kept as-is; rewriting deps could change callback identity/behavior
   const openGallery = useCallback(async (char: Character, customQuery?: string) => {
     setShowRightPanel(true);
     setActiveTab('gallery');

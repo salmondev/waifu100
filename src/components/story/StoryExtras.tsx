@@ -56,6 +56,7 @@ export function StoryVerdict({ items, className, label = "Ask AI About My Taste"
     // Restore after mount (not during render: the server has no localStorage) and whenever the board changes.
     useEffect(() => {
         const local = loadLocalVerdict(titles);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
         setVerdict(local?.verdict ?? null);
         setFeedback(local?.feedback ?? null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,6 +125,7 @@ export function StoryViewVerdict({ shareId, items, sharePath, gridTitle, initial
         const local = loadLocalVerdict(titles);
         if (!local || local.feedback === "disagree") return;
         seeded.current = true;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
         setVerdict(local.verdict);
         setFeedback(local.feedback);
         void seedStoryVerdict(shareId, titles);

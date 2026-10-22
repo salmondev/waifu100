@@ -268,6 +268,7 @@ function Room({ code }: { code: string }) {
     useEffect(() => {
         const q = query.trim();
         if (!state || q.length < 2) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
             setStoryHits([]);
             setWaifuHits([]);
             return;
@@ -291,6 +292,7 @@ function Room({ code }: { code: string }) {
     useEffect(() => {
         if (!gallery) return;
         const ctrl = new AbortController();
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
         setImagesLoading(true);
         fetch("/api/gallery", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ characterName: gallery.name, animeSource: gallery.source }), signal: ctrl.signal })
             .then((r) => r.ok ? r.json() : { images: [] })

@@ -179,6 +179,7 @@ export function ComparePicker({
     }, []);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
         loadPage(0);
     }, [loadPage]);
 

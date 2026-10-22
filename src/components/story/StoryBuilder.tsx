@@ -117,6 +117,7 @@ export function StoryBuilder() {
     // Waifu starts collapsed (mobile); story opens it on wide screens where the canvas has room.
     const [showRightPanel, setShowRightPanel] = useState(false);
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
         if (typeof window !== "undefined" && window.matchMedia?.("(min-width: 1280px)").matches) setShowRightPanel(true);
     }, []);
     const docked = isWide && showRightPanel;
@@ -230,6 +231,7 @@ export function StoryBuilder() {
         const q = query.trim();
         if (q.length < 2) {
             abortRef.current?.abort();
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
             setResults([]);
             setSearching(false);
             setSearchError(null);

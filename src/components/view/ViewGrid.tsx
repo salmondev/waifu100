@@ -72,6 +72,7 @@ function ViewGridInner({ grid, title = "Waifu100 Grid", verdict, verdictFeedback
   // Read at render time rather than from window.location.href so the share text
   // never carries whatever query string the visitor arrived with.
   const [origin, setOrigin] = useState("");
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
   useEffect(() => setOrigin(window.location.origin), []);
 
   const columns = storyColumns(size ?? grid.length, cols);

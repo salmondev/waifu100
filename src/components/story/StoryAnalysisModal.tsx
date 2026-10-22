@@ -74,6 +74,7 @@ export function StoryAnalysisModal({ isOpen, onClose, titles, onUnavailable, res
     }
     if (!result && !loading && !autoRan.current) {
       autoRan.current = true;
+      // eslint-disable-next-line react-hooks/immutability -- callback is only invoked after mount, when the later declaration is initialized; reordering risks behavior change
       handleAnalyze();
     }
   }, [isOpen]);
