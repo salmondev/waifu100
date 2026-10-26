@@ -59,4 +59,24 @@ describe("hint slots", () => {
         expect(c.querySelectorAll(".g-hint.missing")).toHaveLength(0);
         expect(c.textContent).not.toContain("ไม่นับเป็นคำใบ้");
     });
+
+    it("before reveal, nothing says which hint kinds the answer has", () => {
+        // 105 has no hair and no quote; with one hint open none of that may leak
+        const round = dto(105, [101]);
+        const hints = JSON.stringify(round.hints);
+        for (const kind of ["hair", "quote", "silhouette", "blur"]) expect(hints).not.toContain(kind);
+        expect(round.hints.missing).toEqual([]);
+        expect(round.hints.open.map((h) => h.key)).toEqual(["role"]);
+        const c = view(round);
+        const slots = [...c.querySelectorAll<HTMLElement>(".g-hint")].map((el) => el.dataset.hint);
+        expect(slots).toEqual(["role", "locked", "locked"]);
+        expect(c.querySelector(".g-hint.missing")).toBeNull();
+        expect(c.querySelector(".g-shoprow")!.textContent).toContain("คำใบ้ข้อที่ 2");
+        expect(c.querySelector(".g-shoprow")!.textContent).not.toMatch(/เงา|ภาพเบลอ|สีผม|คำพูด/);
+    });
+
+    it("a finished round shows the 'no data' slots even with hints still locked", () => {
+        const c = view(dto(105, [105], "won"));
+        expect([...c.querySelectorAll<HTMLElement>(".g-hint.missing")].map((el) => el.dataset.hint)).toEqual(["hair", "quote"]);
+    });
 });

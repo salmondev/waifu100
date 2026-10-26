@@ -227,22 +227,23 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
             </section>
             <section className="g-hints win" aria-label="คำใบ้">
                 <h3 className="g-h3">คำใบ้ <small>เปิดทีละข้อเมื่อเดาผิด</small></h3>
-                {round.hints.keys.map((key, i) => {
+                {Array.from({ length: round.hints.total }, (_, i) => {
+                    // Locked slots are numbered only: the server does not say which kind sits behind them.
                     const h = round.hints.open[i];
-                    const meta = HINT_META[key];
+                    const meta = h ? HINT_META[h.key] : null;
                     const bought = !!h && i >= wrongs && !done;
                     return (
                         <m.div
-                            key={`${key}-${h ? "open" : "locked"}`}
+                            key={h ? `${h.key}-open` : `slot-${i}`}
                             className={`g-hint${h ? " open" : ""}`}
-                            data-hint={key}
+                            data-hint={h ? h.key : "locked"}
                             initial={h ? { opacity: 0 } : false}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.24, ease: steps4 }}
                         >
-                            <span className="g-hi"><Icon name={meta.icon} /></span>
+                            <span className="g-hi"><Icon name={meta ? meta.icon : "lock"} /></span>
                             <div className="g-hb">
-                                <small><b>{i + 1}</b>{meta.label}{bought ? <em>ซื้อแล้ว</em> : null}</small>
+                                <small><b>{i + 1}</b>{meta ? meta.label : "คำใบ้ลับ"}{bought ? <em>ซื้อแล้ว</em> : null}</small>
                                 {h ? <HintBody h={h} /> : <span className="g-lock"><Icon name="lock" />เปิดเมื่อเดาผิดครั้งที่ {i + 1}</span>}
                             </div>
                         </m.div>
@@ -258,7 +259,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     </div>
                 ))}
                 {round.hints.missing.length > 0 && (
-                    <p className="g-note">ช่องที่ไม่มีข้อมูลไม่นับเป็นคำใบ้และไม่เสียเหรียญ คำใบ้รอบนี้มี {round.hints.keys.length} ข้อ</p>
+                    <p className="g-note">ช่องที่ไม่มีข้อมูลไม่นับเป็นคำใบ้และไม่เสียเหรียญ คำใบ้รอบนี้มี {round.hints.total} ข้อ</p>
                 )}
             </section>
             {!done && (
@@ -268,9 +269,9 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     </h3>
                     {round.hints.next ? (
                         <div className="g-shoprow">
-                            <span className="g-hi"><Icon name={HINT_META[round.hints.keys[round.hints.open.length]].icon} /></span>
+                            <span className="g-hi"><Icon name="lock" /></span>
                             <span className="g-nm">
-                                {HINT_META[round.hints.keys[round.hints.open.length]].label}
+                                คำใบ้ข้อที่ {round.hints.open.length + 1}
                                 <small>ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ {round.hints.open.length + 1}</small>
                             </span>
                             <button

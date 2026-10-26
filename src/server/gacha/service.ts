@@ -115,9 +115,11 @@ export interface RoundDto {
     hints: {
         /** Values of the open hints only, in ladder order. */
         open: HintValue[];
-        /** The answer's ladder (which hint kinds exist, in order). Values stay hidden until open. */
-        keys: HintKey[];
-        /** HINT_ORDER kinds this character has no data for (shown as "no data", never filled in). */
+        /**
+         * HINT_ORDER kinds this character has no data for (shown as "no data", never filled in).
+         * Empty until every hint is open or the round is over, so the kinds of the
+         * still-locked hints are never sent early (E2 nit: keys leaked before reveal).
+         */
         missing: HintKey[];
         total: number;
         locked: number;
@@ -272,8 +274,7 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
             open: ladder.slice(0, open).map((key) =>
                 hintValue(answer, key, (kind) => hintImageUrl({ day: round.day, charId: answer.id, kind }, salt))
             ),
-            keys: ladder,
-            missing: missingHints(ladder),
+            missing: done || open >= ladder.length ? missingHints(ladder) : [],
             total: ladder.length,
             locked: ladder.length - open,
             next: next ? { price: next.price, affordable: profile.coins >= next.price } : null,
