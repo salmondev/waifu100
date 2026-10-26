@@ -70,3 +70,35 @@ describe("album story card 'new' mark", () => {
         expect(screen.queryByText(/แตะเพื่อเก็บ/)).toBeNull();
     });
 });
+
+const twoStories = (): AlbumDto => {
+    const a = album(false) as unknown as { anime: Record<string, unknown>[] };
+    const second = { ...a.anime[0], id: 9002, titleEnglish: "Bocchi", setCode: "BTR", owned: 1, cards: [{ ...card(4), animeId: 9002 }] };
+    return { ...a, anime: [a.anime[0], second] } as unknown as AlbumDto;
+};
+
+describe("album story tabs", () => {
+    it("aria-controls only ever points at a panel that is in the DOM", () => {
+        render(<AlbumView album={twoStories()} round={null} animeParam={9002} onRestored={() => {}} />);
+        const tabs = screen.getAllByRole("tab");
+        expect(tabs).toHaveLength(2);
+        for (const t of tabs) {
+            const target = t.getAttribute("aria-controls");
+            if (target) expect(document.getElementById(target)?.getAttribute("role")).toBe("tabpanel");
+        }
+        const selected = tabs.filter((t) => t.getAttribute("aria-selected") === "true");
+        expect(selected).toHaveLength(1);
+        expect(selected[0].textContent).toContain("Bocchi");
+        expect(selected[0].getAttribute("aria-controls")).toBeTruthy();
+        const panel = screen.getByRole("tabpanel");
+        expect(panel.getAttribute("aria-labelledby")).toBe(selected[0].id);
+        expect(panel.querySelector(".g-binder")?.getAttribute("aria-label")).toContain("Bocchi");
+    });
+
+    it("the selected tab is styled by its own class, not by a separate highlight layer", () => {
+        render(<AlbumView album={twoStories()} round={null} animeParam={9001} onRestored={() => {}} />);
+        const on = screen.getAllByRole("tab").find((t) => t.getAttribute("aria-selected") === "true")!;
+        expect(on.className).toContain("on");
+        expect(document.querySelector(".g-tabhl")).toBeNull();
+    });
+});

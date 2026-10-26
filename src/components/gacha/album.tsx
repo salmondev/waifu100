@@ -8,13 +8,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Tabs, TabsHighlight, TabsHighlightItem, TabsList, TabsTrigger } from "@animate-ui/react/primitives/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@animate-ui/react/primitives/tabs";
 import { errorText, gachaApi, setGachaId, type AlbumDto, type RoundDto } from "./api";
 import { cardBackHtml, cardMiniHtml, CardHtml, storyCardHtml } from "./card";
 import { animeSubtitle, animeTitle } from "./chrome";
 import { storyColours } from "./palette";
 import { Icon, Px, SETSYM, type TierName } from "./pixel";
-import { steps4 } from "./play";
 
 const UNLOCK = 3;
 type Group = AlbumDto["anime"][number];
@@ -89,22 +88,30 @@ export function AlbumView({ album, round, animeParam, onRestored }: { album: Alb
             </header>
             {groups.length > 0 && current ? (
                 <>
+                    {/* Only the selected story's binder is rendered, so only its tab points at a panel. */}
                     <Tabs value={String(current.id)} onValueChange={(v) => router.replace(`/daily?view=album&anime=${v}`, { scroll: false })}>
-                        <TabsHighlight className="g-tabhl" transition={{ type: "tween", duration: 0.2, ease: steps4 }}>
-                            <TabsList className="g-tabs" aria-label="เรื่อง">
-                                {groups.map((g) => (
-                                    <TabsHighlightItem key={g.id} value={String(g.id)} className="g-tabcell">
-                                        <TabsTrigger value={String(g.id)} className={`g-tab${g.id === current.id ? " on" : ""}`}>
-                                            <Px rows={SETSYM[g.id % SETSYM.length]} className="sym" />
-                                            <span>{animeTitle(g)}</span>
-                                            <b>{g.owned}/{g.total}</b>
-                                        </TabsTrigger>
-                                    </TabsHighlightItem>
-                                ))}
-                            </TabsList>
-                        </TabsHighlight>
+                        <TabsList className="g-tabs" aria-label="เรื่อง">
+                            {groups.map((g) => {
+                                const on = g.id === current.id;
+                                return (
+                                    <TabsTrigger
+                                        key={g.id}
+                                        value={String(g.id)}
+                                        id={`${TAB_ID}-${g.id}`}
+                                        aria-controls={on ? PANEL_ID : undefined}
+                                        className={`g-tab${on ? " on" : ""}`}
+                                    >
+                                        <Px rows={SETSYM[g.id % SETSYM.length]} className="sym" />
+                                        <span>{animeTitle(g)}</span>
+                                        <b>{g.owned}/{g.total}</b>
+                                    </TabsTrigger>
+                                );
+                            })}
+                        </TabsList>
                     </Tabs>
-                    <Binder g={current} binderRef={binder} fresh={current.story.fresh && !seen.has(current.id)} onSeen={markSeen} />
+                    <div role="tabpanel" id={PANEL_ID} aria-labelledby={`${TAB_ID}-${current.id}`} tabIndex={0} className="g-tabpanel">
+                        <Binder g={current} binderRef={binder} fresh={current.story.fresh && !seen.has(current.id)} onSeen={markSeen} />
+                    </div>
                 </>
             ) : (
                 <section className="g-binder win"><p className="g-note">ยังไม่มีการ์ด เดาตัวละครของวันนี้ให้ถูกเพื่อรับใบแรก</p></section>
@@ -113,6 +120,9 @@ export function AlbumView({ album, round, animeParam, onRestored }: { album: Alb
         </main>
     );
 }
+
+const TAB_ID = "g-album-tab";
+const PANEL_ID = "g-album-panel";
 
 function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.RefObject<HTMLElement | null>; fresh: boolean; onSeen: (animeId: number) => void }) {
     const colours = storyColours(g.coverColor);

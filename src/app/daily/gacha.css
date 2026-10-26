@@ -455,13 +455,13 @@
 }
 
 
-/* ---- production additions (not in the prototype): footer link, animate-ui tabs highlight, recovery panel ---- */
+/* ---- production additions (not in the prototype): footer link, animate-ui tabs, recovery panel ---- */
 .g-foot a { text-decoration: underline; text-underline-offset: 2px; }
-.g-tabs { position: relative; }
-.g-tabcell { position: relative; min-width: 0; display: grid; }
-.g-tabhl { position: absolute; z-index: 0; background: var(--ink); box-shadow: var(--px); }
-.g-tabs .g-tab { position: relative; z-index: 1; border: 0; cursor: pointer; text-align: left; color: var(--ink); width: 100%; }
-.g-tabs .g-tab.on { background: transparent; color: var(--paper); box-shadow: none; }
+/* The selected tab paints its own ink fill (paper on ink is 12.5:1); it never relies on a moving highlight layer. */
+.g-tabs .g-tab { border: 0; cursor: pointer; text-align: left; color: var(--ink); width: 100%; }
+.g-tabs .g-tab.on, .g-tabs .g-tab[aria-selected="true"] { background: var(--ink); color: var(--paper); box-shadow: var(--px); }
+.g-tabpanel { display: grid; }
+.g-tabpanel:focus-visible { outline: 3px solid var(--ink); outline-offset: 5px; }
 .g-tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 5px; }
 .g-recover { padding: 12px; display: grid; gap: 10px; }
 .g-recrow { display: flex; gap: 10px; align-items: center; }
