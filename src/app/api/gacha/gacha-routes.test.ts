@@ -22,7 +22,7 @@ import { getModeratedImage } from "@/server/moderation/moderator";
 import { NextRequest } from "next/server";
 import { setCatalog } from "@/server/gacha/catalog";
 import { addDays, bangkokDayKey, dailyPick, DEV_DAILY_SALT } from "@/server/gacha/rules";
-import { configureGacha } from "@/server/gacha/service";
+import { configureGacha, type RoundDto } from "@/server/gacha/service";
 import { memoryGachaStore } from "@/server/gacha/store";
 import { FIXTURE_CATALOG } from "@/server/gacha/test-fixture";
 import { GET as albumGET } from "./album/route";
@@ -143,6 +143,7 @@ describe("image hints never expose the art URL", () => {
         const wrong = FIXTURE_CATALOG.anime.find((a) => a.id === pick().animeId)!.characters.filter((c) => c.id !== answer.id);
         let round: { hints: { open: { key: string; src?: string }[] } } | null = null;
         for (const c of wrong.slice(0, 5)) round = await (await guessPOST(req("guess", "POST", { charId: c.id }))).json();
+        expect((round as unknown as RoundDto).hints.missing).toEqual([]); // fixture answer has every field
         const images = round!.hints.open.filter((h) => h.key === "blur" || h.key === "silhouette");
         expect(images.map((h) => h.key).sort()).toEqual(["blur", "silhouette"]);
         for (const h of images) expect(h.src).toMatch(/^\/api\/gacha\/hint-image\?t=[A-Za-z0-9_-]+$/);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     addDays, bangkokDayKey, characterPool, dailyPick, dayNumber, fastBonus, hintLadder, hintValue, HAIR_KEYS, HAIR_STYLE,
-    nextBuyableHint, openHintCount, pullResult, storyUnlocked, streak, tierForGuesses,
+    missingHints, nextBuyableHint, openHintCount, plainAge, pullResult, storyUnlocked, streak, tierForGuesses,
 } from "./rules";
 import { FIXTURE_CATALOG } from "./test-fixture";
 
@@ -31,8 +31,8 @@ describe("hint ladder", () => {
         expect(hintLadder({ ...char(101), quote: "   " })).not.toContain("quote");
     });
     it("role hint: gender + occupation, else gender + MAIN/SUPPORTING", () => {
-        expect(hintValue(char(101), "role", img)).toEqual({ key: "role", gender: "Female", occupation: "Mage", role: null });
-        expect(hintValue(char(105), "role", img)).toEqual({ key: "role", gender: "Male", occupation: null, role: "SUPPORTING" });
+        expect(hintValue(char(101), "role", img)).toEqual({ key: "role", gender: "Female", occupation: "Mage", role: null, age: null });
+        expect(hintValue(char(105), "role", img)).toEqual({ key: "role", gender: "Male", occupation: null, role: "SUPPORTING", age: null });
     });
     it("hair hint carries the Thai label and swatch; multicolour gets stripes", () => {
         expect(hintValue(char(103), "hair", img)).toMatchObject({ hair: "red", label: HAIR_STYLE.red.th, hex: HAIR_STYLE.red.hex, stripes: null });
@@ -52,6 +52,24 @@ describe("hint ladder", () => {
         expect(nextBuyableHint(ladder, 1, true)).toBeNull();
         // a shorter ladder still charges by position, not by kind
         expect(nextBuyableHint(hintLadder(char(105)), 1, false)).toEqual({ index: 1, key: "silhouette", price: 20 });
+    });
+    it("role hint adds the AniList age only when it is a plain number or range", () => {
+        expect(hintValue({ ...char(101), age: "17" }, "role", img)).toMatchObject({ age: "17" });
+        expect(hintValue({ ...char(101), age: "16 - 17" }, "role", img)).toMatchObject({ age: "16-17" });
+        for (const age of ["15 (past), 27 (present)", "1 month+ (2000+ including previous life)", "", null, "unknown"])
+            expect(hintValue({ ...char(101), age }, "role", img)).toMatchObject({ age: null });
+        expect(plainAge("1000+")).toBe("1000+");
+    });
+    it("missing slots are exactly the kinds the ladder lacks, in display order", () => {
+        expect(missingHints(hintLadder(char(101)))).toEqual([]);
+        expect(missingHints(hintLadder(char(105)))).toEqual(["hair", "quote"]);
+        expect(missingHints(hintLadder({ ...char(105), image: "" }))).toEqual(["hair", "quote", "silhouette", "blur"]);
+    });
+    it("never fabricates hair or quote", () => {
+        const bare = { ...char(105), quote: null, hair: null };
+        const ladder = hintLadder(bare);
+        expect(ladder).not.toContain("hair");
+        expect(ladder).not.toContain("quote");
     });
     it("image hints carry only the opaque src they are given, never the art URL", () => {
         for (const key of ["silhouette", "blur"] as const) {

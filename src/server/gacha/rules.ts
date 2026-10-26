@@ -162,7 +162,7 @@ export const HAIR_STYLE: Record<HairKey, { th: string; hex: string }> = {
 export const HAIR_MULTI_STRIPES = ["#ff004d", "#ffec27", "#29adff"] as const;
 
 export type HintValue =
-    | { key: "role"; gender: string | null; occupation: string | null; role: "MAIN" | "SUPPORTING" | null }
+    | { key: "role"; gender: string | null; occupation: string | null; role: "MAIN" | "SUPPORTING" | null; age: string | null }
     | { key: "hair"; hair: HairKey; label: string; hex: string; stripes: string[] | null }
     | { key: "quote"; quote: string }
     /** src: an opaque /api/gacha/hint-image URL, never the art's real URL. */
@@ -170,6 +170,21 @@ export type HintValue =
     | { key: "blur"; src: string };
 
 const nonEmpty = (s: string | null | undefined): s is string => typeof s === "string" && s.trim().length > 0;
+
+/**
+ * AniList age, only when it is a plain number or range ("17", "16-17",
+ * "1000+"). Free-text ages ("15 (past), 27 (present)") are dropped rather
+ * than paraphrased, so the hint never states something AniList did not.
+ */
+export function plainAge(age: string | null | undefined): string | null {
+    const a = age?.trim() ?? "";
+    return /^\d{1,4}(?: ?- ?\d{1,4})?\+?$/.test(a) ? a.replace(/ /g, "") : null;
+}
+
+/** The hints a character cannot have, in HINT_ORDER: shown as an honest "no data" slot. */
+export function missingHints(ladder: readonly HintKey[]): HintKey[] {
+    return HINT_ORDER.filter((k) => !ladder.includes(k));
+}
 
 /**
  * The answer's hint ladder: HINT_ORDER minus the fields this character does not
@@ -195,8 +210,8 @@ export function hintValue(answer: CatalogCharacter, key: HintKey, imageSrc: (kin
         case "role":
             // Occupation is the better clue; MAIN/SUPPORTING only stands in for it.
             return nonEmpty(answer.occupation)
-                ? { key, gender: answer.gender ?? null, occupation: answer.occupation, role: null }
-                : { key, gender: answer.gender ?? null, occupation: null, role: answer.role ?? null };
+                ? { key, gender: answer.gender ?? null, occupation: answer.occupation, role: null, age: plainAge(answer.age) }
+                : { key, gender: answer.gender ?? null, occupation: null, role: answer.role ?? null, age: plainAge(answer.age) };
         case "hair": {
             const hair = answer.hair!.key;
             const style = HAIR_STYLE[hair];

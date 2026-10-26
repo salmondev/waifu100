@@ -9,7 +9,7 @@ import { hintImageUrl, readHintImageToken, type HintImageRef } from "./hint-imag
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
 import {
     addDays, bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus,
-    hintLadder, hintValue, MAX_GUESSES, nextBuyableHint, openHintCount, pullResult, START_COINS, storyUnlocked,
+    hintLadder, hintValue, MAX_GUESSES, missingHints, nextBuyableHint, openHintCount, pullResult, START_COINS, storyUnlocked,
     streak, tierForGuesses, type HintKey, type HintValue, type PullResult, type Tier,
 } from "./rules";
 import { defaultGachaStore, KEEP_ROUND_DAYS, withProfileLock, type GachaProfile, type GachaRound, type GachaStore } from "./store";
@@ -117,6 +117,8 @@ export interface RoundDto {
         open: HintValue[];
         /** The answer's ladder (which hint kinds exist, in order). Values stay hidden until open. */
         keys: HintKey[];
+        /** HINT_ORDER kinds this character has no data for (shown as "no data", never filled in). */
+        missing: HintKey[];
         total: number;
         locked: number;
         next: { price: number; affordable: boolean } | null;
@@ -271,6 +273,7 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
                 hintValue(answer, key, (kind) => hintImageUrl({ day: round.day, charId: answer.id, kind }, salt))
             ),
             keys: ladder,
+            missing: missingHints(ladder),
             total: ladder.length,
             locked: ladder.length - open,
             next: next ? { price: next.price, affordable: profile.coins >= next.price } : null,

@@ -28,6 +28,14 @@ const HINT_META: Record<HintKey, { label: string; icon: IconName }> = {
     blur: { label: "ภาพเบลอ", icon: "blur" },
 };
 const GENDER_TH: Record<string, string> = { Female: "หญิง", Male: "ชาย" };
+/** Why a hint slot is empty. Copy states the gap; nothing is guessed in its place. */
+const MISSING_TEXT: Record<HintKey, string> = {
+    role: "AniList ไม่มีข้อมูลบทบาท",
+    hair: "AniList ไม่ระบุสีผมของตัวละครนี้",
+    quote: "ไม่มีคำพูดที่ยืนยันแหล่งได้ จึงไม่ใส่ให้",
+    silhouette: "ไม่มีภาพตัวละครให้ทำเงา",
+    blur: "ไม่มีภาพตัวละครให้เบลอ",
+};
 /** PICO-8 stepped ease: motion in 4 hard steps, no smooth tween. */
 export const steps4 = (t: number) => Math.min(1, Math.floor(t * 4 + 0.0001) / 4);
 
@@ -49,7 +57,10 @@ function HintBody({ h }: { h: HintValue }) {
         return (
             <>
                 <b>{base}</b>
-                <span className="g-dim">{h.gender ? `เพศ${GENDER_TH[h.gender] ?? ` ${h.gender}`}` : "AniList ไม่ระบุเพศ"}</span>
+                <span className="g-dim">
+                    {h.gender ? `เพศ${GENDER_TH[h.gender] ?? ` ${h.gender}`}` : "AniList ไม่ระบุเพศ"}
+                    {h.age ? ` · อายุ ${h.age}` : ""}
+                </span>
             </>
         );
     }
@@ -237,8 +248,17 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         </m.div>
                     );
                 })}
-                {round.hints.keys.length < 5 && (
-                    <p className="g-note">ตัวละครนี้ AniList ไม่มีข้อมูลบางส่วน คำใบ้จึงมี {round.hints.keys.length} ข้อ</p>
+                {round.hints.missing.map((key) => (
+                    <div key={`${key}-missing`} className="g-hint missing" data-hint={key}>
+                        <span className="g-hi"><Icon name={HINT_META[key].icon} /></span>
+                        <div className="g-hb">
+                            <small><b>-</b>{HINT_META[key].label}<em>ไม่มีข้อมูล</em></small>
+                            <span className="g-lock">{MISSING_TEXT[key]}</span>
+                        </div>
+                    </div>
+                ))}
+                {round.hints.missing.length > 0 && (
+                    <p className="g-note">ช่องที่ไม่มีข้อมูลไม่นับเป็นคำใบ้และไม่เสียเหรียญ คำใบ้รอบนี้มี {round.hints.keys.length} ข้อ</p>
                 )}
             </section>
             {!done && (
