@@ -4,15 +4,18 @@
  * DTOs below - which never carry the answer before the round is over.
  */
 import { createHash, randomInt } from "node:crypto";
+import { GachaConfigError, resolveDailySalt } from "./config";
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
 import {
-    bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, DEV_DAILY_SALT, epochDay, fastBonus,
+    bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus,
     hintLadder, hintValue, MAX_GUESSES, nextBuyableHint, openHintCount, pullResult, START_COINS, storyUnlocked,
     streak, tierForGuesses, type HintKey, type HintValue, type PullResult, type Tier,
 } from "./rules";
 import { defaultGachaStore, KEEP_ROUND_DAYS, withProfileLock, type GachaProfile, type GachaRound, type GachaStore } from "./store";
 
 // ---- errors -----------------------------------------------------------------
+
+export { GachaConfigError };
 
 export type GachaErrorCode =
     | "create_limited"
@@ -56,11 +59,16 @@ export function configureGacha(next?: Partial<Deps>): void {
     overrides = next ?? {};
 }
 
+/**
+ * The salt is resolved up front, before the store is touched, so a deployment
+ * without DAILY_SALT fails every operation closed (GachaConfigError -> 503).
+ */
 function deps(): Deps {
+    const salt = (overrides.salt ?? resolveDailySalt)();
     return {
         store: overrides.store ?? defaultGachaStore(),
         now: overrides.now ?? Date.now,
-        salt: overrides.salt ?? (() => process.env.DAILY_SALT || DEV_DAILY_SALT),
+        salt: () => salt,
     };
 }
 

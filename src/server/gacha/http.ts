@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { gachaIdFromRequest } from "@/lib/gacha-id";
 import { enforceRateLimit, type RateLimit } from "@/lib/rate-limit";
 import { GachaBusy } from "./store";
+import { GachaConfigError } from "./config";
 import { GachaError } from "./service";
 
 /** Every gacha response is per-player state: never cache it anywhere. */
@@ -73,6 +74,11 @@ const UUID_ANYWHERE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  */
 export function gachaErrorResponse(e: unknown, where: string): NextResponse {
     if (e instanceof GachaError) return gachaFail(e.status, e.code, MESSAGES[e.code] ?? "Request failed.");
+    if (e instanceof GachaConfigError) {
+        // Names the missing setting only; never a value.
+        console.error(`[gacha] ${where} refused: ${e.setting} is not set in this deployment`);
+        return gachaFail(503, "gacha_misconfigured", "The daily game is not configured on this server.");
+    }
     if (e instanceof GachaBusy) return gachaFail(409, "busy", "Another request is still being processed - try again.");
     const message = e instanceof Error ? e.message : String(e);
     console.error(`[gacha] ${where} failed:`, message.replace(UUID_ANYWHERE, "<id>").slice(0, 300));
