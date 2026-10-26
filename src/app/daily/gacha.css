@@ -421,7 +421,9 @@
 .g-blabel { display: flex; align-items: baseline; gap: 8px; padding: 10px 0 8px; border-bottom: 2px dotted rgba(29, 43, 83, .3); }
 .g-blabel b { font: 600 16px/1.2 var(--th); } .g-blabel span { font: 700 11px/1 var(--bit); opacity: .7; } .g-blabel em { margin-left: auto; font: 700 14px/1 var(--bit); font-style: normal; }
 .g-slot { position: relative; display: grid; justify-items: center; padding: 14px 0; }
-.g-fresh { position: absolute; z-index: 3; top: 6px; right: 8px; }
+.g-fresh { position: absolute; z-index: 3; top: 6px; right: 8px; pointer-events: none; }
+.g-storytap { cursor: pointer; }
+.g-storytap:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
 .g-locked { width: 100%; display: flex; gap: 12px; align-items: center; padding: 12px; background: rgba(29, 43, 83, .06); box-shadow: inset 0 0 0 2px rgba(29, 43, 83, .25); }
 .g-locked > .pxi { width: 24px; height: 24px; flex: none; color: var(--slate); }
 .g-locked b { display: block; font: 600 14px/1.3 var(--th); } .g-locked span { display: block; font: 300 12px/1.4 var(--th); }

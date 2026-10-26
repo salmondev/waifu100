@@ -31,6 +31,7 @@ import { POST as hintPOST } from "./hint/route";
 import { POST as recoveryPOST } from "./recovery/route";
 import { POST as restorePOST } from "./restore/route";
 import { GET as hintImageGET } from "./hint-image/route";
+import { POST as storySeenPOST } from "./story-seen/route";
 import { GET as todayGET } from "./today/route";
 
 const ID = "3f1c2b7a-9d4e-4a6b-8c1d-2e3f4a5b6c7d";
@@ -74,6 +75,7 @@ describe("DAILY_SALT fails closed in production", () => {
         ["album", () => albumGET(req("album"))],
         ["recovery", () => recoveryPOST(req("recovery", "POST", {}))],
         ["restore", () => restorePOST(req("restore", "POST", { code: "ABCD-EFGH-JKMN" }))],
+        ["story-seen", () => storySeenPOST(req("story-seen", "POST", { animeId: 9001 }))],
     ];
 
     it.each(calls)("%s -> 503 gacha_misconfigured without touching the store (NODE_ENV=production)", async (_n, call) => {
@@ -196,5 +198,36 @@ describe("image hints never expose the art URL", () => {
         expect(res.headers.get("cache-control")).toBe("no-store");
         expect(vi.mocked(enforceRateLimit).mock.calls.at(-1)![1]).toMatchObject({ name: "gacha-image" });
         expect(getModeratedImage).not.toHaveBeenCalled();
+    });
+});
+
+describe("POST /api/gacha/story-seen", () => {
+    beforeEach(() => vi.stubEnv("DAILY_SALT", "story-salt"));
+
+    it("validates the body, refuses a locked story, then marks an unlocked one idempotently", async () => {
+        expect((await storySeenPOST(req("story-seen", "POST", { animeId: "9001" }))).status).toBe(400);
+        expect((await storySeenPOST(req("story-seen", "POST", { animeId: 9001 }))).status).toBe(404); // no profile yet
+        await todayGET(req("today"));
+        const locked = await storySeenPOST(req("story-seen", "POST", { animeId: 9001 }));
+        expect(locked.status).toBe(409);
+        expect(await locked.json()).toMatchObject({ code: "story_locked" });
+
+        const p = (await store.load(ID))!;
+        const frieren = FIXTURE_CATALOG.anime[0];
+        p.collection = Object.fromEntries(frieren.characters.slice(0, 3).map((c) => [c.id, { tier: "rare" as const, day: "2026-10-20", animeId: frieren.id }]));
+        await store.save(ID, p);
+
+        // loading the album twice does not consume "new"
+        await albumGET(req("album"));
+        const album = await (await albumGET(req("album"))).json();
+        expect(album.anime[0].story).toEqual({ unlocked: true, fresh: true });
+
+        for (let i = 0; i < 2; i++) {
+            const res = await storySeenPOST(req("story-seen", "POST", { animeId: frieren.id }));
+            expect(res.status).toBe(200);
+            expect(res.headers.get("cache-control")).toBe("no-store");
+        }
+        expect((await store.load(ID))!.storySeen).toEqual([frieren.id]);
+        expect((await (await albumGET(req("album"))).json()).anime[0].story).toEqual({ unlocked: true, fresh: false });
     });
 });

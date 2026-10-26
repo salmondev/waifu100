@@ -9,7 +9,7 @@ vi.mock("@/lib/redis", () => ({
 
 import { setCatalog } from "./catalog";
 import { addDays, bangkokDayKey, dailyPick, hintLadder, type Tier } from "./rules";
-import { buyHint, configureGacha, GachaError, getAlbum, getToday, guess, mintRecovery, restore, type RoundDto } from "./service";
+import { buyHint, configureGacha, GachaError, getAlbum, getToday, guess, markStorySeen, mintRecovery, restore, type RoundDto } from "./service";
 import { memoryGachaStore, type GachaProfile } from "./store";
 import { FIXTURE_CATALOG } from "./test-fixture";
 
@@ -244,7 +244,7 @@ describe("buyHint", () => {
 });
 
 describe("album", () => {
-    it("groups owned cards by anime; story fresh exactly once", async () => {
+    it("groups owned cards by anime; story stays fresh until tapped", async () => {
         await getToday(ID);
         const p = await profile();
         const frieren = FIXTURE_CATALOG.anime[0];
@@ -267,9 +267,38 @@ describe("album", () => {
         expect(f.cards[0]).toMatchObject({ id: frieren.characters[0].id, tier: "rare", image: frieren.characters[0].image });
         expect(album.anime.find((a) => a.id === osk.id)!.story).toEqual({ unlocked: false, fresh: false });
 
+        // loading is read-only: a second load (StrictMode double effect) still shows it as new
         const again = await getAlbum(ID);
-        expect(again.anime.find((a) => a.id === frieren.id)!.story).toEqual({ unlocked: true, fresh: false });
+        expect(again.anime.find((a) => a.id === frieren.id)!.story).toEqual({ unlocked: true, fresh: true });
+        expect((await profile()).storySeen).toEqual([]);
+
+        // the explicit tap marks it, idempotently
+        expect(await markStorySeen(ID, frieren.id)).toEqual({ animeId: frieren.id, fresh: false });
+        expect(await markStorySeen(ID, frieren.id)).toEqual({ animeId: frieren.id, fresh: false });
         expect((await profile()).storySeen).toEqual([frieren.id]);
+        const after = await getAlbum(ID);
+        expect(after.anime.find((a) => a.id === frieren.id)!.story).toEqual({ unlocked: true, fresh: false });
+    });
+
+    it("getAlbum never writes the profile", async () => {
+        await getToday(ID);
+        const p = await profile();
+        p.collection = Object.fromEntries(
+            FIXTURE_CATALOG.anime[0].characters.slice(0, 3).map((c, i) => [c.id, { tier: "rare" as const, day: `2026-10-2${i}`, animeId: FIXTURE_CATALOG.anime[0].id }])
+        );
+        await store.save(ID, p);
+        const before = store.profiles.get(ID);
+        await getAlbum(ID);
+        await getAlbum(ID);
+        expect(store.profiles.get(ID)).toBe(before);
+    });
+
+    it("markStorySeen refuses locked stories and unknown players", async () => {
+        expect(await code(markStorySeen(ID, FIXTURE_CATALOG.anime[0].id))).toBe("no_profile");
+        await getToday(ID);
+        expect(await code(markStorySeen(ID, FIXTURE_CATALOG.anime[0].id))).toBe("story_locked");
+        expect(await code(markStorySeen(ID, 424242))).toBe("story_locked");
+        expect((await profile()).storySeen).toEqual([]);
     });
 
     it("empty for an unknown id, without creating a profile", async () => {

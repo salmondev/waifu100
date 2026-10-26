@@ -40,6 +40,21 @@ export function AlbumView({ album, round, animeParam, onRestored }: { album: Alb
     }
     const current = groups.find((g) => g.id === animeParam) ?? groups[0] ?? null;
     const binder = useRef<HTMLElement>(null);
+    // Story cards the player tapped this session. The server only forgets
+    // "new" on that explicit tap (POST /api/gacha/story-seen), never on load.
+    const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set());
+    const markSeen = (animeId: number) => {
+        if (seen.has(animeId)) return;
+        setSeen((s) => new Set(s).add(animeId));
+        gachaApi.storySeen(animeId).catch(() => {
+            // not saved: show it as new again so the next tap retries
+            setSeen((s) => {
+                const next = new Set(s);
+                next.delete(animeId);
+                return next;
+            });
+        });
+    };
 
     // cards take their size from --w in px: size each to its pocket (prototype fit())
     useEffect(() => {
@@ -89,7 +104,7 @@ export function AlbumView({ album, round, animeParam, onRestored }: { album: Alb
                             </TabsList>
                         </TabsHighlight>
                     </Tabs>
-                    <Binder g={current} binderRef={binder} />
+                    <Binder g={current} binderRef={binder} fresh={current.story.fresh && !seen.has(current.id)} onSeen={markSeen} />
                 </>
             ) : (
                 <section className="g-binder win"><p className="g-note">ยังไม่มีการ์ด เดาตัวละครของวันนี้ให้ถูกเพื่อรับใบแรก</p></section>
@@ -99,7 +114,7 @@ export function AlbumView({ album, round, animeParam, onRestored }: { album: Alb
     );
 }
 
-function Binder({ g, binderRef }: { g: Group; binderRef: React.RefObject<HTMLElement | null> }) {
+function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.RefObject<HTMLElement | null>; fresh: boolean; onSeen: (animeId: number) => void }) {
     const colours = storyColours(g.coverColor);
     const byNo = new Map(g.cards.map((c) => [c.number, c]));
     const title = animeTitle(g);
@@ -108,8 +123,15 @@ function Binder({ g, binderRef }: { g: Group; binderRef: React.RefObject<HTMLEle
             <div className="g-blabel"><b>{title}</b><span>{g.setCode}</span><em>{g.owned}/{g.total}</em></div>
             <div className="g-slot">
                 {g.story.unlocked ? (
-                    <>
-                        {g.story.fresh && <b className="g-tag new g-fresh">ใหม่</b>}
+                    <div
+                        className={fresh ? "g-storytap" : undefined}
+                        role={fresh ? "button" : undefined}
+                        tabIndex={fresh ? 0 : undefined}
+                        aria-label={fresh ? `สตอรี่การ์ดใหม่ ${title} แตะเพื่อเก็บ` : undefined}
+                        onClick={fresh ? () => onSeen(g.id) : undefined}
+                        onKeyDown={fresh ? (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onSeen(g.id)) : undefined}
+                    >
+                        {fresh && <b className="g-tag new g-fresh">ใหม่ · แตะเพื่อเก็บ</b>}
                         <CardHtml
                             html={storyCardHtml({
                                 id: g.id,
@@ -122,7 +144,7 @@ function Binder({ g, binderRef }: { g: Group; binderRef: React.RefObject<HTMLEle
                                 owned: g.cards,
                             })}
                         />
-                    </>
+                    </div>
                 ) : (
                     <div className="g-locked">
                         <Icon name="lock" />

@@ -66,6 +66,7 @@ export const gachaApi = {
     guess: (charId: number) => call<RoundDto>("guess", "POST", { charId }),
     hint: () => call<RoundDto>("hint", "POST", {}),
     album: () => call<AlbumDto>("album"),
+    storySeen: (animeId: number) => call<{ animeId: number; fresh: false }>("story-seen", "POST", { animeId }),
     recovery: () => call<{ code: string }>("recovery", "POST", {}),
     restore: (code: string) => call<{ id: string }>("restore", "POST", { code }, false),
 };

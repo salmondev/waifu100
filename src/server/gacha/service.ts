@@ -25,7 +25,8 @@ export type GachaErrorCode =
     | "already_guessed"
     | "round_over"
     | "no_hint"
-    | "not_enough_coins";
+    | "not_enough_coins"
+    | "story_locked";
 
 const STATUS: Record<GachaErrorCode, number> = {
     create_limited: 429,
@@ -35,6 +36,7 @@ const STATUS: Record<GachaErrorCode, number> = {
     round_over: 409,
     no_hint: 409,
     not_enough_coins: 409,
+    story_locked: 409,
 };
 
 export class GachaError extends Error {
@@ -391,29 +393,18 @@ function storyFresh(profile: GachaProfile): number[] {
 }
 
 /**
- * The binder: owned cards grouped by anime. A story card returned unlocked for
- * the first time comes back `fresh: true` exactly once (it is marked seen in
- * the same call).
+ * The album. Read-only: loading it never changes the profile, so a double
+ * render (React StrictMode, a retry, a prefetch) cannot use up the "new story
+ * card" mark. A story card stays `fresh` until the player taps it, which calls
+ * markStorySeen.
  */
 export async function getAlbum(id: string): Promise<AlbumDto> {
     const { store, now } = deps();
     const idx = await getCatalog();
     const today = bangkokDayKey(now());
 
-    let profile = await store.load(id);
-    let fresh: number[] = [];
-    if (profile && storyFresh(profile).length > 0) {
-        profile = await withProfileLock(store, id, async () => {
-            const p = await store.load(id);
-            if (!p) return null;
-            fresh = storyFresh(p);
-            if (fresh.length > 0) {
-                p.storySeen = [...p.storySeen, ...fresh];
-                await store.save(id, p);
-            }
-            return p;
-        });
-    }
+    const profile = await store.load(id);
+    const fresh = profile ? storyFresh(profile) : [];
 
     let total = 0;
     for (const a of idx.catalog.anime) total += a.characters.length;
@@ -460,6 +451,24 @@ export async function getAlbum(id: string): Promise<AlbumDto> {
         total,
         anime,
     };
+}
+
+/**
+ * The player tapped an unlocked story card: stop showing it as new. Idempotent
+ * (a second tap, a retried request or a second tab is a no-op). Refuses an
+ * anime whose story card is not unlocked, so the list only holds real unlocks.
+ */
+export async function markStorySeen(id: string, animeId: number): Promise<{ animeId: number; fresh: false }> {
+    const { store } = deps();
+    return withProfileLock(store, id, async () => {
+        const p = await store.load(id);
+        if (!p) throw new GachaError("no_profile");
+        if (p.storySeen.includes(animeId)) return { animeId, fresh: false as const };
+        if (!storyFresh(p).includes(animeId)) throw new GachaError("story_locked");
+        p.storySeen = [...p.storySeen, animeId];
+        await store.save(id, p);
+        return { animeId, fresh: false as const };
+    });
 }
 
 // ---- recovery codes ---------------------------------------------------------
