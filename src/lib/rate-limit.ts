@@ -210,4 +210,6 @@ export const LIMITS = {
   gachaCreate: { name: "gacha-create", limit: 5, windowSec: 600 } satisfies RateLimit,
   // Recovery codes are 60 bits, but guessing them should still be slow.
   gachaRestore: { name: "gacha-restore", limit: 5, windowSec: 600 } satisfies RateLimit,
+  /** Hint images: CDN-cached per round, so only cache misses and scrapers hit this. */
+  gachaImage: { name: "gacha-image", limit: 60, windowSec: 60 } satisfies RateLimit,
 };

@@ -5,9 +5,10 @@
  */
 import { createHash, randomInt } from "node:crypto";
 import { GachaConfigError, resolveDailySalt } from "./config";
+import { hintImageUrl, readHintImageToken, type HintImageRef } from "./hint-image";
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
 import {
-    bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus,
+    addDays, bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus,
     hintLadder, hintValue, MAX_GUESSES, nextBuyableHint, openHintCount, pullResult, START_COINS, storyUnlocked,
     streak, tierForGuesses, type HintKey, type HintValue, type PullResult, type Tier,
 } from "./rules";
@@ -236,7 +237,7 @@ function commitPull(profile: GachaProfile, round: GachaRound): void {
     round.storyUnlockedNow = !storyUnlocked(before) && storyUnlocked(ownedIn(profile, round.animeId));
 }
 
-export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogIndex, today: string): RoundDto {
+export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogIndex, today: string, salt: string): RoundDto {
     const { anime, answer } = roundParts(round, idx);
     const done = round.done;
     const ladder = hintLadder(answer);
@@ -264,7 +265,9 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
             return c ? [{ id: c.id, name: c.name, image: c.image, correct: g === round.answerId }] : [];
         }),
         hints: {
-            open: ladder.slice(0, open).map((key) => hintValue(answer, key)),
+            open: ladder.slice(0, open).map((key) =>
+                hintValue(answer, key, (kind) => hintImageUrl({ day: round.day, charId: answer.id, kind }, salt))
+            ),
             keys: ladder,
             total: ladder.length,
             locked: ladder.length - open,
@@ -305,7 +308,7 @@ export async function getToday(id: string, opts: GetTodayOptions = {}): Promise<
     // Fast path: the common reload needs no lock and no write.
     const existing = await store.load(id);
     const ready = existing?.rounds[today];
-    if (existing && ready) return { ...roundDto(existing, ready, idx, today), created: false };
+    if (existing && ready) return { ...roundDto(existing, ready, idx, today, salt()), created: false };
 
     return withProfileLock(store, id, async () => {
         let profile = await store.load(id);
@@ -317,7 +320,7 @@ export async function getToday(id: string, opts: GetTodayOptions = {}): Promise<
         }
         const changed = ensureRound(profile, today, idx, salt());
         if (changed || created) await store.save(id, profile);
-        return { ...roundDto(profile, profile.rounds[today], idx, today), created };
+        return { ...roundDto(profile, profile.rounds[today], idx, today, salt()), created };
     });
 }
 
@@ -355,7 +358,7 @@ export async function guess(id: string, charId: number): Promise<RoundDto> {
             markFinished(profile, today);
         }
         await store.save(id, profile);
-        return roundDto(profile, round, idx, today);
+        return roundDto(profile, round, idx, today, salt());
     });
 }
 
@@ -378,7 +381,7 @@ export async function buyHint(id: string): Promise<RoundDto> {
         profile.coins -= next.price;
         round.bought += 1;
         await store.save(id, profile);
-        return roundDto(profile, round, idx, today);
+        return roundDto(profile, round, idx, today, salt());
     });
 }
 
@@ -511,4 +514,22 @@ export async function restore(code: unknown): Promise<string | null> {
     const profile = await store.load(id);
     // A rotated code is deleted, but check anyway: only the current code restores.
     return profile && profile.recoveryHash === hash ? id : null;
+}
+
+// ---- hint images -------------------------------------------------------------
+
+/**
+ * Resolves a /api/gacha/hint-image token to the art it stands for. null for a
+ * forged or edited token, a round outside the kept window (or in the future),
+ * or a character no longer in the catalog. The art URL stays on the server.
+ */
+export async function resolveHintImage(token: unknown): Promise<(HintImageRef & { artUrl: string }) | null> {
+    const { now, salt } = deps();
+    const ref = readHintImageToken(token, salt());
+    if (!ref) return null;
+    const today = bangkokDayKey(now());
+    if (ref.day > today || ref.day <= addDays(today, -KEEP_ROUND_DAYS)) return null;
+    const hit = (await getCatalog()).characters.get(ref.charId);
+    if (!hit?.character.image) return null;
+    return { ...ref, artUrl: hit.character.image };
 }

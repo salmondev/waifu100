@@ -165,26 +165,32 @@ export type HintValue =
     | { key: "role"; gender: string | null; occupation: string | null; role: "MAIN" | "SUPPORTING" | null }
     | { key: "hair"; hair: HairKey; label: string; hex: string; stripes: string[] | null }
     | { key: "quote"; quote: string }
-    | { key: "silhouette"; image: string }
-    | { key: "blur"; image: string };
+    /** src: an opaque /api/gacha/hint-image URL, never the art's real URL. */
+    | { key: "silhouette"; src: string }
+    | { key: "blur"; src: string };
 
 const nonEmpty = (s: string | null | undefined): s is string => typeof s === "string" && s.trim().length > 0;
 
 /**
  * The answer's hint ladder: HINT_ORDER minus the fields this character does not
- * have, so later hints move up (prototype HINTS filtering). Role and blur always
- * exist. Never invents a value.
+ * have, so later hints move up (prototype HINTS filtering). Role always exists;
+ * silhouette and blur are rendered server-side from the character art, so they
+ * exist whenever the art does (every pickable answer has art). Never invents a value.
  */
 export function hintLadder(answer: CatalogCharacter): HintKey[] {
     return HINT_ORDER.filter((key) => {
         if (key === "hair") return !!answer.hair && answer.hair.key in HAIR_STYLE;
         if (key === "quote") return nonEmpty(answer.quote);
-        if (key === "silhouette") return nonEmpty(answer.silhouette);
+        if (key === "silhouette" || key === "blur") return nonEmpty(answer.image);
         return true;
     });
 }
 
-export function hintValue(answer: CatalogCharacter, key: HintKey): HintValue {
+/**
+ * imageSrc builds the opaque hint-image URL for the image hints (see
+ * src/server/gacha/hint-image.ts); the answer's image URL never goes in a hint.
+ */
+export function hintValue(answer: CatalogCharacter, key: HintKey, imageSrc: (kind: "blur" | "silhouette") => string): HintValue {
     switch (key) {
         case "role":
             // Occupation is the better clue; MAIN/SUPPORTING only stands in for it.
@@ -199,12 +205,8 @@ export function hintValue(answer: CatalogCharacter, key: HintKey): HintValue {
         case "quote":
             return { key, quote: answer.quote! };
         case "silhouette":
-            return { key, image: answer.silhouette! };
         case "blur":
-            // Accepted weakness: the blurred hint is the real image URL (blurred
-            // client-side), so a determined player can read the answer from the
-            // network tab once hint 5 is open. Nothing else leaks it early.
-            return { key, image: answer.image };
+            return { key, src: imageSrc(key) };
     }
 }
 

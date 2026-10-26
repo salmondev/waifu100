@@ -6,6 +6,7 @@ import {
 import { FIXTURE_CATALOG } from "./test-fixture";
 
 const frieren = FIXTURE_CATALOG.anime[0];
+const img = (kind: string) => `/opaque/${kind}`;
 const char = (id: number) => FIXTURE_CATALOG.anime.flatMap((a) => a.characters).find((c) => c.id === id)!;
 
 describe("tiers", () => {
@@ -23,17 +24,19 @@ describe("hint ladder", () => {
     });
     it("skips missing fields so later hints move up", () => {
         expect(hintLadder(char(104))).toEqual(["role", "hair", "silhouette", "blur"]); // no quote
-        expect(hintLadder(char(106))).toEqual(["role", "hair", "quote", "blur"]); // no silhouette
-        expect(hintLadder(char(105))).toEqual(["role", "blur"]); // no hair, quote, silhouette
+        // silhouette is generated from the art, so a missing catalog silhouette no longer drops it
+        expect(hintLadder(char(106))).toEqual(["role", "hair", "quote", "silhouette", "blur"]);
+        expect(hintLadder(char(105))).toEqual(["role", "silhouette", "blur"]); // no hair, quote
+        expect(hintLadder({ ...char(105), image: "" })).toEqual(["role"]); // no art: no image hints
         expect(hintLadder({ ...char(101), quote: "   " })).not.toContain("quote");
     });
     it("role hint: gender + occupation, else gender + MAIN/SUPPORTING", () => {
-        expect(hintValue(char(101), "role")).toEqual({ key: "role", gender: "Female", occupation: "Mage", role: null });
-        expect(hintValue(char(105), "role")).toEqual({ key: "role", gender: "Male", occupation: null, role: "SUPPORTING" });
+        expect(hintValue(char(101), "role", img)).toEqual({ key: "role", gender: "Female", occupation: "Mage", role: null });
+        expect(hintValue(char(105), "role", img)).toEqual({ key: "role", gender: "Male", occupation: null, role: "SUPPORTING" });
     });
     it("hair hint carries the Thai label and swatch; multicolour gets stripes", () => {
-        expect(hintValue(char(103), "hair")).toMatchObject({ hair: "red", label: HAIR_STYLE.red.th, hex: HAIR_STYLE.red.hex, stripes: null });
-        expect(hintValue(char(107), "hair")).toMatchObject({ hair: "multicolour", stripes: expect.any(Array) });
+        expect(hintValue(char(103), "hair", img)).toMatchObject({ hair: "red", label: HAIR_STYLE.red.th, hex: HAIR_STYLE.red.hex, stripes: null });
+        expect(hintValue(char(107), "hair", img)).toMatchObject({ hair: "multicolour", stripes: expect.any(Array) });
         for (const k of HAIR_KEYS) expect(HAIR_STYLE[k].hex).toMatch(/^#[0-9a-f]{6}$/);
     });
     it("open hints = wrong guesses + bought, capped; all when done", () => {
@@ -48,7 +51,14 @@ describe("hint ladder", () => {
         expect(nextBuyableHint(ladder, 5, false)).toBeNull();
         expect(nextBuyableHint(ladder, 1, true)).toBeNull();
         // a shorter ladder still charges by position, not by kind
-        expect(nextBuyableHint(hintLadder(char(105)), 1, false)).toEqual({ index: 1, key: "blur", price: 20 });
+        expect(nextBuyableHint(hintLadder(char(105)), 1, false)).toEqual({ index: 1, key: "silhouette", price: 20 });
+    });
+    it("image hints carry only the opaque src they are given, never the art URL", () => {
+        for (const key of ["silhouette", "blur"] as const) {
+            const v = hintValue(char(101), key, img);
+            expect(v).toEqual({ key, src: `/opaque/${key}` });
+            expect(JSON.stringify(v)).not.toContain(char(101).image);
+        }
     });
 });
 

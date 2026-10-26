@@ -289,9 +289,10 @@
 .g-myst .c2 { --w: 128px; }
 .g-frame { width: 128px; aspect-ratio: 63 / 88; background: var(--ink); box-shadow: var(--px); overflow: hidden; position: relative; }
 .g-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.g-frame.blur img { filter: blur(7px); transform: scale(1.15); }
+/* Hint images arrive already blurred / stencilled from /api/gacha/hint-image. */
+.g-frame.blur img { transform: scale(1.1); }
 .g-frame.sil { background: var(--paper); }
-.g-frame.sil img { object-fit: contain; object-position: 50% 100%; }
+.g-frame.sil img { object-position: 50% 20%; image-rendering: pixelated; }
 .g-myst figcaption { font: 400 12px/1 var(--th); padding: 5px 8px; }
 .g-side { padding: 10px 10px 12px; }
 .g-track-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
@@ -348,8 +349,8 @@
 .g-hair { display: inline-flex; gap: 8px; align-items: center; } .g-hair i { width: 16px; height: 16px; box-shadow: 0 0 0 2px var(--ink); }
 .g-pic { display: block; width: 64px; height: 64px; overflow: hidden; background: var(--paper); box-shadow: 0 0 0 2px var(--ink); }
 .g-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.g-pic.sil img { object-fit: contain; object-position: 50% 100%; }
-.g-pic.blur img { filter: blur(5px); transform: scale(1.15); }
+.g-pic.sil img { object-position: 50% 20%; image-rendering: pixelated; }
+.g-pic.blur img { transform: scale(1.1); }
 .g-hint .g-hb:has(.g-pic) { grid-template-columns: auto 1fr; align-items: end; column-gap: 10px; }
 .g-hint .g-hb:has(.g-pic) small { grid-column: 1 / -1; }
 .g-shop h3 { justify-content: space-between; }

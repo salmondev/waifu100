@@ -9,6 +9,7 @@ import Link from "next/link";
 import { m } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { HintKey, HintValue } from "@/server/gacha/rules";
+import { hintImageSrc } from "@/lib/gacha-hint-image";
 import { proxied } from "@/lib/img-proxy";
 import { errorText, gachaApi, type RoundDto } from "./api";
 import { cardBackHtml, CardHtml, FOCAL } from "./card";
@@ -35,6 +36,13 @@ const Face = ({ src, w = 128, className }: { src: string; w?: number; className?
     <img className={className} src={proxied(src, w)} alt="" draggable={false} style={{ objectPosition: FOCAL }} />
 );
 
+/** A server-rendered hint image (already blurred / stencilled), never the art itself. */
+const HintPic = ({ src }: { src: string }) => {
+    const safe = hintImageSrc(src);
+    // eslint-disable-next-line @next/next/no-img-element
+    return safe ? <img src={safe} alt="" draggable={false} /> : null;
+};
+
 function HintBody({ h }: { h: HintValue }) {
     if (h.key === "role") {
         const base = h.occupation?.trim() || (h.role === "MAIN" ? "ตัวละครหลัก" : h.role === "SUPPORTING" ? "ตัวละครรอง" : "ไม่มีข้อมูลบทบาท");
@@ -58,13 +66,13 @@ function HintBody({ h }: { h: HintValue }) {
     if (h.key === "silhouette")
         return (
             <>
-                <span className="g-pic sil"><Face src={h.image} w={96} /></span>
-                <span className="g-dim">เงาตัวละคร</span>
+                <span className="g-pic sil"><HintPic src={h.src} /></span>
+                <span className="g-dim">เงาสองสีจากภาพตัวละคร</span>
             </>
         );
     return (
         <>
-            <span className="g-pic blur"><Face src={h.image} w={96} /></span>
+            <span className="g-pic blur"><HintPic src={h.src} /></span>
             <span className="g-dim">ภาพเบลอ</span>
         </>
     );
@@ -109,14 +117,14 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     else if (blur && blur.key === "blur")
         mystery = (
             <>
-                <div className="g-frame blur"><Face src={blur.image} /></div>
+                <div className="g-frame blur"><HintPic src={blur.src} /></div>
                 <figcaption className="win">ภาพเบลอ</figcaption>
             </>
         );
     else if (sil && sil.key === "silhouette")
         mystery = (
             <>
-                <div className="g-frame sil"><Face src={sil.image} /></div>
+                <div className="g-frame sil"><HintPic src={sil.src} /></div>
                 <figcaption className="win">เงา</figcaption>
             </>
         );
