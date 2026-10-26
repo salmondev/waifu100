@@ -34,6 +34,10 @@ const SAFE_VARS: Record<string, { name: string; proof: RegExp }[]> = {
     "lib/story/export.ts": [{ name: "src", proof: /loadImage\(proxied\(/ }],
     // Preview of the file the visitor just picked. A blob: URL, discarded if they cancel.
     "components/story/StoryBuilder.tsx": [{ name: "pendingUpload.url", proof: /URL\.createObjectURL\(file\)/ }],
+    // Server-rendered hint images: same-origin /api/gacha/hint-image or nothing (see gacha-hint-image.test.ts).
+    "components/gacha/play.tsx": [{ name: "safe", proof: /const safe = hintImageSrc\(src\)/ }],
+    // Gacha Guess card markup is an HTML string; the src is proxied() and then HTML-escaped.
+    "components/gacha/card.tsx": [{ name: '"${esc(proxied(src, w))}"', proof: /<img src="\$\{esc\(proxied\(src, w\)\)\}"/ }],
 };
 
 const sinks: { file: string; expr: string }[] = [];

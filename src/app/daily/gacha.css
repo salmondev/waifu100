@@ -1,0 +1,532 @@
+/* Gacha Guess (/daily, T-0016). Ported from the approved v2 prototype (mockups/gacha-guess/src/v2: tokens.css,
+   card.css, game/game.css) with the QA round 8 + 9 fixes. Everything is scoped under .gg so nothing leaks into the
+   rest of the app. Fonts: Mitr + Silkscreen, SIL OFL 1.1, self-hosted in public/fonts/gacha (licence files there). */
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 300; font-display: swap; src: url(/fonts/gacha/mitr-thai-300-normal.woff2) format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 300; font-display: swap; src: url(/fonts/gacha/mitr-latin-300-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 300; font-display: swap; src: url(/fonts/gacha/mitr-latin-ext-300-normal.woff2) format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 400; font-display: swap; src: url(/fonts/gacha/mitr-thai-400-normal.woff2) format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 400; font-display: swap; src: url(/fonts/gacha/mitr-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 400; font-display: swap; src: url(/fonts/gacha/mitr-latin-ext-400-normal.woff2) format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 500; font-display: swap; src: url(/fonts/gacha/mitr-thai-500-normal.woff2) format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 500; font-display: swap; src: url(/fonts/gacha/mitr-latin-500-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 500; font-display: swap; src: url(/fonts/gacha/mitr-latin-ext-500-normal.woff2) format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 600; font-display: swap; src: url(/fonts/gacha/mitr-thai-600-normal.woff2) format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 600; font-display: swap; src: url(/fonts/gacha/mitr-latin-600-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'Mitr'; font-style: normal; font-weight: 600; font-display: swap; src: url(/fonts/gacha/mitr-latin-ext-600-normal.woff2) format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'Silkscreen'; font-style: normal; font-weight: 400; font-display: swap; src: url(/fonts/gacha/silkscreen-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'Silkscreen'; font-style: normal; font-weight: 700; font-display: swap; src: url(/fonts/gacha/silkscreen-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+
+/* v2 tokens: PICO-8 palette (Lexaloffle's fantasy console, 16 colours), a subset with fixed roles. See DESIGN-V2.md. */
+.gg {
+  --ink: #1d2b53;     /* outlines, body text, pack stage */
+  --paper: #fff1e8;   /* window fill */
+  --sky: #29adff;     /* page ground (dominant); Rare tier light */
+  --red: #ff004d;     /* primary action only */
+  --orange: #ffa300;  /* coins */
+  --yellow: #ffec27;  /* SSR only (the "gold") */
+  --green: #00e436;   /* free / correct */
+  --pink: #ff77a8;    /* story colour: [Oshi no Ko] */
+  --wine: #7e2553;    /* its shade */
+  --forest: #008751;  /* story colour shade: Frieren */
+  --grey: #c2c3c7;    /* SR chrome, Rare silver */
+  --slate: #5f574f;   /* chrome shadow */
+  --black: #000000;   /* SSR strip */
+  --pixel: steps(4, end);           /* the one motion curve family: stepped */
+  --snap: cubic-bezier(.2, .9, .1, 1);
+  --th: 'Mitr', system-ui, sans-serif;
+  --bit: 'Silkscreen', 'Mitr', monospace;
+}
+.gg [hidden] { display: none !important; }
+.gg { min-height: 100dvh; background: var(--sky); color: var(--ink); font-family: var(--th); -webkit-font-smoothing: antialiased; }
+.gg .pxi { display: inline-block; width: 1em; height: 1em; vertical-align: -0.1em; }
+/* pixel window: 4 offset shadows give a 1-pixel border with notched corners (Pokemon/SNES dialog box) */
+.win { --b: 3px; background: var(--paper); box-shadow: 0 calc(var(--b) * -1) 0 0 var(--ink), 0 var(--b) 0 0 var(--ink), calc(var(--b) * -1) 0 0 0 var(--ink), var(--b) 0 0 0 var(--ink); }
+@media (prefers-reduced-motion: reduce) { .gg *, .gg *::before, .gg *::after { transition: none !important; animation: none !important; } }
+
+/* v2 card, round 2: metal + enamel + foil. 1em = 1 card unit (card = 63u x 88u). See DESIGN-V2.md section 4. */
+.c2 { --w: 300px; --mx: 0; --my: 0; width: var(--w); font-size: calc(var(--w) / 63); aspect-ratio: 63 / 88; position: relative; flex: none;
+  --m-gold: linear-gradient(125deg, #fff6c8 0%, #e8b443 12%, #fff1ae 24%, #b87a1c 38%, #ffe48a 52%, #c88c24 66%, #fff4c4 80%, #a86a12 92%, #f2cf66 100%);
+  --m-prism: linear-gradient(125deg, #fff4fa 0%, #ff8fbf 9%, #ffd166 19%, #fffbe0 27%, #7fe0a0 37%, #6cc8ff 47%, #eef8ff 55%, #a98bff 65%, #ff9ad0 75%, #ffd166 85%, #7fe0a0 93%, #6cc8ff 100%);
+  --m-silver: linear-gradient(125deg, #ffffff 0%, #b3bbcb 14%, #f6f8fc 28%, #848da1 44%, #eef1f6 60%, #9aa3b5 76%, #ffffff 90%, #bcc3d0 100%);
+  --ivory: linear-gradient(180deg, #fffaf2, #f6e9d6);
+  --metal: var(--m-silver); --o: url(#c2g-silver); --o-dark: rgba(40, 48, 70, .55);
+  --plate: var(--ivory); --plate-ink: var(--ink); --strip-ink: var(--ink);
+  --edge: 0 .6em 0 rgba(29, 43, 83, .35); } /* round 7: hard offset shadow, no blur radius anywhere on card edges */
+.c2-tilt { position: absolute; inset: 0; transform: perspective(80em) rotateY(calc(var(--mx) * 22deg)) rotateX(calc(var(--my) * -22deg)); transition: transform .18s var(--snap); }
+.c2-body { position: absolute; inset: 0; border-radius: 3.2em; overflow: hidden; isolation: isolate; background: var(--frame, var(--ink)); box-shadow: var(--edge); }
+.c2-body > * { position: absolute; }
+.c2-fx { inset: 0; z-index: 0; pointer-events: none; }
+
+/* art window: metal rim (border-box gradient), drop shadow onto the frame, inner shadow on top of the art */
+/* round 7 (TCG layout): art window 13.5-55.5u, then a 2.5u frame gap, then its own text box 58-77.4u. Nothing overlaps the art. */
+.c2-art { z-index: 1; left: 4.5em; right: 4.5em; top: 13.5em; height: 42em; border: .55em solid transparent; border-radius: 1.2em;
+  background: var(--metal) border-box; box-shadow: 0 .35em 0 rgba(0, 0, 0, .3); overflow: hidden; } /* round 9: hard shadow */
+.c2-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; border-radius: .7em;
+  transform: translate(calc(var(--mx) * -3%), calc(var(--my) * -3%)) scale(1.07); transition: transform .18s var(--snap); }
+.c2-art::after { content: ''; position: absolute; inset: 0; border-radius: .7em; z-index: 3; pointer-events: none;
+  box-shadow: inset 0 0 0 .2em rgba(0, 0, 0, .3), inset 0 .5em 0 rgba(0, 0, 0, .18); } /* round 9: hard inner rim, no blurred vignette */
+.c2-holo { position: absolute; inset: 0; z-index: 2; pointer-events: none; display: none; }
+
+/* hand-typed ornament overlay (same 63x88 space as the card) */
+.c2-orn { inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; overflow: visible; filter: drop-shadow(0 .12em 0 rgba(0, 0, 0, .45)); /* round 9: hard */
+  transform: translate(calc(var(--mx) * .5em), calc(var(--my) * .5em)); transition: transform .18s var(--snap); }
+.c2-orn .o-s { fill: none; stroke: var(--o); stroke-width: .42; }
+.c2-orn .o-t { stroke-width: .24; }
+.c2-orn .o-f { fill: var(--o); }
+.c2-orn .o-d { fill: none; stroke: var(--o-dark); stroke-width: .2; }
+.c2-orn .o-gem { fill: var(--gem, var(--story)); stroke: var(--o-dark); stroke-width: .15; }
+
+/* name plate: cartouche (pointed ends), metal rim + engraved enamel/ivory inner plate */
+.c2-name { z-index: 3; top: 3.8em; height: 8.4em; left: 4.5em; right: 4.5em; background: var(--metal); isolation: isolate;
+  --cut: 2.6em; clip-path: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% 50%, calc(100% - var(--cut)) 100%, var(--cut) 100%, 0 50%);
+  display: flex; align-items: center; justify-content: space-between; gap: 1em; padding: 0 3.3em 0 3.6em; color: var(--plate-ink);
+  filter: drop-shadow(0 .2em 0 rgba(0, 0, 0, .35)); transform: translate(calc(var(--mx) * .9em), calc(var(--my) * .9em)); transition: transform .18s var(--snap); }
+.c2-name::before { content: ''; position: absolute; inset: .55em; z-index: -1; background: var(--plate);
+  --c: 2.25em; clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% 50%, calc(100% - var(--c)) 100%, var(--c) 100%, 0 50%); }
+.c2-nm { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.c2-nm > * { min-width: 0; }
+.c2-nm b { font: 600 4.3em/1.05 var(--th); letter-spacing: -.005em; white-space: nowrap; /* round 7: no overflow clip (glyphs were cut); wireCards fits the width */ text-shadow: var(--engrave, 0 .06em 0 rgba(255, 255, 255, .7)); }
+.c2-nm small { font: 400 max(12px, 2.6em)/1.25 var(--th); white-space: nowrap; } /* Thai floor 12px; no opacity (contrast) */
+.c2-stat { display: grid; justify-items: center; line-height: 1; }
+.c2-stat span { font: 400 1.6em/1 var(--bit); letter-spacing: .04em; opacity: .8; }
+.c2-stat b { font: 700 5.6em/.95 var(--bit); text-shadow: var(--engrave, 0 .06em 0 rgba(255, 255, 255, .7)); }
+
+/* rarity crest: a small medallion set into the top rim of the text box, below the art window (round 7) */
+.c2-crest { z-index: 4; left: 50%; top: 55.6em; width: 10em; height: 5.6em; margin-left: -5em; overflow: visible;
+  filter: drop-shadow(0 .25em 0 rgba(0, 0, 0, .4)); transform: translate(calc(var(--mx) * 1.3em), calc(var(--my) * 1.3em)); transition: transform .18s var(--snap); }
+.c2-crest .m { fill: var(--o); stroke: var(--o-dark); stroke-width: .25; }
+
+.c2-info { z-index: 3; top: 58em; left: 4.5em; right: 4.5em; height: 19.4em; border: .55em solid transparent; border-radius: 1.2em;
+  background: var(--ivory) padding-box, var(--metal) border-box; box-shadow: 0 .3em 0 rgba(0, 0, 0, .22), inset 0 0 0 .3em var(--box-line, var(--story));
+  padding: 3em 2.4em 1em; display: grid; align-content: center; justify-items: center; text-align: center; gap: .4em; color: var(--ink); }
+.c2-role { margin: 0; font: 500 max(12px, 2.7em)/1.2 var(--th); }
+.c2-quote { margin: 0; font: 400 max(12px, 2.5em)/1.3 var(--th); text-wrap: balance; }
+.c2-strip { z-index: 3; left: 9em; right: 9em; top: 78.4em; height: 5.4em; display: flex; align-items: center; justify-content: space-between; color: var(--strip-ink); }
+.c2-strip > span { font: 400 2.05em/1 var(--bit); display: inline-flex; align-items: center; white-space: nowrap; }
+.c2-sym { width: 1.25em; height: .95em; margin-right: .4em; }
+.c2-mark { font-weight: 700 !important; letter-spacing: .08em; }
+.c2-glare { inset: 0; z-index: 8; pointer-events: none; mix-blend-mode: overlay; display: none;
+  background: radial-gradient(farthest-corner circle at var(--lx, 26%) var(--ly, 14%), rgba(255, 255, 255, .6), rgba(255, 255, 255, .12) 30%, rgba(0, 0, 0, .14) 85%); }
+.c2-glare::after { content: ''; position: absolute; inset: 0; mix-blend-mode: screen; opacity: .7;
+  background: radial-gradient(circle at var(--lx, 26%) var(--ly, 14%), rgba(255, 250, 235, .55), rgba(255, 250, 235, 0) 26%); }
+.c2.lit .c2-glare { display: block; } /* round 7: the light only exists under a real pointer */
+.c2[data-tier="ssr"] .c2-glare::after { display: none; }
+
+/* ---------- COMMON: satin enamel in the story colour, silver trim, ivory plate ---------- */
+.c2[data-tier="common"] { --frame: linear-gradient(165deg, var(--hi) 0%, var(--story) 26%, var(--story) 62%, var(--shade) 100%); }
+.c2.lit[data-tier="common"] .c2-fx { background: linear-gradient(115deg, transparent calc(var(--lx, 26%) - 22%), rgba(255, 255, 255, .32) var(--lx, 26%), transparent calc(var(--lx, 26%) + 22%)); }
+
+/* text box per tier (round 7): opaque ivory panel in its own frame. Common = silver rim + enamel (story colour) inner line,
+   Rare = silver rim + engraved steel line, SR = gold rim + warm ivory + gold line. */
+.c2[data-tier="sr"] .c2-info { background: linear-gradient(180deg, #fffaea, #f8ebc8) padding-box, var(--m-gold) border-box; --box-line: #b87a1c; }
+
+/* ---------- RARE: engraved silver (guilloche rings) + rainbow pattern foil in a lattice, enamel plate ---------- */
+.c2[data-tier="rare"] { --box-line: #8b93a8; --frame: repeating-radial-gradient(circle at 50% 38%, rgba(40, 50, 75, 0) 0 .5em, rgba(40, 50, 75, .2) .5em .62em), var(--m-silver);
+  --plate: linear-gradient(180deg, var(--deep), var(--shade)); --plate-ink: #fff1e8; --engrave: 0 -.06em 0 rgba(0, 0, 0, .6); --gem: url(#c2g-sky); }
+.c2[data-tier="rare"] .c2-fx { -webkit-mask: radial-gradient(farthest-corner circle at var(--lx, 26%) var(--ly, 14%), #000 0%, rgba(0, 0, 0, .55) 35%, rgba(0, 0, 0, .12) 75%); }
+.c2[data-tier="rare"] .c2-fx::before { content: ''; position: absolute; inset: 0; opacity: .8;
+  background: repeating-linear-gradient(115deg, #ff004d 0 4%, #ffa300 4% 8%, #ffec27 8% 12%, #00e436 12% 16%, #29adff 16% 20%, #ff77a8 20% 24%);
+  background-size: 260% 260%; background-position: calc(var(--lx, 26%) * 1.6) calc(var(--ly, 14%) * 1.2);
+  -webkit-mask: repeating-linear-gradient(60deg, #000 0 .16em, transparent .16em 1.6em), repeating-linear-gradient(-60deg, #000 0 .16em, transparent .16em 1.6em); }
+
+/* ---------- SR: ornate gold, holo art, gold edge light ---------- */
+.c2[data-tier="sr"] { --metal: var(--m-gold); --o: url(#c2g-gold); --o-dark: rgba(90, 45, 0, .55);
+  --frame: repeating-linear-gradient(45deg, rgba(110, 60, 0, .16) 0 .12em, transparent .12em .7em), var(--m-gold);
+  --plate: linear-gradient(180deg, #111a36, #1d2b53); --plate-ink: #fff1e8; --engrave: 0 -.06em 0 rgba(0, 0, 0, .6); --strip-ink: #3a2203; --gem: url(#c2g-ruby);
+  --edge: 0 0 0 .22em #ffe9a0, 0 0 0 .6em #b87a1c, 0 .9em 0 .6em rgba(29, 43, 83, .35); } /* round 7: hard gold rings, no glow */
+.c2[data-tier="sr"] .c2-fx { background: var(--c2-glitter) 0 0 / 16em 16em, linear-gradient(115deg, transparent calc(var(--lx, 26%) - 18%), rgba(255, 255, 255, .55) var(--lx, 26%), transparent calc(var(--lx, 26%) + 18%));
+  mix-blend-mode: soft-light; -webkit-mask: radial-gradient(farthest-corner circle at var(--lx, 26%) var(--ly, 14%), #000, rgba(0, 0, 0, .3) 70%); }
+.c2[data-tier="sr"] .c2-holo, .c2-mini[data-tier="sr"] .c2-holo { display: block; mix-blend-mode: overlay; opacity: .8;
+  background: var(--c2-glitter) 0 0 / 14em 14em,
+    repeating-linear-gradient(115deg, #ff004d 0%, #ffa300 6%, #ffec27 12%, #00e436 18%, #29adff 24%, #ff77a8 30%, #ff004d 36%);
+  background-size: 14em 14em, 300% 300%; background-position: 0 0, calc(var(--lx, 26%) * 1.8) calc(var(--ly, 14%) * 1.4);
+  /* round 9: fine hard lines only OUTSIDE the character's face box (FACE2 in data.js, mapped per card by card.js faceBox).
+     Layers bottom-up: full, minus the face rectangle (exclude), then intersect with the line pattern. */
+  mask: repeating-linear-gradient(115deg, #000 0 .35em, transparent .35em 1.1em),
+    linear-gradient(#000 0 0) var(--fx, 50%) var(--fy, 50%) / var(--fw, 80%) var(--fh, 70%) no-repeat, linear-gradient(#000 0 0);
+  mask-composite: intersect, exclude, add; }
+
+/* ---------- SSR: borderless full art, ornate gold overlay, rainbow foil + glitter (WebGL), strongest edge light ---------- */
+.c2[data-tier="ssr"] { --metal: var(--m-prism); --o: url(#c2g-prism); --o-dark: rgba(60, 30, 90, .45); --gem: url(#c2g-prism-gem);
+  --plate: linear-gradient(180deg, #0c1430, #1d2b53); --plate-ink: #fff1e8; --engrave: 0 -.06em 0 rgba(0, 0, 0, .7); --strip-ink: #fff1e8;
+  --edge: 0 0 0 .22em #fff1e8, 0 0 0 .5em #ff004d, 0 0 0 .78em #ffa300, 0 0 0 1.06em #29adff, 0 1.5em 0 1.06em rgba(29, 43, 83, .35); } /* round 7: hard rainbow rings, no glow */
+/* Rainbow foil frame band (round 7): flat PICO-8 bands with hard stops, masked to the 3.6u border (xor of two boxes).
+   No radial light spot, no smooth ramp, no blur. Tilt slides the bands; hue does not drift. Glitter = round dots. */
+.c2[data-tier="ssr"] .c2-fx { z-index: 2; padding: 3.6em; border-radius: 3.2em;
+  background: var(--c2-glitter) 0 0 / 10em 10em,
+    repeating-linear-gradient(125deg, #ff004d 0 2.2em, #ffa300 2.2em 4.4em, #ffec27 4.4em 6.6em, #00e436 6.6em 8.8em, #29adff 8.8em 11em, #ff77a8 11em 13.2em)
+    calc(var(--mx) * 20em) calc(var(--my) * 14em) / auto;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  box-shadow: inset 0 0 0 .35em #fff1e8; }
+.c2[data-tier="ssr"] .c2-orn { filter: drop-shadow(0 .12em 0 rgba(30, 20, 60, .55)) hue-rotate(calc(var(--mx) * 140deg + var(--my) * 60deg)); } /* round 9: hard */
+.c2[data-tier="ssr"] .c2-name { left: 5em; right: 5em; top: 5em; filter: drop-shadow(0 .2em 0 rgba(0, 0, 0, .35)) hue-rotate(calc(var(--mx) * 140deg)); }
+.c2[data-tier="ssr"] .c2-name b { color: #fff1e8; }
+.c2[data-tier="ssr"] .c2-art { inset: 0; height: auto; border: 0; border-radius: 0; box-shadow: none; background: var(--ink); }
+.c2[data-tier="ssr"] .c2-art img, .c2[data-tier="ssr"] .c2-art::after { border-radius: 0; }
+.c2[data-tier="ssr"] .c2-art::after { box-shadow: none; }
+.c2[data-tier="ssr"] .c2-art img { transform: translate(calc(var(--mx) * -2%), calc(var(--my) * -2%)) scale(1.02); } /* round 7: less upscaling of the 230px source */
+.c2-foil { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+.c2[data-tier="ssr"] .c2-stat { color: #fff1e8; }
+/* round 9: the SSR crest is a small flat lozenge set into the top rim of the text plate. Its top edge is the plate's outer
+   ring (61.1u), so it never reaches above the plate onto the face; it does not move with tilt and has no shadow. */
+.c2[data-tier="ssr"] .c2-crest { width: 8em; height: 4.5em; margin-left: -4em; top: 60.95em; filter: none; transform: none; }
+/* SSR stays full art: the text sits on a hard-edged translucent ink plate (no blur, no glass), below the face */
+.c2[data-tier="ssr"] .c2-info { top: 61.4em; left: 6.5em; right: 6.5em; height: 15.8em; border: .3em solid #fff1e8; border-radius: .6em;
+  background: rgba(12, 20, 48, .86); box-shadow: 0 0 0 .3em #1d2b53; color: #fff1e8; padding: 4em 2em .9em; } /* round 9: top padding clears the crest */
+.c2[data-tier="ssr"] .c2-strip { left: 6.5em; right: 6.5em; top: 78em; height: 5.6em; padding: 0 2.4em; border-radius: 2.8em;
+  background: linear-gradient(#0c1430, #1d2b53) padding-box, var(--m-prism) border-box; border: .35em solid transparent; }
+.c2[data-tier="ssr"] .c2-mark { color: #ffd166; }
+
+/* ---------- mini (album): fixed px text so it stays legible at 3-up on a phone ---------- */
+.c2-mini .c2-body { border-radius: 3.6em; }
+.c2-mini .c2-art { left: 3.4em; right: 3.4em; top: 3.4em; bottom: 3.4em; height: auto; border-width: .7em; border-radius: 1.8em; }
+.c2-mini .c2-art img { transform: none; }
+.c2-mini[data-tier="ssr"] .c2-art { inset: 0; border: 0; border-radius: 0; }
+/* round 7: no crest on minis (it collided with the corners and the name band); the tier label in the band says it */
+.c2-mini .c2-mname { z-index: 5; left: 3.4em; right: 3.4em; bottom: 3.4em; padding: 5px 6px 6px; border-radius: 0 0 1.8em 1.8em;
+  background: rgba(17, 26, 54, .9); color: #fff1e8; display: grid; gap: 2px; }
+.c2-mini[data-tier="ssr"] .c2-mname { left: 2.6em; right: 2.6em; bottom: 2.6em; border-radius: 1.4em; border: 1px solid #f2cf66; }
+.c2-mini .c2-mname b { font: 500 13px/1.3 var(--th); text-wrap: balance; } /* wraps to 2 lines instead of shrinking below 12px */
+.c2-mini .c2-mname span { display: flex; justify-content: space-between; font: 700 10px/1 var(--bit); letter-spacing: .06em; color: #c9cfdb; }
+.c2-mini .c2-mname em { font-style: normal; font-weight: 400; }
+.c2-mini[data-tier="sr"] .c2-mname span, .c2-mini[data-tier="ssr"] .c2-mname span { color: #ffe48a; }
+/* round 7: no colour-dodge on minis. SSR minis rely on the frame-band foil only; SR minis keep a light overlay holo
+   with the face masked (rule above), at lower strength. */
+.c2-mini[data-tier="sr"] .c2-holo { opacity: .45; }
+
+/* ---------- card back ---------- */
+.c2-back { --metal: var(--m-gold); --o: url(#c2g-gold); --o-dark: rgba(90, 45, 0, .6);
+  --frame: repeating-radial-gradient(circle at 50% 45.5%, rgba(255, 220, 140, 0) 0 .7em, rgba(255, 220, 140, .09) .7em .85em), #1d2b53; /* round 7: flat navy, no smooth ramp */
+  --edge: 0 0 0 .22em #f2cf66, 0 0 0 .55em #1d2b53, 0 .9em 0 .55em rgba(29, 43, 83, .35); --gem: url(#c2g-ruby); }
+/* round 7: the back has no sheen / light spot */
+.c2-bq { z-index: 3; left: 0; right: 0; top: 45.45%; transform: translateY(-52%); text-align: center; font: 600 10em/1 var(--th); color: #ffe48a; text-shadow: 0 .03em 0 #8a5a12; }
+.c2-btitle { z-index: 3; left: 0; right: 0; top: 71.5em; display: grid; justify-items: center; gap: .6em; color: #ffe48a; }
+.c2-btitle b { font: 700 max(8px, 3.4em)/1 var(--bit); letter-spacing: .12em; } /* round 9: never below 8px; the DAILY CARD line is gone */
+.c2-bno { z-index: 3; left: 0; right: 0; top: 89.5%; text-align: center; font: 400 2em/1 var(--bit); font-style: normal; color: #c9cfdb; }
+.c2-mini.c2-back .c2-bno { top: auto; bottom: 13%; font-size: 12px; color: #ffe48a; }
+
+/* ---------- STORY card (game prototype): story enamel, gold trim, key visual, cast thumbnails ---------- */
+.c2[data-tier="story"] { --box-line: #b87a1c; --metal: var(--m-gold); --o: url(#c2g-gold); --o-dark: rgba(90, 45, 0, .55); --gem: url(#c2g-ruby);
+  --frame: repeating-linear-gradient(45deg, rgba(0, 0, 0, .1) 0 .12em, transparent .12em .7em), linear-gradient(165deg, var(--hi) 0%, var(--story) 24%, var(--shade) 70%, var(--deep) 100%);
+  --plate: linear-gradient(180deg, #111a36, #1d2b53); --plate-ink: #fff1e8; --engrave: 0 -.06em 0 rgba(0, 0, 0, .6); --strip-ink: #fff1e8;
+  --edge: 0 0 0 .22em #f2cf66, 0 0 0 .6em #b87a1c, 0 .9em 0 .6em rgba(29, 43, 83, .35); }
+
+.c2[data-tier="story"] .c2-mark { color: #ffe48a; }
+.c2-cast { --n: 8; display: flex; justify-content: center; gap: .7em; } /* round 7: every slot of the story, owned faces + empty rings */
+.c2-cast img, .c2-cast i { width: min(5em, calc((44em - (var(--n) - 1) * .7em) / var(--n))); height: auto; aspect-ratio: 1; flex: none; border-radius: 50%; object-fit: cover; border: .4em solid transparent; background: var(--m-gold) border-box; }
+.c2-cast i { background: none; border: .3em dashed #8a5a12; }
+.c2[data-tier="story"] .c2-info { padding-top: 3.4em; }
+.c2[data-tier="story"] .c2-quote { font-size: max(12px, 2.2em); }
+
+/* v2 game prototype screens: play, pack, album. Tokens, windows and cards come from tokens.css / card.css / page.css. */
+.gg { --px: 0 -3px 0 0 var(--ink), 0 3px 0 0 var(--ink), -3px 0 0 0 var(--ink), 3px 0 0 0 var(--ink); }
+.gg a { color: inherit; }
+.gg button { font: inherit; color: inherit; }
+.gg .pxi.coin { width: 16px; height: 16px; }
+
+/* ---- shared chrome ---- */
+.g-top { max-width: 460px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 10px; }
+.g-logo { display: inline-flex; text-decoration: none; font: 700 17px/1 var(--bit); letter-spacing: .02em; box-shadow: var(--px); }
+.g-logo span { padding: 6px 7px 5px; }
+.g-logo-a { background: var(--paper); color: var(--ink); }
+.g-logo-b { background: var(--ink); color: var(--paper); }
+.g-stats { display: flex; gap: 12px; }
+.g-stat { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; }
+.g-stat b { font: 700 15px/1 var(--bit); }
+.g-stat small { font: 400 12px/1 var(--th); }
+.g-streak .pxi { width: 14px; height: 14px; color: var(--orange); }
+.g-foot { max-width: 460px; margin: 0 auto; padding: 4px 16px 28px; font: 400 12px/1.5 var(--th); color: var(--ink); } /* round 7: 12px, no opacity (AA on sky) */
+.g-preset { margin: 0; justify-self: center; font: 400 12px/1 var(--th); background: var(--ink); color: var(--paper); padding: 5px 9px; }
+.g-preset.dark { position: absolute; z-index: 5; top: 94px; left: 50%; transform: translateX(-50%); background: var(--paper); color: var(--ink); }
+
+.g-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 15px/1 var(--th); color: var(--ink); background: var(--paper);
+  border: 0; padding: 12px 16px 13px; cursor: pointer; text-decoration: none; box-shadow: var(--px), inset 0 -4px 0 0 var(--grey); white-space: nowrap; }
+.g-btn .pxi { width: 14px; height: 14px; }
+.g-btn.red { color: var(--paper); background: var(--red-act, #d6003f); /* round 7: darker red for AA, 4.8:1 with paper text */ box-shadow: var(--px), inset 0 -4px 0 0 var(--wine); }
+.g-btn.big { font-size: 18px; padding: 15px 38px 16px; }
+.g-btn.sm { font-size: 13px; padding: 8px 10px 9px; }
+.g-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: var(--px); }
+.g-btn:disabled { cursor: default; opacity: .5; }
+.g-btn:focus-visible, .g-tab:focus-visible, .g-ctl button:focus-visible { outline: 3px solid var(--ink); outline-offset: 5px; }
+.g-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+.g-chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 5px 2px; font: 700 11px/1 var(--bit); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); white-space: nowrap; }
+.g-chip .tm { width: 9px; height: 9px; }
+/* round 7: chips use the card materials. Rare = silver, SR = gold, SSR = hard-stop rainbow foil border around a paper
+   label (ink text, never gradient text). Flat fills, no smooth ramps. */
+.g-chip.t-common { background: var(--paper); }
+.g-chip.t-rare { background: #c2c3c7; }
+.g-chip.t-sr { background: #e8b443; }
+.g-chip.t-ssr { /* paper fill inside, hard-stop PICO rainbow foil in the 3px border; text stays solid ink */
+  background: linear-gradient(var(--paper), var(--paper)) padding-box,
+  repeating-linear-gradient(90deg, #ff004d 0 4px, #ffa300 4px 8px, #ffec27 8px 12px, #00e436 12px 16px, #29adff 16px 20px, #ff77a8 20px 24px) border-box;
+  border: 3px solid transparent; padding: 1px 3px 0; }
+.g-tag { display: inline-block; font: 600 13px/1 var(--th); padding: 5px 8px 4px; color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
+.g-tag.new { background: var(--green); }
+.g-tag.up { background: var(--sky); }
+.g-tag.same { background: var(--grey); }
+.g-plus { font: 700 13px/1 var(--bit); background: var(--orange); color: var(--ink); padding: 4px 6px 3px; box-shadow: 0 0 0 2px var(--ink); }
+.g-h3 { margin: 0 0 6px; font: 600 15px/1.3 var(--th); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.g-h3 small { font: 300 12px/1.3 var(--th); }
+
+/* ---- play ---- */
+.g-play { max-width: 460px; margin: 0 auto; padding: 6px 16px 18px; display: grid; gap: 18px; }
+.g-today { padding: 10px 12px 12px; }
+.g-dayline { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 2px dotted rgba(29, 43, 83, .35); }
+.g-dayline h1 { margin: 0; font: 700 30px/1 var(--bit); }
+.g-dayline h1 span { color: var(--story); }
+.g-dayline p { margin: 0; text-align: right; display: grid; font: 400 12px/1.4 var(--th); }
+.g-dayline p span + span { font-weight: 300; }
+.g-story { display: flex; gap: 12px; align-items: center; }
+.g-story > img { width: 58px; height: 58px; object-fit: cover; box-shadow: 0 0 0 3px var(--ink); flex: none; }
+.g-story small { font: 400 12px/1.2 var(--th); }
+.g-story h2 { margin: 2px 0 0; font: 600 18px/1.15 var(--th); }
+.g-story p { margin: 0; font: 300 13px/1.3 var(--th); }
+.g-story .g-n { font-size: 12px; } .g-story .g-n b { font: 700 12px/1 var(--bit); }
+
+.g-board { display: grid; grid-template-columns: 128px 1fr; gap: 16px; align-items: start; }
+.g-myst { margin: 0; display: grid; gap: 10px; justify-items: center; }
+.g-myst .c2 { --w: 128px; }
+.g-frame { width: 128px; aspect-ratio: 63 / 88; background: var(--ink); box-shadow: var(--px); overflow: hidden; position: relative; }
+.g-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Hint images arrive already blurred / stencilled from /api/gacha/hint-image. */
+.g-frame.blur img { transform: scale(1.1); }
+.g-frame.sil { background: var(--paper); }
+.g-frame.sil img { object-position: 50% 20%; image-rendering: pixelated; }
+.g-myst figcaption { font: 400 12px/1 var(--th); padding: 5px 8px; }
+.g-side { padding: 10px 10px 12px; }
+.g-track-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+.g-track-h b { font: 700 12px/1 var(--bit); }
+.g-track-h span { font: 400 12px/1 var(--th); } .g-track-h em { font: 700 13px/1 var(--bit); font-style: normal; }
+.g-track { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.g-track li { aspect-ratio: 1; position: relative; background: rgba(29, 43, 83, .07); box-shadow: inset 0 0 0 2px rgba(29, 43, 83, .3); display: grid; place-items: center; }
+.g-track li em { font: 400 10px/1 var(--bit); font-style: normal; opacity: .55; }
+.g-track li.now { background: var(--ink); box-shadow: none; } .g-track li.now em { color: var(--paper); opacity: 1; }
+.g-track li img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; box-shadow: inset 0 0 0 2px var(--ink); }
+.g-track li.miss img { filter: grayscale(1) contrast(.8); opacity: .65; }
+.g-track li > span { position: absolute; right: 0; bottom: 0; width: 13px; height: 13px; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--ink); }
+.g-track li > span .pxi { width: 9px; height: 9px; }
+.g-track li.hit { box-shadow: 0 0 0 2px var(--ink); } .g-track li.hit > span { background: var(--green); color: var(--ink); }
+.g-track li.miss > span { background: var(--paper); color: var(--ink); }
+.g-track li.hit em, .g-track li.miss em { opacity: .8; }
+.g-stake-h { margin: 12px 0 6px; font: 400 12px/1 var(--th); }
+.g-ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.g-ladder li { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 4px 6px; box-shadow: inset 0 0 0 2px rgba(29, 43, 83, .18); } /* round 7: no opacity; unlit rows are outlined, the live row is filled */
+.g-ladder li small { font: 400 12px/1 var(--bit); }
+.g-ladder li.on { background: var(--ink); color: var(--paper); box-shadow: none; }
+.g-ladder li.on .g-chip { box-shadow: 0 0 0 2px var(--paper); }
+
+.g-guess { position: relative; }
+.g-guessrow { display: grid; grid-template-columns: 1fr auto; gap: 14px; }
+.g-guessrow input { border: 0; font: 400 16px/1 var(--th); color: var(--ink); padding: 0 12px; height: 48px; min-width: 0; outline: none; border-radius: 0; }
+.g-guessrow input:focus { box-shadow: 0 -3px 0 0 var(--ink), 0 3px 0 0 var(--ink), -3px 0 0 0 var(--ink), 3px 0 0 0 var(--ink), inset 0 -3px 0 0 var(--sky); }
+.g-guessrow input[aria-invalid] { box-shadow: var(--px), inset 0 -3px 0 0 var(--wine); }
+.g-guessrow .g-btn { height: 48px; min-width: 76px; font-size: 16px; }
+.g-ac { position: absolute; z-index: 6; left: 0; right: 0; top: 60px; list-style: none; margin: 0; padding: 4px 0; max-height: 264px; overflow: auto; }
+.g-ac li { display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; cursor: pointer; font: 400 15px/1.2 var(--th); }
+.g-ac li span { font-weight: 300; font-size: 13px; opacity: .8; }
+.g-ac li.on { background: var(--ink); color: var(--paper); }
+.g-ac mark { background: none; color: inherit; text-decoration: underline 2px; text-underline-offset: 3px; }
+.g-err { margin: 10px 0 0; font: 400 13px/1.3 var(--th); color: var(--wine); }
+.g-rules { margin: 12px 0 0; font: 300 13px/1.4 var(--th); }
+.shake { animation: gshake .24s steps(4, end); }
+@keyframes gshake { 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }
+
+.g-hints, .g-shop { padding: 12px 12px 6px; }
+.g-hint { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-top: 2px dotted rgba(29, 43, 83, .25); }
+.g-hi { flex: none; width: 30px; height: 30px; display: grid; place-items: center; background: var(--ink); color: var(--paper); }
+.g-hi .pxi { width: 18px; height: 18px; }
+.g-hint:not(.open) .g-hi { background: var(--grey); color: var(--slate); }
+/* A hint kind this character has no data for: hollow icon, struck label, no number. */
+.g-hint.missing .g-hi { background: transparent; color: var(--slate); box-shadow: inset 0 0 0 2px var(--grey); }
+.g-hint.missing .g-hb small { color: var(--slate); }
+.g-hint.missing .g-hb small b { background: var(--grey); color: var(--slate); }
+.g-hint.missing .g-hb small em { background: transparent; box-shadow: inset 0 0 0 1px var(--grey); }
+.g-hb { display: grid; gap: 4px; min-width: 0; font: 400 14px/1.35 var(--th); }
+.g-hb small { display: flex; gap: 6px; align-items: center; font: 300 12px/1 var(--th); }
+.g-hb small b { font: 700 10px/1 var(--bit); background: var(--ink); color: var(--paper); padding: 2px 4px 1px; }
+.g-hb small em { font-style: normal; font-weight: 400; background: var(--orange); padding: 2px 5px; }
+.g-hb > b { font-weight: 600; }
+.g-hb q { font-weight: 400; }
+.g-dim { font-weight: 300; font-size: 13px; }
+.g-lock { display: inline-flex; gap: 6px; align-items: center; font: 300 13px/1.2 var(--th); color: var(--slate); }
+.g-lock .pxi { width: 11px; height: 11px; }
+.g-hair { display: inline-flex; gap: 8px; align-items: center; } .g-hair i { width: 16px; height: 16px; box-shadow: 0 0 0 2px var(--ink); }
+.g-pic { display: block; width: 64px; height: 64px; overflow: hidden; background: var(--paper); box-shadow: 0 0 0 2px var(--ink); }
+.g-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.g-pic.sil img { object-position: 50% 20%; image-rendering: pixelated; }
+.g-pic.blur img { transform: scale(1.1); }
+.g-hint .g-hb:has(.g-pic) { grid-template-columns: auto 1fr; align-items: end; column-gap: 10px; }
+.g-hint .g-hb:has(.g-pic) small { grid-column: 1 / -1; }
+.g-shop h3 { justify-content: space-between; }
+.g-free { display: inline-flex; align-items: center; gap: 5px; font: 400 12px/1 var(--th); background: var(--green); padding: 4px 6px; box-shadow: 0 0 0 2px var(--ink); }
+.g-free .pxi { width: 12px; height: 12px; }
+.g-shoprow { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 2px dotted rgba(29, 43, 83, .25); }
+.g-nm { flex: 1; display: grid; font: 400 14px/1.3 var(--th); } .g-nm small { font: 300 12px/1.3 var(--th); }
+.g-shoprow .g-btn { min-width: 74px; }
+.g-shoprow .g-btn b { font: 700 13px/1 var(--bit); }
+.g-ctl { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; padding-top: 2px; }
+.g-ctl span { font: 700 12px/1 var(--bit); letter-spacing: .04em; }
+.g-ctl button { border: 0; background: var(--paper); font: 400 13px/1 var(--th); padding: 7px 10px; box-shadow: 0 0 0 2px var(--ink); cursor: pointer; }
+
+.g-result { padding: 16px 14px 16px; display: grid; gap: 10px; justify-items: center; text-align: center; }
+.g-result p { margin: 0; }
+.g-stamp { font: 600 15px/1 var(--th); background: var(--green); color: var(--ink); padding: 7px 12px 6px; box-shadow: 0 0 0 2px var(--ink); }
+.g-stamp.ink { background: var(--ink); color: var(--paper); }
+.g-lead { font: 600 22px/1.2 var(--th); }
+.g-sub { font: 400 14px/1.4 var(--th); display: flex; align-items: center; gap: 8px; } .g-sub b { font: 700 15px/1 var(--bit); }
+.g-rew { list-style: none; margin: 2px 0 4px; padding: 0; width: 100%; max-width: 300px; display: grid; }
+.g-rew li { display: flex; justify-content: space-between; align-items: center; padding: 8px 2px; border-top: 2px dotted rgba(29, 43, 83, .25); font: 400 14px/1 var(--th); }
+.g-rew li span { display: inline-flex; gap: 8px; align-items: center; } .g-rew .pxi { width: 14px; height: 14px; }
+.g-note { font: 300 12px/1.45 var(--th); max-width: 320px; }
+.g-result .g-btn.red { min-width: 200px; }
+
+/* ---- pack ---- */
+.g-pack { position: fixed; inset: 0; background: var(--ink); overflow: hidden; }
+.g-stage { position: absolute; inset: 0; }
+.g-stage canvas { position: absolute; inset: 0; display: block; image-rendering: pixelated; cursor: pointer; }
+.g-ptop { position: absolute; z-index: 2; left: 16px; right: 16px; top: 16px; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; }
+.g-ptop b { display: block; font: 600 16px/1.2 var(--th); } .g-ptop b i { font: 700 14px/1 var(--bit); font-style: normal; }
+.g-ptop span { font: 300 13px/1.3 var(--th); }
+.g-coinbox { display: inline-flex; align-items: center; gap: 6px; } .g-coinbox b { font: 700 14px/1 var(--bit); }
+.g-pfoot { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 22px; max-width: 420px; margin: 0 auto; display: grid; justify-items: center; gap: 14px; }
+.g-recap { width: 100%; padding: 10px 12px 12px; display: grid; gap: 10px; }
+.g-recap-h { display: flex; justify-content: space-between; align-items: baseline; font: 600 14px/1 var(--th); }
+.g-recap-h em { font: 700 15px/1 var(--bit); font-style: normal; } .g-recap-h span { font: 300 12px/1 var(--th); }
+.g-track.sm { gap: 8px; } .g-track.sm li { max-height: 40px; aspect-ratio: auto; height: 40px; }
+.g-ladder.row { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.g-ladder.row li { flex-direction: column; gap: 5px; padding: 6px 2px 5px; }
+.g-earn { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; font: 400 13px/1 var(--th); padding-top: 9px; border-top: 2px dotted rgba(29, 43, 83, .25); }
+.g-earn > span { display: inline-flex; gap: 6px; align-items: center; } .g-earn .pxi { width: 14px; height: 14px; }
+.g-sep { width: 2px; height: 14px; background: rgba(29, 43, 83, .3); }
+.g-tap { margin: 0; font: 400 13px/1 var(--th); color: var(--ink); }
+.g-reveal { position: absolute; inset: 0; z-index: 3; overflow: auto; display: grid; align-content: center; justify-items: center; gap: 18px; padding: 24px 16px; }
+.g-reveal .c2 { --w: min(calc(100vw - 90px), 280px, calc((100vh - 300px) * 63 / 88)); animation: v2in .32s steps(4, end) both; }
+.g-got { width: min(100%, 330px); padding: 10px 12px; display: grid; gap: 8px; }
+.g-got p { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 400 13px/1.35 var(--th); }
+.g-got-b b { margin-left: auto; font: 700 13px/1 var(--bit); }
+.g-unlock { padding-top: 8px; border-top: 2px dotted rgba(29, 43, 83, .25); font-weight: 600 !important; }
+.g-unlock .pxi { width: 16px; height: 16px; flex: none; }
+.g-scan { position: absolute; inset: 0; z-index: 1; /* round 7: under the top bar, buttons and the revealed card */ pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, .1) 2px 3px); }
+.g-empty { display: grid; place-items: center; padding: 20px; }
+.g-emptywin { padding: 18px; display: grid; gap: 14px; justify-items: center; text-align: center; max-width: 320px; } .g-emptywin p { margin: 0; font: 400 15px/1.4 var(--th); }
+
+/* ---- album ---- */
+.g-album { max-width: 460px; margin: 0 auto; padding: 6px 16px 18px; display: grid; gap: 18px; }
+.g-ahead { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; }
+.g-ahead h1 { margin: 0; font: 600 22px/1.1 var(--th); }
+.g-ahead p { margin: 2px 0 0; font: 300 13px/1.3 var(--th); } .g-ahead p b { font: 700 13px/1 var(--bit); }
+.g-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.g-tab { display: flex; align-items: center; gap: 7px; padding: 9px 10px; text-decoration: none; background: var(--paper); box-shadow: var(--px); font: 400 14px/1.45 var(--th); min-width: 0; }
+.g-tab span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-tab b { font: 700 11px/1 var(--bit); }
+.g-tab .sym { width: 14px; height: 14px; flex: none; }
+.g-tab.on { background: var(--ink); color: var(--paper); }
+.g-binder { padding: 0 12px 14px; box-shadow: 0 -3px 0 0 var(--ink), 0 3px 0 0 var(--ink), -3px 0 0 0 var(--ink), 3px 0 0 0 var(--ink), inset 0 8px 0 0 var(--story); padding-top: 8px; }
+.g-blabel { display: flex; align-items: baseline; gap: 8px; padding: 10px 0 8px; border-bottom: 2px dotted rgba(29, 43, 83, .3); }
+.g-blabel b { font: 600 16px/1.2 var(--th); } .g-blabel span { font: 700 11px/1 var(--bit); opacity: .7; } .g-blabel em { margin-left: auto; font: 700 14px/1 var(--bit); font-style: normal; }
+.g-slot { position: relative; display: grid; justify-items: center; padding: 14px 0; }
+.g-fresh { position: absolute; z-index: 3; top: 6px; right: 8px; pointer-events: none; }
+.g-storytap { cursor: pointer; }
+.g-storytap:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.g-locked { width: 100%; display: flex; gap: 12px; align-items: center; padding: 12px; background: rgba(29, 43, 83, .06); box-shadow: inset 0 0 0 2px rgba(29, 43, 83, .25); }
+.g-locked > .pxi { width: 24px; height: 24px; flex: none; color: var(--slate); }
+.g-locked b { display: block; font: 600 14px/1.3 var(--th); } .g-locked span { display: block; font: 300 12px/1.4 var(--th); }
+.g-meter { display: flex; gap: 9px; margin-top: 7px; } .g-meter i { width: 26px; height: 10px; box-shadow: 0 0 0 2px var(--ink); background: var(--paper); } .g-meter i.on { background: var(--story); }
+.g-pockets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; }
+.g-pocket { min-width: 0; display: grid; justify-items: center; }
+.g-pocket .c2 { --w: 100px; }
+.g-earn small { font: 300 12px/1 var(--th); }
+
+/* ---- round 7: desktop. The column widens and every card scales up (myst, reveal, album pockets, story card). ---- */
+@media (min-width: 900px) {
+  .g-top, .g-foot, .g-play { max-width: 760px; }
+  .g-album { max-width: 820px; }
+  .g-board { grid-template-columns: 200px 1fr; gap: 24px; }
+  .g-myst .c2, .g-frame { --w: 200px; width: 200px; }
+  .g-reveal .c2 { --w: min(380px, calc((100vh - 290px) * 63 / 88)); }
+  .g-pockets { grid-template-columns: repeat(4, 1fr); gap: 18px 16px; }
+  .g-pocket .c2 { --w: 168px; }
+  /* round 9: the story card is a 2x2 cell of the same binder grid (left), the 8 pockets fill the rest */
+  .g-binder { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 16px; align-items: start; }
+  .g-blabel { grid-column: 1 / -1; }
+  .g-slot { grid-column: 1 / span 2; grid-row: 2 / span 2; padding: 0; align-self: stretch; align-content: center; }
+  .g-pockets { display: contents; }
+}
+
+
+/* ---- production additions (not in the prototype): footer link, animate-ui tabs, recovery panel ---- */
+.g-foot a { text-decoration: underline; text-underline-offset: 2px; }
+/* The selected tab paints its own ink fill (paper on ink is 12.5:1); it never relies on a moving highlight layer. */
+.g-tabs .g-tab { border: 0; cursor: pointer; text-align: left; color: var(--ink); width: 100%; }
+.g-tabs .g-tab.on, .g-tabs .g-tab[aria-selected="true"] { background: var(--ink); color: var(--paper); box-shadow: var(--px); }
+.g-tabpanel { display: grid; }
+.g-tabpanel:focus-visible { outline: 3px solid var(--ink); outline-offset: 5px; }
+.g-tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 5px; }
+.g-recover { padding: 12px; display: grid; gap: 10px; }
+.g-recrow { display: flex; gap: 10px; align-items: center; }
+.g-recrow p { margin: 0; flex: 1; font: 300 13px/1.45 var(--th); }
+.g-recrow .g-btn { flex: none; }
+.g-recrow input { flex: 1; min-width: 0; border: 0; border-radius: 0; height: 40px; padding: 0 10px; font: 400 15px/1 var(--bit); letter-spacing: .06em; color: var(--ink); outline: none; }
+.g-recrow input::placeholder { font: 400 13px/1 var(--th); letter-spacing: 0; color: var(--slate); }
+.g-recrow input:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.g-code { margin: 0; display: grid; gap: 4px; padding: 10px; background: var(--paper); box-shadow: inset 0 0 0 2px var(--ink); }
+.g-code output { font: 700 18px/1.2 var(--bit); letter-spacing: .08em; user-select: all; word-break: break-all; }
+.g-code small { font: 300 12px/1.4 var(--th); }
+.g-recmsg { margin: 0; font: 400 13px/1.4 var(--th); }
+.g-act > .g-err { text-align: center; }
+
+@keyframes v2in { from { transform: scale(.25); } to { transform: none; } }
+
+/* ---- T-0016 r2: guess feedback grid, share, new hints ----------------------------------------------------------
+   Every cell pairs its colour with a pixel symbol (check / near / arrow / cross / ?), so colour is never the only
+   signal. Text in cells is 12px Mitr; contrasts: ink on green 8.6:1, ink on orange 7.0:1, paper on --red-act 4.8:1,
+   ink on grey 9.0:1. */
+.g-fb { padding: 12px 12px 10px; }
+.g-fbt { display: grid; gap: 8px; }
+.g-fbr { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.g-fbhead span { font: 400 12px/1.15 var(--th); text-align: center; overflow-wrap: anywhere; }
+.g-fbname { margin: 0 0 3px; display: flex; gap: 6px; align-items: baseline; font: 500 13px/1.25 var(--th); }
+.g-fbname b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-fbname em { font: 500 12px/1 var(--th); font-style: normal; background: var(--green); padding: 2px 4px 1px; box-shadow: 0 0 0 2px var(--ink); }
+.g-cell { display: grid; justify-items: center; align-content: center; gap: 3px; min-height: 46px; padding: 4px 2px; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.g-cell .pxi { width: 14px; height: 14px; }
+.g-cell small { font: 400 12px/1.1 var(--th); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-cell.s-hit { background: var(--green); }
+.g-cell.s-near { background: var(--orange); }
+.g-cell.s-miss, .g-cell.s-up, .g-cell.s-down { background: var(--red-act, #d6003f); color: var(--paper); }
+.g-cell.s-unknown { background: var(--grey); }
+.g-legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; font: 300 12px/1.3 var(--th); }
+.g-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.g-legend .g-cell { min-height: 0; width: 20px; height: 20px; padding: 0; }
+.g-legend .g-cell .pxi { width: 10px; height: 10px; }
+.g-noface { position: absolute; inset: 0; display: grid; place-items: center; font: 700 16px/1 var(--bit); background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.g-track li.miss .g-noface { color: var(--slate); }
+.g-pic.eyes { width: 120px; height: 40px; }
+.g-pic.eyes img { image-rendering: pixelated; }
+.g-frame.eyes { display: grid; place-items: center; }
+.g-frame.eyes img { height: auto; aspect-ratio: 3 / 1; image-rendering: pixelated; }
+.g-initial { display: flex; flex-wrap: wrap; gap: 8px; }
+.g-initial > span { display: inline-flex; gap: 3px; }
+.g-initial i { width: 16px; height: 20px; display: grid; place-items: center; font: 700 13px/1 var(--bit); font-style: normal; box-shadow: inset 0 -2px 0 0 var(--ink); }
+.g-initial i:first-child:not(:empty) { background: var(--ink); color: var(--paper); box-shadow: none; }
+.g-stake-n { margin: -2px 0 6px; font: 400 12px/1.2 var(--th); }
+.g-sharebox { display: grid; gap: 4px; margin-top: 10px; font: 400 12px/1.3 var(--th); text-align: left; }
+.g-sharebox textarea { font: 400 14px/1.3 var(--th); color: var(--ink); background: var(--paper); border: 0; box-shadow: 0 0 0 2px var(--ink); padding: 6px; resize: none; }
+
+/* archive (?view=archive): a list inside /daily, same windows and type scale; Thai >= 12px */
+.g-archline { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+.g-archnote { margin: 0 0 8px; font: 300 12px/1.45 var(--th); }
+.g-arch-head { padding: 12px 14px; display: grid; gap: 4px; }
+.g-arch-head .g-dayline h1 { font: 600 24px/1 var(--th); }
+.g-arch-today { justify-self: start; display: inline-flex; gap: 8px; align-items: center; }
+.g-arch-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.g-arch-day { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; color: var(--ink); text-decoration: none; }
+.g-arch-day b { font: 700 16px/1 var(--bit); }
+.g-arch-date { font: 400 13px/1.3 var(--th); }
+.g-arch-day:focus-visible, .g-arch-today:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.g-arch-day.new { background: #fff; }
+.g-arch-day.won, .g-arch-day.lost { background: var(--paper); }
+.g-arch-st { display: inline-flex; align-items: center; gap: 4px; font: 400 12px/1.2 var(--th); color: var(--ink); }
+.g-arch-today .g-arch-st { color: inherit; }
+.g-arch-empty { padding: 14px; margin: 0; font: 400 13px/1.4 var(--th); text-align: center; }
