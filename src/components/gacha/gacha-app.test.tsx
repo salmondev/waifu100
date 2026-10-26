@@ -1,12 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
+import { MotionGlobalConfig } from "motion/react";
 
 vi.mock("@/lib/redis", () => ({ withRedis: async () => { throw new Error("no redis in tests"); } }));
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
     useSearchParams: () => new URLSearchParams(""),
 }));
-// The top bar's counter renders a plain `motion.span`, which strict LazyMotion rejects under jsdom.
+// The top bar's counter renders a plain `motion.span`, which strict LazyMotion rejects in the test DOM.
 vi.mock("@animate-ui/react/primitives/texts/sliding-number", () => ({ SlidingNumber: ({ number }: { number: number }) => <span>{number}</span> }));
 
 import { indexCatalog } from "@/server/gacha/catalog";
@@ -28,6 +29,15 @@ function dto(serverToday: string, guesses: number[] = [], bought = 0): RoundDto 
     return roundDto(profile, round, idx, serverToday, "app-test-salt");
 }
 
+// Jump every motion animation to its end state. Otherwise unmount cancels running WAAPI
+// animations, and happy-dom rejects their `finished` promise ("The animation was canceled"),
+// which vitest reports as an unhandled error and the run exits 1.
+beforeAll(() => {
+    MotionGlobalConfig.skipAnimations = true;
+});
+afterAll(() => {
+    MotionGlobalConfig.skipAnimations = false;
+});
 beforeEach(() => {
     if (!("fonts" in document)) Object.defineProperty(document, "fonts", { value: { ready: Promise.resolve() }, configurable: true });
     globalThis.ResizeObserver ??= class { observe() {} disconnect() {} unobserve() {} } as unknown as typeof ResizeObserver;
