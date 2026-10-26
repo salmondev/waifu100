@@ -139,9 +139,10 @@ describe("r2 round: feedback rows, bought hints count, share", () => {
         for (const u of unknown) expect(u.textContent).toContain("?");
     });
 
-    it("the stake counts bought hints; a won round offers the copy button", async () => {
+    it("the stake ignores bought hints; a won round offers the copy button", async () => {
         const playing = view(dto(101, [103], null, 1, true));
-        expect(playing.textContent).toContain("นับคำใบ้ที่ซื้อ");
+        expect(playing.textContent).not.toContain("นับคำใบ้ที่ซื้อ");
+        expect(playing.querySelector(".g-ladder li.on .t-sr")).not.toBeNull(); // 1 wrong guess: next guess is SR, the hint does not count
         cleanup();
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });

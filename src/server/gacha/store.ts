@@ -47,8 +47,9 @@ export interface GachaRound {
     refunded?: number;
     /**
      * 2 = created under the T-0016 r2 rules: hints open only when bought, and the
-     * tier / fast bonus count guesses + bought hints. Absent on older rounds,
-     * which keep their rules (a free hint per wrong guess, tier by guesses only).
+     * fast bonus counts guesses + bought hints. Since T-0023 the tier counts
+     * guesses only on every round; a finished round keeps the tier stored at its
+     * win. Absent on older rounds (a free hint per wrong guess).
      */
     rules?: 2;
     /**

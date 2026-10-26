@@ -134,8 +134,10 @@ export interface RoundDto {
      */
     guesses: { id: number; name: string; image: string | null; correct: boolean; feedback: FeedbackCell[] }[];
     /**
-     * What the tier is counted from so far: guesses, plus hints bought on r2
-     * rounds. The next guess adds one. `hintsCostTier` says whether buying adds one too.
+     * What the tier is counted from so far: guesses only (hints never lower the
+     * tier). The next guess adds one. `hintsCostTier` is the r2-rules flag: true when
+     * hints are bought (r2), false when wrong guesses open them for free. Despite the
+     * name, bought hints no longer affect the tier.
      */
     steps: { used: number; hintsCostTier: boolean };
     hints: {
@@ -310,9 +312,10 @@ function markFinished(profile: GachaProfile, day: string): void {
 const isR2 = (round: GachaRound): boolean => round.rules === 2;
 
 /**
- * Tier / fast-bonus steps of a round: guesses, plus bought hints on r2 rounds.
- * Only real hints count: a bought slot with no data is refunded and costs no
- * step either (empty slots always sit after the real ones).
+ * Fast-bonus steps of a round: guesses, plus bought hints on r2 rounds. Used for
+ * the fast bonus only; the tier counts guesses alone (T-0023). Only real hints
+ * count: a bought slot with no data is refunded and costs no step either (empty
+ * slots always sit after the real ones).
  */
 const roundSteps = (round: GachaRound, answer: CatalogCharacter): number =>
     tierSteps(round.guesses.length, Math.min(round.bought, hintLadder(answer).length), isR2(round));
@@ -329,8 +332,8 @@ function rosterOf(anime: CatalogAnime): { roster: RosterCharacter[]; byId: Map<n
 }
 
 /** Commit the win's pull. Runs once per round: the caller holds the lock and the round is not yet done. */
-function commitPull(profile: GachaProfile, round: GachaRound, answer: CatalogCharacter): void {
-    const tier = tierForGuesses(roundSteps(round, answer));
+function commitPull(profile: GachaProfile, round: GachaRound): void {
+    const tier = tierForGuesses(round.guesses.length);
     const prevTier = profile.collection[round.answerId]?.tier ?? null;
     const result = pullResult(prevTier, tier);
     const before = ownedIn(profile, round.animeId);
@@ -377,7 +380,7 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
             if (!c) return [];
             return [{ id: c.id, name: c.name, image: cards.get(c.id)?.image ?? null, correct: g === round.answerId, feedback: guessFeedback(c, answerEntry, roster) }];
         }),
-        steps: { used: roundSteps(round, answer), hintsCostTier: isR2(round) },
+        steps: { used: round.guesses.length, hintsCostTier: isR2(round) },
         hints: {
             slots: HINT_SLOTS,
             open: ladder.slice(0, openReal).map((key) =>
@@ -536,7 +539,7 @@ export async function guess(id: string, charId: number, day?: string): Promise<R
             profile.coins += round.bonus;
             // The pull is committed here, with the win, in the same write - so a
             // reload or a second tab reads it back instead of pulling again.
-            commitPull(profile, round, answer);
+            commitPull(profile, round);
             if (onOwnDay(round, today)) markFinished(profile, today);
             grantArchiveDailyCoins(profile, round);
         } else if (round.guesses.length >= MAX_GUESSES) {

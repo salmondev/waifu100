@@ -234,11 +234,11 @@ describe("buyHint", () => {
         expect(dto.coins).toBe(30);
         expect(dto.hints.open.map((h) => h.key)).toEqual(["eyes"]);
         expect(dto.hints.next?.price).toBe(20);
-        expect(dto.steps.used).toBe(1);
+        expect(dto.steps.used).toBe(0); // the tier counts guesses only
         const after = await guess(ID, wrongIds()[0]);
         expect(after.hints.open).toHaveLength(1);
         expect(after.hints.next?.price).toBe(20);
-        expect(after.steps.used).toBe(2);
+        expect(after.steps.used).toBe(1);
     });
 
     it("coins never go negative", async () => {
@@ -333,17 +333,17 @@ describe("fixed hint ladder (P3: no hint-count leak)", () => {
         expect(dto.coins).toBe(1000 - 15 - 20 - 25 - 30);
         expect(dto.hints.open.map((h) => h.key)).toEqual(["eyes", "silhouette", "blur", "initial"]);
         expect(dto.hints.next).toEqual({ slot: 5, price: 35, affordable: true });
-        expect(dto.steps.used).toBe(4);
+        expect(dto.steps.used).toBe(0);
 
         const before = dto.coins;
-        dto = await buyHint(ID, 5); // empty: charged 35, refunded 35, and it costs no tier step
+        dto = await buyHint(ID, 5); // empty: charged 35, refunded 35
         expect(dto.coins).toBe(before);
         expect(dto.hints.empty).toBe(1);
         expect(dto.hints.open).toHaveLength(4);
         expect(dto.hints.locked).toBe(0);
         expect(dto.hints.next).toBeNull();
         expect(dto.hints.missing).toEqual(["va"]); // every slot open: structure may show now
-        expect(dto.steps.used).toBe(4);
+        expect(dto.steps.used).toBe(0);
         expect((await profile()).rounds[today()]).toMatchObject({ bought: 5, refunded: 35 });
 
         for (const slot of [5, 4, undefined]) expect(await code(buyHint(ID, slot))).toBe("no_hint");
@@ -351,9 +351,9 @@ describe("fixed hint ladder (P3: no hint-count leak)", () => {
         expect(p.coins).toBe(before);
         expect(p.rounds[today()]).toMatchObject({ bought: 5, refunded: 35 });
         expect((await getToday(ID)).coins).toBe(before);
-        // 4 real hints + a first-try guess = 5 steps = Common
+        // hints never lower the tier: a first-try guess is SSR; the fast bonus still counts the 4 real hints (5 steps = none)
         const won = await guess(ID, 105);
-        expect(won.result?.pull?.tier).toBe("common");
+        expect(won.result?.pull?.tier).toBe("ssr");
         expect(won.result?.bonus).toBe(0);
     });
 
@@ -399,13 +399,59 @@ describe("r2 rules", () => {
         await store.save(ID, p);
     }
 
-    it("each bought hint costs a tier step; first-try win with one hint is SR with the 2-step bonus", async () => {
+    it("bought hints never lower the tier; first-try win with one hint is SSR with the 2-step bonus", async () => {
         await pin(101);
         await buyHint(ID, 1);
         const won = await guess(ID, 101);
-        expect(won.steps.used).toBe(2);
-        expect(won.result).toMatchObject({ pull: { tier: "sr" }, bonus: 20 });
-        expect((await profile()).collection["101"].tier).toBe("sr");
+        expect(won.steps.used).toBe(1);
+        expect(won.result).toMatchObject({ pull: { tier: "ssr" }, bonus: 20 });
+        expect((await profile()).collection["101"].tier).toBe("ssr");
+    });
+
+    it("a finished round keeps the tier it was stored with (old rule: 1 guess + 2 hints = Rare), in the round and the album", async () => {
+        await pin(101);
+        const p = await profile();
+        Object.assign(p.rounds[today()], {
+            guesses: [101], bought: 2, done: "won", bonus: 10,
+            pull: { result: "new", prevTier: null, tier: "rare" },
+        });
+        p.collection = { "101": { tier: "rare", day: today(), animeId: FRIEREN.id } };
+        p.finishedDays = [today()];
+        await store.save(ID, p);
+        const before = store.profiles.get(ID);
+
+        const dto = await getToday(ID);
+        expect(dto.steps.used).toBe(1);
+        expect(dto.result).toMatchObject({ answer: { id: 101, tier: "rare" }, pull: { tier: "rare" }, bonus: 10 });
+        const album = await getAlbum(ID);
+        expect(album.anime.find((a) => a.id === FRIEREN.id)!.cards).toEqual([expect.objectContaining({ id: 101, tier: "rare" })]);
+        expect(store.profiles.get(ID)).toBe(before); // nothing recomputed or rewritten
+    });
+
+    it("a round in progress with hints bought before the change wins on guesses only; hint coins stay spent", async () => {
+        await pin(101);
+        await buyHint(ID, 1);
+        await buyHint(ID, 2);
+        const coins = (await profile()).coins;
+        expect(coins).toBe(1000 - 15 - 20);
+        const won = await guess(ID, 101);
+        expect(won.result).toMatchObject({ pull: { tier: "ssr" }, bonus: 10 }); // bonus still counts 3 steps
+        expect(won.coins).toBe(coins + 10);
+        expect((await profile()).rounds[today()]).toMatchObject({ bought: 2, pull: { tier: "ssr" } });
+        expect((await profile()).collection["101"].tier).toBe("ssr");
+    });
+
+    it("bought hints never count toward the 6-guess cap", async () => {
+        await pin(101);
+        for (let slot = 1; slot <= 4; slot++) await buyHint(ID, slot);
+        const wrong = FRIEREN.characters.filter((c) => c.id !== 101).map((c) => c.id);
+        let dto: RoundDto | undefined;
+        for (const w of wrong.slice(0, 5)) dto = await guess(ID, w);
+        expect(dto!.done).toBeNull();
+        expect(dto!.steps.used).toBe(5);
+        const won = await guess(ID, 101); // the 6th guess still counts
+        expect(won.done).toBe("won");
+        expect(won.result?.pull?.tier).toBe("common");
     });
 
     it("no hints, first guess right = SSR + 30", async () => {
@@ -759,7 +805,7 @@ describe("archive (past days)", () => {
         const dto = await buyHint(ID, 1, day);
         expect(dto.coins).toBe(30);
         expect(dto.hints.open).toHaveLength(1);
-        expect(dto.steps.used).toBe(1);
+        expect(dto.steps.used).toBe(0);
         const p = await profile();
         await store.save(ID, { ...p, coins: 5 });
         const other = addDays(today(), -3);

@@ -26,15 +26,14 @@ describe("tiers", () => {
     });
 });
 
-describe("tier steps (r2)", () => {
-    it("r2 rounds count bought hints as steps; legacy rounds count guesses only", () => {
+describe("fast-bonus steps (r2)", () => {
+    it("r2 rounds count bought hints as bonus steps; legacy rounds count guesses only; the tier is not read from them", () => {
         expect(tierSteps(1, 0, true)).toBe(1);
         expect(tierSteps(1, 1, true)).toBe(2);
         expect(tierSteps(2, 3, true)).toBe(5);
         expect(tierSteps(2, 3, false)).toBe(2);
-        expect(tierForGuesses(tierSteps(1, 1, true))).toBe("sr");
-        expect(tierForGuesses(tierSteps(4, 5, true))).toBe("common"); // beyond 6 stays common
         expect(fastBonus(tierSteps(1, 2, true))).toBe(10);
+        expect(fastBonus(tierSteps(4, 5, true))).toBe(0);
     });
 });
 

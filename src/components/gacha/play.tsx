@@ -4,7 +4,7 @@
  * round: this only renders the RoundDto and sends guesses / hint purchases.
  * Typed autocomplete only, 6 guesses. A wrong guess shows a feedback row
  * (gender / role / age / birth month / popularity rank / JP voice actor);
- * hints are bought with coins and each one costs a tier step (r2). Rounds
+ * hints are bought with coins and never lower the card tier (r2; T-0023). Rounds
  * stored before r2 keep their old rule: a free hint per wrong guess.
  */
 import Link from "next/link";
@@ -195,7 +195,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const colours = storyColours(round.anime.coverColor);
     const used = round.guesses.length;
     const wrongs = round.guesses.filter((g) => !g.correct).length;
-    // r2: hints are bought and each counts as a tier step. Legacy rounds: wrong guesses open hints free.
+    // r2: hints are bought (they never lower the tier). Legacy rounds: wrong guesses open hints free.
     const r2 = round.steps.hintsCostTier;
     const freeOpen = r2 ? 0 : wrongs;
     const steps = round.steps.used;
@@ -327,7 +327,6 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     </div>
                     <div>
                         <p className="g-stake-h">{done === "won" ? "ได้การ์ดระดับ" : done ? "ระดับตามครั้งที่เดาถูก" : "ถ้าเดาถูกตอนนี้"}</p>
-                        {r2 && !done && round.steps.used > used ? <p className="g-stake-n">นับคำใบ้ที่ซื้อ +{round.steps.used - used}</p> : null}
                         <ul className="g-ladder">
                             {LADDER.map((t) => (
                                 <li key={t} className={t === now ? "on" : ""}><Chip tier={t} /><small>{TIER_GUESSES[t]}</small></li>
@@ -342,8 +341,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         <p className="g-stamp">เดาถูก</p>
                         <p className="g-lead">{answer.name}</p>
                         <p className="g-sub">
-                            เดาครั้งที่ <b>{used}</b>
-                            {steps > used ? <> + คำใบ้ <b>{steps - used}</b></> : null} ได้การ์ด <Chip tier={won} />
+                            เดาครั้งที่ <b>{used}</b> ได้การ์ด <Chip tier={won} />
                         </p>
                         <ul className="g-rew">
                             <li><span><Icon name="card" />การ์ด</span><Chip tier={won} /></li>
@@ -373,7 +371,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
             </section>
             <FeedbackGrid guesses={round.guesses} />
             <section className="g-hints win" aria-label="คำใบ้">
-                <h3 className="g-h3">คำใบ้ <small>{r2 ? "ซื้อทีละข้อ แต่ละข้อนับเป็น 1 ครั้ง" : "เปิดทีละข้อเมื่อเดาผิด"}</small></h3>
+                <h3 className="g-h3">คำใบ้ <small>{r2 ? "ซื้อทีละข้อ ไม่นับเป็นครั้งที่เดา" : "เปิดทีละข้อเมื่อเดาผิด"}</small></h3>
                 {Array.from({ length: round.hints.slots }, (_, i) => {
                     // Fixed five-slot ladder. Locked slots are numbered only: the server does not say
                     // which kind sits behind them, nor how many real hints there are.
@@ -431,7 +429,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                             <span className="g-nm">
                                 คำใบ้ข้อที่ {round.hints.next.slot}
                                 <small>
-                                    {r2 ? "นับเป็น 1 ครั้งตอนจัดระดับการ์ด" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
+                                    {r2 ? "ไม่นับเป็นครั้งที่เดา" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
                                 </small>
                             </span>
                             <button
@@ -557,7 +555,7 @@ function GuessBox({ round, busy, shakeKey, onGuess }: { round: RoundDto; busy: b
             {round.guesses.length === 0 && (
                 <p className="g-rules">
                     {round.steps.hintsCostTier
-                        ? "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน ยิ่งใช้ครั้งเดาและคำใบ้น้อย การ์ดยิ่งหายาก"
+                        ? "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก ซื้อคำใบ้ได้โดยไม่ลดระดับการ์ด"
                         : "เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"}
                 </p>
             )}
