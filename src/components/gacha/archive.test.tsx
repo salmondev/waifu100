@@ -78,7 +78,7 @@ describe("PlayView on an archive day", () => {
         expect(c.textContent).not.toContain("รับฟรีวันนี้");
         expect(c.querySelector('a[href="/daily"]')).not.toBeNull();
         // buy the first hint: the body carries the archive day
-        const buy = [...c.querySelectorAll("button")].find((b) => b.textContent?.includes("15"))!;
+        const buy = [...c.querySelectorAll("button")].find((b) => b.textContent?.includes("30"))!;
         fireEvent.click(buy);
         await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
         const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
@@ -96,7 +96,7 @@ describe("PlayView on an archive day", () => {
         const fetchMock = vi.fn(async () => new Response(JSON.stringify(dto), { status: 200 }));
         vi.stubGlobal("fetch", fetchMock);
         const c = render(<PlayView round={dto} onRound={() => {}} onOpenPack={() => {}} opened={false} />).container;
-        fireEvent.click([...c.querySelectorAll("button")].find((b) => b.textContent?.includes("15"))!);
+        fireEvent.click([...c.querySelectorAll("button")].find((b) => b.textContent?.includes("30"))!);
         await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
         const [hintUrl, hintInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
         expect(hintUrl).toBe("/api/gacha/hint");

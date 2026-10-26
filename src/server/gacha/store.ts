@@ -53,6 +53,15 @@ export interface GachaRound {
      */
     rules?: 2;
     /**
+     * true = this round's first guess was free (T-0024): it gets feedback like any
+     * guess but counts for neither the tier, the 6-guess cap nor the fast bonus,
+     * so the round has MAX_GUESSES + 1 guesses in all. Set by guess() when the
+     * round's first guess is made (no guesses stored yet), archive rounds alike.
+     * Rounds that already had a guess stored before T-0024 never get it and keep
+     * the old rule (MAX_GUESSES guesses, all counted); finished rounds are never touched.
+     */
+    free?: true;
+    /**
      * true = started from the archive (a past day this profile never played):
      * no daily coins on creation; the normal daily coins are paid once when it
      * finishes (dailyCoins goes 0 -> DAILY_COINS). Absent on rounds started on their own day.

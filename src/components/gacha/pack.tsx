@@ -43,7 +43,10 @@ export function PackView({ round, coins }: { round: RoundDto; coins: number }) {
     const [gl, setGl] = useState<boolean | null>(null);
     const colours = storyColours(round.anime.coverColor);
     const tier = (res?.pull?.tier ?? "common") as TierName;
-    const n = round.guesses.length;
+    // Counted guesses (T-0024: the free first guess is not counted); a free-guess win shows "ฟรี".
+    const n = round.steps.used;
+    const free = round.freeGuess;
+    const slotCount = round.maxGuesses + (free.on ? 1 : 0);
 
     useEffect(() => {
         const el = stage.current;
@@ -129,11 +132,11 @@ export function PackView({ round, coins }: { round: RoundDto; coins: number }) {
             {phase !== "revealed" && phase !== "playing" && (
                 <section className="g-pfoot">
                     <div className="g-recap win">
-                        <div className="g-recap-h"><b>เดาถูกครั้งที่ <em>{n}</em></b><span>จาก {round.maxGuesses}</span></div>
-                        <ol className="g-track sm">
-                            {Array.from({ length: round.maxGuesses }, (_, i) => {
+                        <div className="g-recap-h"><b>{free.used && n === 0 ? <>เดาถูก<em>ครั้งฟรี</em></> : <>เดาถูกครั้งที่ <em>{n}</em></>}</b><span>จาก {round.maxGuesses}{free.on ? " + ฟรี 1" : ""}</span></div>
+                        <ol className={free.on ? "g-track sm free" : "g-track sm"}>
+                            {Array.from({ length: slotCount }, (_, i) => {
                                 const g = round.guesses[i];
-                                if (!g) return <li key={i}><em>{i + 1}</em></li>;
+                                if (!g) return <li key={i} className={free.on && i === 0 ? "free-slot" : undefined}><em>{free.on ? (i === 0 ? "ฟรี" : i) : i + 1}</em></li>;
                                 return (
                                     <li key={i} className={g.correct ? "hit" : "miss"}>
                                         {g.image ? (

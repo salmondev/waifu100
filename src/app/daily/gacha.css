@@ -301,6 +301,9 @@
 .g-track { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
 .g-track li { aspect-ratio: 1; position: relative; background: rgba(29, 43, 83, .07); box-shadow: inset 0 0 0 2px rgba(29, 43, 83, .3); display: grid; place-items: center; }
 .g-track li em { font: 400 10px/1 var(--bit); font-style: normal; opacity: .55; }
+/* T-0024: a round with a free first guess has 7 slots, the free one first and marked. */
+.g-track.free { grid-template-columns: repeat(7, 1fr); }
+.g-track li.free-slot em { font: 700 10px/1 var(--th); opacity: .8; }
 .g-track li.now { background: var(--ink); box-shadow: none; } .g-track li.now em { color: var(--paper); opacity: 1; }
 .g-track li img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; box-shadow: inset 0 0 0 2px var(--ink); }
 .g-track li.miss img { filter: grayscale(1) contrast(.8); opacity: .65; }

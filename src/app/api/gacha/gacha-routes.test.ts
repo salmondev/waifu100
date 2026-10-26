@@ -295,6 +295,9 @@ describe("POST /api/gacha/hint (fixed slot ladder)", () => {
 
     it("rejects an out-of-order slot with 409 and charges nothing; the next slot works", async () => {
         await todayGET(req("today"));
+        const rich = (await store.load(ID))!;
+        rich.coins = 100; // 30 + 40 for the two buys below
+        await store.save(ID, rich);
         const start = await coins();
         const skip = await hintPOST(req("hint", "POST", { slot: 3 }));
         expect(skip.status).toBe(409);
@@ -305,15 +308,42 @@ describe("POST /api/gacha/hint (fixed slot ladder)", () => {
         expect(ok.status).toBe(200);
         const round = (await ok.json()) as RoundDto;
         expect(round.hints).not.toHaveProperty("total");
-        expect(round.hints.next).toMatchObject({ slot: 2, price: 20 });
-        expect(await coins()).toBe(start - 15);
+        expect(round.hints.next).toMatchObject({ slot: 2, price: 40 });
+        expect(await coins()).toBe(start - 30);
 
         // a retried slot-1 request must not silently buy slot 2
         expect((await hintPOST(req("hint", "POST", { slot: 1 }))).status).toBe(409);
-        expect(await coins()).toBe(start - 15);
+        expect(await coins()).toBe(start - 30);
         // an empty body still buys "the next slot" (older clients)
         expect((await hintPOST(req("hint", "POST", {}))).status).toBe(200);
-        expect(await coins()).toBe(start - 35);
+        expect(await coins()).toBe(start - 70);
+        // short of the next price (50): 409 not_enough_coins with a readable message, nothing charged
+        const short = await hintPOST(req("hint", "POST", {}));
+        expect(short.status).toBe(409);
+        expect(await short.json()).toMatchObject({ code: "not_enough_coins", error: "Not enough coins." });
+        expect(await coins()).toBe(start - 70);
+    });
+
+    it("T-0024: the free first guess + 6 counted = 7 guesses; the 8th is 409 round_over", async () => {
+        const first = (await (await todayGET(req("today"))).json()) as RoundDto;
+        expect(first).toMatchObject({ maxGuesses: 6, freeGuess: { on: true, used: false }, steps: { used: 0 } });
+        // pin the round to the fixture anime with enough wrong names (9001: 7 besides the answer)
+        const p = (await store.load(ID))!;
+        Object.assign(p.rounds[bangkokDayKey(T0)], { animeId: 9001, answerId: 101 });
+        await store.save(ID, p);
+        const answer = { answerId: 101 };
+        const wrong = FIXTURE_CATALOG.anime.find((a) => a.id === 9001)!.characters.filter((c) => c.id !== 101).map((c) => c.id);
+        let last: RoundDto | undefined;
+        for (const id of wrong.slice(0, 7)) {
+            const res = await guessPOST(req("guess", "POST", { charId: id }));
+            expect(res.status).toBe(200);
+            last = (await res.json()) as RoundDto;
+        }
+        expect(last).toMatchObject({ done: "lost", steps: { used: 6 }, freeGuess: { on: true, used: true } });
+        expect(last!.guesses).toHaveLength(7);
+        const eighth = await guessPOST(req("guess", "POST", { charId: answer.answerId }));
+        expect(eighth.status).toBe(409);
+        expect(await eighth.json()).toMatchObject({ code: "round_over" });
     });
 });
 
@@ -396,15 +426,15 @@ describe("archive (past days) routes", () => {
         expect((await hintPOST(req("hint", "POST", { slot: 1, day: addDays(day, 1) }))).status).toBe(404);
         const h = await hintPOST(req("hint", "POST", { slot: 1, day: y }));
         expect(h.status).toBe(200);
-        expect(await h.json()).toMatchObject({ archive: true, coins: 30 });
+        expect(await h.json()).toMatchObject({ archive: true, coins: 15 });
         const answer = dailyPick(FIXTURE_CATALOG, y, "arch-salt").answerId;
         const won = await guessPOST(req("guess", "POST", { charId: answer, day: y }));
-        expect(await won.json()).toMatchObject({ done: "won", archive: true, coins: 40, dailyCoins: 10, streak: 0 }); // that day's daily coins, paid on finish
+        expect(await won.json()).toMatchObject({ done: "won", archive: true, coins: 25, dailyCoins: 10, streak: 0 }); // that day's daily coins, paid on finish
         const again = await guessPOST(req("guess", "POST", { charId: answer, day: y }));
         expect(again.status).toBe(409);
         expect(await again.json()).toMatchObject({ code: "round_over" });
         const view = await todayGET(req(`today?day=${y}`));
-        expect(await view.json()).toMatchObject({ done: "won", archive: true, coins: 40 });
+        expect(await view.json()).toMatchObject({ done: "won", archive: true, coins: 25 });
         expect(vi.mocked(enforceRateLimit).mock.calls.some((c) => (c[1] as { name: string }).name === "gacha-write")).toBe(true);
     });
 

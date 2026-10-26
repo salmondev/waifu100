@@ -127,15 +127,25 @@ export interface RoundDto {
      * would make the guess a picture match.
      */
     candidates: { id: number; name: string; nameNative: string | null; alternative: string[] }[];
+    /**
+     * Counted guesses allowed (MAX_GUESSES). Guesses left = maxGuesses - steps.used,
+     * plus one more while freeGuess.on && !freeGuess.used.
+     */
     maxGuesses: number;
+    /**
+     * The free first guess (T-0024): on = this round has one (every round with no
+     * guess yet, or whose first guess was free); used = it has been made, and is
+     * guesses[0]. Off for rounds that had a guess stored before T-0024 (old rule).
+     */
+    freeGuess: { on: boolean; used: boolean };
     /**
      * image: the card art for card characters, null for guess-only ones (no art is
      * stored for them). feedback: the Loldle row comparing the guess with the answer.
      */
     guesses: { id: number; name: string; image: string | null; correct: boolean; feedback: FeedbackCell[] }[];
     /**
-     * What the tier is counted from so far: guesses only (hints never lower the
-     * tier). The next guess adds one. `hintsCostTier` is the r2-rules flag: true when
+     * What the tier is counted from so far: counted guesses only (hints never lower
+     * the tier, the free first guess is not counted). The next counted guess adds one. `hintsCostTier` is the r2-rules flag: true when
      * hints are bought (r2), false when wrong guesses open them for free. Despite the
      * name, bought hints no longer affect the tier.
      */
@@ -311,14 +321,18 @@ function markFinished(profile: GachaProfile, day: string): void {
 
 const isR2 = (round: GachaRound): boolean => round.rules === 2;
 
+/** Guesses that count (tier, cap, fast bonus): all of them minus the free first one, if the round had it. */
+const countedGuesses = (round: GachaRound): number => Math.max(0, round.guesses.length - (round.free ? 1 : 0));
+
 /**
- * Fast-bonus steps of a round: guesses, plus bought hints on r2 rounds. Used for
- * the fast bonus only; the tier counts guesses alone (T-0023). Only real hints
- * count: a bought slot with no data is refunded and costs no step either (empty
- * slots always sit after the real ones).
+ * Fast-bonus steps of a won round: counted guesses (at least 1, so a win on the
+ * free guess scores like a first-try win), plus bought hints on r2 rounds. Used
+ * for the fast bonus only; the tier counts guesses alone (T-0023). Only real
+ * hints count: a bought slot with no data is refunded and costs no step either
+ * (empty slots always sit after the real ones).
  */
 const roundSteps = (round: GachaRound, answer: CatalogCharacter): number =>
-    tierSteps(round.guesses.length, Math.min(round.bought, hintLadder(answer).length), isR2(round));
+    tierSteps(Math.max(1, countedGuesses(round)), Math.min(round.bought, hintLadder(answer).length), isR2(round));
 
 /** Hint slots opened for free: one per wrong guess on pre-r2 rounds, none on r2 rounds. */
 function freeHints(round: GachaRound): number {
@@ -333,7 +347,8 @@ function rosterOf(anime: CatalogAnime): { roster: RosterCharacter[]; byId: Map<n
 
 /** Commit the win's pull. Runs once per round: the caller holds the lock and the round is not yet done. */
 function commitPull(profile: GachaProfile, round: GachaRound): void {
-    const tier = tierForGuesses(round.guesses.length);
+    // A win on the free guess (0 counted) is a first-try win.
+    const tier = tierForGuesses(Math.max(1, countedGuesses(round)));
     const prevTier = profile.collection[round.answerId]?.tier ?? null;
     const result = pullResult(prevTier, tier);
     const before = ownedIn(profile, round.animeId);
@@ -375,12 +390,13 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
             .sort((a, b) => a.name.localeCompare(b.name, "en") || a.id - b.id)
             .map((c) => ({ id: c.id, name: c.name, nameNative: c.nameNative, alternative: c.alternative ?? [] })),
         maxGuesses: MAX_GUESSES,
+        freeGuess: { on: !!round.free || (!done && round.guesses.length === 0), used: !!round.free },
         guesses: round.guesses.flatMap((g) => {
             const c = byId.get(g);
             if (!c) return [];
             return [{ id: c.id, name: c.name, image: cards.get(c.id)?.image ?? null, correct: g === round.answerId, feedback: guessFeedback(c, answerEntry, roster) }];
         }),
-        steps: { used: round.guesses.length, hintsCostTier: isR2(round) },
+        steps: { used: countedGuesses(round), hintsCostTier: isR2(round) },
         hints: {
             slots: HINT_SLOTS,
             open: ladder.slice(0, openReal).map((key) =>
@@ -532,6 +548,9 @@ export async function guess(id: string, charId: number, day?: string): Promise<R
         if (!guessRoster(anime).some((c) => c.id === charId)) throw new GachaError("invalid_character");
         if (round.guesses.includes(charId)) throw new GachaError("already_guessed");
 
+        // The round's first guess is free. A round with a guess already stored
+        // before this rule existed never gets it (it keeps 6 counted guesses).
+        if (round.guesses.length === 0) round.free = true;
         round.guesses.push(charId);
         if (charId === round.answerId) {
             round.done = "won";
@@ -542,7 +561,7 @@ export async function guess(id: string, charId: number, day?: string): Promise<R
             commitPull(profile, round);
             if (onOwnDay(round, today)) markFinished(profile, today);
             grantArchiveDailyCoins(profile, round);
-        } else if (round.guesses.length >= MAX_GUESSES) {
+        } else if (countedGuesses(round) >= MAX_GUESSES) {
             round.done = "lost";
             if (onOwnDay(round, today)) markFinished(profile, today);
             grantArchiveDailyCoins(profile, round);

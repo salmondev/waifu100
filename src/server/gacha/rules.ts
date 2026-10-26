@@ -288,7 +288,7 @@ export type HintKey = "eyes" | "va" | "silhouette" | "blur" | "initial";
 export const HINT_ORDER: readonly HintKey[] = ["eyes", "va", "silhouette", "blur", "initial"];
 
 /** Price of buying ladder slot i (0-based): set by the slot index alone, never by its kind. */
-export const HINT_PRICES: readonly number[] = [15, 20, 25, 30, 35];
+export const HINT_PRICES: readonly number[] = [30, 40, 50, 60, 70];
 
 export type HintImageHintKind = "eyes" | "silhouette" | "blur";
 
@@ -381,6 +381,7 @@ export function isEmptySlot(ladder: readonly HintKey[], index: number): boolean 
 
 // ---- guesses, tiers, pulls --------------------------------------------------
 
+/** Counted guesses per round. A round's free first guess (see GachaRound.free) comes on top. */
 export const MAX_GUESSES = 6;
 
 export type Tier = "common" | "rare" | "sr" | "ssr";
