@@ -67,7 +67,7 @@ describe("getToday", () => {
         expect(dto.done).toBeNull();
         expect(dto.result).toBeNull();
         expect(dto.hints.open).toEqual([]);
-        expect(dto.hints.next).toEqual({ price: 15, affordable: true });
+        expect(dto.hints.next).toEqual({ slot: 1, price: 15, affordable: true });
     });
 
     it("grants the daily coins once per Bangkok day", async () => {
@@ -235,11 +235,123 @@ describe("buyHint", () => {
         const p = await profile();
         p.coins = 1000;
         await store.save(ID, p);
-        const ladder = hintLadder(answer());
-        for (let i = 0; i < ladder.length; i++) await buyHint(ID);
+        for (let i = 0; i < 5; i++) await buyHint(ID);
         expect(await code(buyHint(ID))).toBe("no_hint");
         await guess(ID, pick().answerId);
         expect(await code(buyHint(ID))).toBe("round_over");
+    });
+});
+
+describe("fixed hint ladder (P3: no hint-count leak)", () => {
+    const FRIEREN = FIXTURE_CATALOG.anime[0];
+    /** Pins today's answer to a fixture character (105 Eisen: no hair, no quote -> 3 real hints). */
+    async function pinAnswer(answerId: number, coins = 1000, id = ID) {
+        await getToday(id);
+        const p = await profile(id);
+        p.coins = coins;
+        Object.assign(p.rounds[today()], { animeId: FRIEREN.id, answerId });
+        await store.save(id, p);
+    }
+    const wrongFor = (answerId: number) => FRIEREN.characters.filter((c) => c.id !== answerId).map((c) => c.id);
+    const KIND = /"(hair|quote|silhouette|blur)"/;
+
+    it("before the end the round state has no total and no kinds, and is the same for 3 or 5 real hints", async () => {
+        await pinAnswer(105);
+        await pinAnswer(101, 1000, ID2);
+        for (let n = 0; n < 3; n++) {
+            const gap = await getToday(ID);
+            const full = await getToday(ID2);
+            for (const dto of [gap, full]) {
+                expect(Object.keys(dto.hints).sort()).toEqual(["empty", "locked", "missing", "next", "open", "slots"]);
+                expect(dto.hints).not.toHaveProperty("total");
+                expect(dto.hints.slots).toBe(5);
+                expect(dto.hints.locked).toBe(5 - n);
+                expect(dto.hints.missing).toEqual([]);
+                expect(dto.hints.empty).toBe(0);
+                // no kind name anywhere except in the values of hints already open
+                const { open, ...rest } = dto.hints;
+                expect(JSON.stringify(rest)).not.toMatch(KIND);
+                expect(open).toHaveLength(n);
+            }
+            // a 3-hint answer and a 5-hint answer look identical apart from the opened hints themselves
+            const strip = (d: RoundDto) => ({ ...d.hints, open: d.hints.open.length });
+            expect(strip(gap)).toEqual(strip(full));
+            await buyHint(ID);
+            await buyHint(ID2);
+        }
+    });
+
+    it("hints open strictly in ladder order: a wrong or repeated slot is refused and costs nothing", async () => {
+        await pinAnswer(101);
+        expect(await code(buyHint(ID, 2))).toBe("hint_out_of_order");
+        expect(await code(buyHint(ID, 0))).toBe("hint_out_of_order");
+        expect((await profile()).coins).toBe(1000);
+        expect((await profile()).rounds[today()].bought).toBe(0);
+
+        const first = await buyHint(ID, 1);
+        expect(first.hints.open.map((h) => h.key)).toEqual(["role"]);
+        expect(first.coins).toBe(985);
+        // a retried request for the same slot does not buy slot 2
+        expect(await code(buyHint(ID, 1))).toBe("hint_out_of_order");
+        expect((await profile()).coins).toBe(985);
+        expect((await profile()).rounds[today()].bought).toBe(1);
+        // a wrong guess opens slot 2, so slot 2 can no longer be bought
+        await guess(ID, wrongFor(101)[0]);
+        expect(await code(buyHint(ID, 2))).toBe("hint_out_of_order");
+        expect((await buyHint(ID, 3)).hints.open.map((h) => h.key)).toEqual(["role", "hair", "quote"]);
+    });
+
+    it("buying an empty slot refunds the full price; repeating it never adds coins", async () => {
+        await pinAnswer(105);
+        let dto = await buyHint(ID, 1);
+        dto = await buyHint(ID, 2);
+        dto = await buyHint(ID, 3);
+        expect(dto.coins).toBe(1000 - 15 - 20 - 25);
+        expect(dto.hints.open.map((h) => h.key)).toEqual(["role", "silhouette", "blur"]);
+        expect(dto.hints.next).toEqual({ slot: 4, price: 30, affordable: true });
+
+        const before = dto.coins;
+        dto = await buyHint(ID, 4); // empty: charged 30, refunded 30
+        expect(dto.coins).toBe(before);
+        expect(dto.hints.empty).toBe(1);
+        expect(dto.hints.open).toHaveLength(3);
+        expect(dto.hints.locked).toBe(1);
+        expect(dto.hints.next).toEqual({ slot: 5, price: 35, affordable: true });
+        expect((await profile()).rounds[today()]).toMatchObject({ bought: 4, refunded: 30 });
+
+        // farming attempts: same slot again, then every way of asking again
+        expect(await code(buyHint(ID, 4))).toBe("hint_out_of_order");
+        dto = await buyHint(ID, 5);
+        expect(dto.coins).toBe(before);
+        expect(dto.hints.empty).toBe(2);
+        expect(dto.hints.missing).toEqual(["hair", "quote"]); // every slot open: structure may show now
+        for (const slot of [5, 4, undefined]) expect(await code(buyHint(ID, slot))).toBe("no_hint");
+        const p = await profile();
+        expect(p.coins).toBe(before);
+        expect(p.rounds[today()]).toMatchObject({ bought: 5, refunded: 65 });
+        expect((await getToday(ID)).coins).toBe(before);
+    });
+
+    it("an empty slot needs the same coins as a real one (affordability says nothing about the slot)", async () => {
+        await pinAnswer(105, 15 + 20 + 25 + 29);
+        await buyHint(ID, 1);
+        await buyHint(ID, 2);
+        const dto = await buyHint(ID, 3);
+        expect(dto.hints.next).toEqual({ slot: 4, price: 30, affordable: false });
+        expect(await code(buyHint(ID, 4))).toBe("not_enough_coins");
+        expect((await profile()).coins).toBe(29);
+    });
+
+    it("wrong guesses walk the same ladder; empty slots come last and are named only after the end", async () => {
+        await pinAnswer(105);
+        let dto: RoundDto | undefined;
+        for (const w of wrongFor(105).slice(0, 4)) dto = await guess(ID, w);
+        expect(dto!.hints.open.map((h) => h.key)).toEqual(["role", "silhouette", "blur"]);
+        expect(dto!.hints.empty).toBe(1);
+        expect(dto!.hints.missing).toEqual([]);
+        expect(dto!.coins).toBe(1000);
+        const won = await guess(ID, 105);
+        expect(won.hints).toMatchObject({ slots: 5, empty: 2, locked: 0, missing: ["hair", "quote"], next: null });
     });
 });
 

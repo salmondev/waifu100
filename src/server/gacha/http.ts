@@ -63,6 +63,7 @@ const MESSAGES: Record<string, string> = {
     round_over: "Today's round is already over.",
     no_hint: "No hint left to buy.",
     not_enough_coins: "Not enough coins.",
+    hint_out_of_order: "Hints open in ladder order; that slot is not the next one.",
 };
 
 const UUID_ANYWHERE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;

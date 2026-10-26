@@ -7,17 +7,23 @@ import { hintImagePath, isHintImageToken, type HintImageKind } from "@/lib/gacha
  * /api/gacha/hint-image.
  *
  * Token = base64url(iv | AES-256-GCM(day|charId|kind) | tag), keyed from the
- * daily salt. The IV is an HMAC of the plaintext, so the token is
- * deterministic: every player gets the same URL for the same day's hint, and
- * the CDN can cache it. Without the salt a token cannot be minted or read, and
- * GCM rejects any edited token.
+ * daily salt AND the Bangkok day key, so a token is only readable on the day
+ * it was minted for: the reader derives today's key, a token from any other
+ * day fails GCM authentication, and the day inside the payload must match too.
+ * The IV is an HMAC of the plaintext, so the token is deterministic: every
+ * player gets the same URL for the same day's hint, and the CDN can cache it
+ * (until that day ends). Without the salt a token cannot be minted or read,
+ * and GCM rejects any edited token.
  */
 
 const KINDS: readonly HintImageKind[] = ["blur", "silhouette"];
 
-function keys(salt: string) {
-    const enc = createHash("sha256").update(`gacha-hint-image:enc:${salt}`).digest();
-    const iv = createHash("sha256").update(`gacha-hint-image:iv:${salt}`).digest();
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Per-day keys: the same salt gives unrelated keys on different days. */
+function keys(salt: string, day: string) {
+    const enc = createHash("sha256").update(`gacha-hint-image:enc:v2:${day}:${salt}`).digest();
+    const iv = createHash("sha256").update(`gacha-hint-image:iv:v2:${day}:${salt}`).digest();
     return { enc, iv };
 }
 
@@ -28,7 +34,8 @@ export interface HintImageRef {
 }
 
 export function hintImageToken(ref: HintImageRef, salt: string): string {
-    const { enc, iv: ivKey } = keys(salt);
+    if (!DAY_RE.test(ref.day)) throw new Error("hint image token needs a YYYY-MM-DD day");
+    const { enc, iv: ivKey } = keys(salt, ref.day);
     const plain = Buffer.from(`${ref.day}|${ref.charId}|${ref.kind}`, "utf8");
     const iv = createHmac("sha256", ivKey).update(plain).digest().subarray(0, 12);
     const cipher = createCipheriv("aes-256-gcm", enc, iv);
@@ -40,18 +47,22 @@ export function hintImageUrl(ref: HintImageRef, salt: string): string {
     return hintImagePath(hintImageToken(ref, salt));
 }
 
-/** null for anything that is not a token this server minted with this salt. */
-export function readHintImageToken(token: unknown, salt: string): HintImageRef | null {
-    if (!isHintImageToken(token)) return null;
+/**
+ * null for anything that is not a token this server minted with this salt for
+ * `day` (the reader's current Bangkok day): a token from another day is
+ * unreadable, not merely rejected afterwards.
+ */
+export function readHintImageToken(token: unknown, salt: string, day: string): HintImageRef | null {
+    if (!isHintImageToken(token) || !DAY_RE.test(day)) return null;
     const raw = Buffer.from(token, "base64url");
     if (raw.length < 12 + 16 + 5) return null;
     try {
-        const decipher = createDecipheriv("aes-256-gcm", keys(salt).enc, raw.subarray(0, 12));
+        const decipher = createDecipheriv("aes-256-gcm", keys(salt, day).enc, raw.subarray(0, 12));
         decipher.setAuthTag(raw.subarray(raw.length - 16));
         const plain = Buffer.concat([decipher.update(raw.subarray(12, raw.length - 16)), decipher.final()]).toString("utf8");
-        const [day, id, kind] = plain.split("|");
+        const [tokenDay, id, kind] = plain.split("|");
         const charId = Number(id);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(day ?? "") || !Number.isSafeInteger(charId) || charId <= 0) return null;
+        if (tokenDay !== day || !Number.isSafeInteger(charId) || charId <= 0) return null;
         if (!KINDS.includes(kind as HintImageKind)) return null;
         return { day, charId, kind: kind as HintImageKind };
     } catch {

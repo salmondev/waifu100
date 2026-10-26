@@ -14,9 +14,9 @@ const idx = indexCatalog(FIXTURE_CATALOG);
 const DAY = "2026-10-27";
 
 /** A real DTO from the server's own roundDto, for a fixture answer with gaps. */
-function dto(answerId: number, wrong: number[], done: GachaRound["done"] = null): RoundDto {
+function dto(answerId: number, wrong: number[], done: GachaRound["done"] = null, bought = 0): RoundDto {
     const round: GachaRound = {
-        day: DAY, animeId: 9001, answerId, guesses: wrong, bought: 0, done, dailyCoins: 10, bonus: 0, pull: null, storyUnlockedNow: false,
+        day: DAY, animeId: 9001, answerId, guesses: wrong, bought, done, dailyCoins: 10, bonus: 0, pull: null, storyUnlockedNow: false,
     };
     const profile = { coins: 50, rounds: { [DAY]: round }, finishedDays: [], collection: {}, storySeen: [] } as unknown as GachaProfile;
     return roundDto(profile, round, idx, DAY, "play-test-salt");
@@ -31,16 +31,28 @@ afterEach(cleanup);
 const view = (round: RoundDto) => render(<PlayView round={round} onRound={() => {}} onOpenPack={() => {}} opened={false} />).container;
 
 describe("hint slots", () => {
-    it("always shows all five kinds; gaps get a 'no data' slot, never a made-up value", () => {
-        // 105 Eisen: no hair, no quote, no occupation
-        const c = view(dto(105, [101, 102, 103]));
-        const kinds = [...c.querySelectorAll<HTMLElement>(".g-hint")].map((el) => `${el.dataset.hint}${el.classList.contains("missing") ? ":missing" : ""}`);
-        expect(kinds).toEqual(["role", "silhouette", "blur", "hair:missing", "quote:missing"]);
-        const hair = c.querySelector('.g-hint.missing[data-hint="hair"]')!;
-        expect(hair.textContent).toContain("ไม่มีข้อมูล");
-        expect(hair.querySelector("[style*='background']")).toBeNull(); // no swatch
-        expect(c.querySelector('.g-hint[data-hint="quote"] q')).toBeNull();
+    const slotsOf = (c: HTMLElement) =>
+        [...c.querySelectorAll<HTMLElement>(".g-hint")].map((el) => `${el.dataset.hint}${el.classList.contains("missing") ? ":missing" : ""}`);
+
+    it("always five slots; real hints first, empty slots last and only once reached", () => {
+        // 105 Eisen: no hair, no quote, no occupation -> 3 real hints
+        const three = view(dto(105, [101, 102, 103]));
+        expect(slotsOf(three)).toEqual(["role", "silhouette", "blur", "locked", "locked"]);
+        expect(three.querySelector(".g-hint.missing")).toBeNull();
+        expect(three.textContent).not.toContain("ไม่นับเป็นคำใบ้");
+        cleanup();
+        // slot 4 reached by buying it: empty, unnamed, refunded
+        const c = view(dto(105, [101, 102, 103], null, 1));
+        expect(slotsOf(c)).toEqual(["role", "silhouette", "blur", "empty:missing", "locked"]);
+        const empty = c.querySelector('.g-hint.missing[data-hint="empty"]')!;
+        expect(empty.textContent).toContain("คำใบ้ข้อที่ 4");
+        expect(empty.textContent).toContain("ไม่มีข้อมูล");
+        expect(empty.textContent).toContain("คืนเหรียญแล้ว");
+        expect(empty.textContent).not.toMatch(/สีผม|คำพูด/);
+        expect(empty.querySelector("[style*='background']")).toBeNull(); // no swatch
+        expect(c.querySelector('.g-hint[data-hint="locked"]')!.textContent).toContain("คำใบ้ลับ");
         expect(c.textContent).toContain("ไม่นับเป็นคำใบ้");
+        expect(c.querySelector(".g-shoprow")!.textContent).toContain("คำใบ้ข้อที่ 5");
     });
 
     it("image hints render only the server hint-image URL, never the character art", () => {
@@ -69,7 +81,8 @@ describe("hint slots", () => {
         expect(round.hints.open.map((h) => h.key)).toEqual(["role"]);
         const c = view(round);
         const slots = [...c.querySelectorAll<HTMLElement>(".g-hint")].map((el) => el.dataset.hint);
-        expect(slots).toEqual(["role", "locked", "locked"]);
+        expect(slots).toEqual(["role", "locked", "locked", "locked", "locked"]);
+        expect(c.querySelectorAll('.g-hint[data-hint="locked"]')[0].textContent).toContain("คำใบ้ลับ");
         expect(c.querySelector(".g-hint.missing")).toBeNull();
         expect(c.querySelector(".g-shoprow")!.textContent).toContain("คำใบ้ข้อที่ 2");
         expect(c.querySelector(".g-shoprow")!.textContent).not.toMatch(/เงา|ภาพเบลอ|สีผม|คำพูด/);
@@ -78,5 +91,7 @@ describe("hint slots", () => {
     it("a finished round shows the 'no data' slots even with hints still locked", () => {
         const c = view(dto(105, [105], "won"));
         expect([...c.querySelectorAll<HTMLElement>(".g-hint.missing")].map((el) => el.dataset.hint)).toEqual(["hair", "quote"]);
+        expect(slotsOf(c)).toEqual(["role", "silhouette", "blur", "hair:missing", "quote:missing"]);
+        expect(c.textContent).not.toContain("คืนเหรียญแล้ว"); // nothing was bought
     });
 });

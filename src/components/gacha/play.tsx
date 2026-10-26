@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import type { HintKey, HintValue } from "@/server/gacha/rules";
 import { hintImageSrc } from "@/lib/gacha-hint-image";
 import { proxied } from "@/lib/img-proxy";
-import { errorText, gachaApi, type RoundDto } from "./api";
+import { errorText, gachaApi, GachaClientError, type RoundDto } from "./api";
 import { cardBackHtml, CardHtml, FOCAL } from "./card";
 import { animeSubtitle, animeTitle, thaiDate } from "./chrome";
 import { storyColours } from "./palette";
@@ -116,6 +116,17 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
             setBusy(false);
         }
     };
+
+    /** Buys exactly this slot; if the round moved on (another tab, a retry), just resync. */
+    const buy = (slot: number) =>
+        send(async () => {
+            try {
+                return await gachaApi.hint(slot);
+            } catch (e) {
+                if (e instanceof GachaClientError && e.code === "hint_out_of_order") return gachaApi.today();
+                throw e;
+            }
+        });
 
     let mystery: ReactNode;
     if (done && answer)
@@ -227,10 +238,26 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
             </section>
             <section className="g-hints win" aria-label="คำใบ้">
                 <h3 className="g-h3">คำใบ้ <small>เปิดทีละข้อเมื่อเดาผิด</small></h3>
-                {Array.from({ length: round.hints.total }, (_, i) => {
-                    // Locked slots are numbered only: the server does not say which kind sits behind them.
+                {Array.from({ length: round.hints.slots }, (_, i) => {
+                    // Fixed five-slot ladder. Locked slots are numbered only: the server does not say
+                    // which kind sits behind them, nor how many real hints there are.
                     const h = round.hints.open[i];
                     const meta = h ? HINT_META[h.key] : null;
+                    const emptyAt = i - round.hints.open.length;
+                    if (!h && emptyAt >= 0 && emptyAt < round.hints.empty) {
+                        // An opened slot with no data. Its kind is named only once the server sends `missing`.
+                        const kind: HintKey | undefined = round.hints.missing[emptyAt];
+                        const refunded = i >= wrongs && !done;
+                        return (
+                            <div key={`slot-${i}-empty`} className="g-hint missing" data-hint={kind ?? "empty"}>
+                                <span className="g-hi"><Icon name={kind ? HINT_META[kind].icon : "lock"} /></span>
+                                <div className="g-hb">
+                                    <small><b>{i + 1}</b>{kind ? HINT_META[kind].label : `คำใบ้ข้อที่ ${i + 1}`}<em>ไม่มีข้อมูล</em></small>
+                                    <span className="g-lock">{kind ? MISSING_TEXT[kind] : "ตัวละครนี้ไม่มีคำใบ้ข้อนี้"}{refunded ? " · คืนเหรียญแล้ว" : ""}</span>
+                                </div>
+                            </div>
+                        );
+                    }
                     const bought = !!h && i >= wrongs && !done;
                     return (
                         <m.div
@@ -249,17 +276,8 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         </m.div>
                     );
                 })}
-                {round.hints.missing.map((key) => (
-                    <div key={`${key}-missing`} className="g-hint missing" data-hint={key}>
-                        <span className="g-hi"><Icon name={HINT_META[key].icon} /></span>
-                        <div className="g-hb">
-                            <small><b>-</b>{HINT_META[key].label}<em>ไม่มีข้อมูล</em></small>
-                            <span className="g-lock">{MISSING_TEXT[key]}</span>
-                        </div>
-                    </div>
-                ))}
-                {round.hints.missing.length > 0 && (
-                    <p className="g-note">ช่องที่ไม่มีข้อมูลไม่นับเป็นคำใบ้และไม่เสียเหรียญ คำใบ้รอบนี้มี {round.hints.total} ข้อ</p>
+                {round.hints.empty > 0 && (
+                    <p className="g-note">ช่องที่ไม่มีข้อมูลไม่นับเป็นคำใบ้และไม่เสียเหรียญ คำใบ้รอบนี้มี {round.hints.open.length} ข้อ</p>
                 )}
             </section>
             {!done && (
@@ -271,14 +289,14 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         <div className="g-shoprow">
                             <span className="g-hi"><Icon name="lock" /></span>
                             <span className="g-nm">
-                                คำใบ้ข้อที่ {round.hints.open.length + 1}
-                                <small>ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ {round.hints.open.length + 1}</small>
+                                คำใบ้ข้อที่ {round.hints.next.slot}
+                                <small>ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ {round.hints.next.slot} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน</small>
                             </span>
                             <button
                                 className="g-btn sm coin"
                                 type="button"
                                 disabled={busy || !round.hints.next.affordable}
-                                onClick={() => send(() => gachaApi.hint())}
+                                onClick={() => buy(round.hints.next!.slot)}
                                 aria-label={`ซื้อคำใบ้ ${round.hints.next.price} เหรียญ`}
                             >
                                 <Coin /><b>{round.hints.next.price}</b>

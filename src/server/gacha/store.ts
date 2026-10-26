@@ -37,8 +37,14 @@ export interface GachaRound {
     answerId: number;
     /** Character ids in the order guessed. */
     guesses: number[];
-    /** Hints bought with coins. */
+    /** Ladder slots bought with coins (real hints and refunded empty slots alike). */
     bought: number;
+    /**
+     * Coins charged and handed straight back for bought slots that turned out to
+     * be empty ("no data"). Bookkeeping only: the refund happens in the same
+     * write as the charge, so it never adds coins. Absent on older rounds (= 0).
+     */
+    refunded?: number;
     done: "won" | "lost" | null;
     /** Coins granted when this round was created (the daily +10). */
     dailyCoins: number;

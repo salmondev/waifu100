@@ -19,7 +19,7 @@ async function portrait(): Promise<Buffer> {
 describe("hint image tokens", () => {
     it("round-trips and is deterministic (one CDN-cacheable URL per day/char/kind)", () => {
         const t = hintImageToken(REF, SALT);
-        expect(readHintImageToken(t, SALT)).toEqual(REF);
+        expect(readHintImageToken(t, SALT, REF.day)).toEqual(REF);
         expect(hintImageToken(REF, SALT)).toBe(t);
         expect(hintImageUrl(REF, SALT)).toBe(`/api/gacha/hint-image?t=${t}`);
         expect(t).toMatch(/^[A-Za-z0-9_-]{24,200}$/);
@@ -44,11 +44,23 @@ describe("hint image tokens", () => {
         for (const i of [0, 13, raw.length - 1]) {
             const bad = Buffer.from(raw);
             bad[i] ^= 1;
-            expect(readHintImageToken(bad.toString("base64url"), SALT)).toBeNull();
+            expect(readHintImageToken(bad.toString("base64url"), SALT, REF.day)).toBeNull();
         }
-        expect(readHintImageToken(t, "other-salt")).toBeNull();
-        expect(readHintImageToken(t.slice(0, -4), SALT)).toBeNull();
-        for (const junk of ["", "x", null, 7, "a".repeat(300), "https://s4.anilist.co/x.png"]) expect(readHintImageToken(junk, SALT)).toBeNull();
+        expect(readHintImageToken(t, "other-salt", REF.day)).toBeNull();
+        expect(readHintImageToken(t.slice(0, -4), SALT, REF.day)).toBeNull();
+        for (const junk of ["", "x", null, 7, "a".repeat(300), "https://s4.anilist.co/x.png"]) expect(readHintImageToken(junk, SALT, REF.day)).toBeNull();
+    });
+
+    it("is valid for its own day only: unreadable the day before or after", () => {
+        const t = hintImageToken(REF, SALT);
+        expect(readHintImageToken(t, SALT, "2026-10-27")).toEqual(REF);
+        expect(readHintImageToken(t, SALT, "2026-10-28")).toBeNull();
+        expect(readHintImageToken(t, SALT, "2026-10-26")).toBeNull();
+        expect(readHintImageToken(t, SALT, "not-a-day")).toBeNull();
+        // the key itself is per day: the same plaintext minted for two days shares no bytes in clear
+        const tomorrow = hintImageToken({ ...REF, day: "2026-10-28" }, SALT);
+        expect(readHintImageToken(tomorrow, SALT, "2026-10-28")).toEqual({ ...REF, day: "2026-10-28" });
+        expect(readHintImageToken(tomorrow, SALT, "2026-10-27")).toBeNull();
     });
 });
 

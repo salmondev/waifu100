@@ -46,10 +46,12 @@ const req = (path: string, method = "GET", body?: unknown) =>
 
 let store: ReturnType<typeof memoryGachaStore>;
 let touched = 0;
+let clock = T0;
 
 beforeEach(() => {
     store = memoryGachaStore();
     touched = 0;
+    clock = T0;
     const spy = {
         ...store,
         load: async (id: string) => (touched++, store.load(id)),
@@ -57,7 +59,7 @@ beforeEach(() => {
         getRecovery: async (hash: string) => (touched++, store.getRecovery(hash)),
     };
     // no salt override: the routes resolve DAILY_SALT from the environment
-    configureGacha({ store: spy, now: () => T0 });
+    configureGacha({ store: spy, now: () => clock });
     setCatalog(FIXTURE_CATALOG);
 });
 afterEach(() => {
@@ -159,7 +161,8 @@ describe("image hints never expose the art URL", () => {
             expect(res.status).toBe(200);
             expect([...res.headers.keys()].map((k) => k.toLowerCase()).sort()).toEqual(["cache-control", "content-type", "x-content-type-options"]);
             expect(res.headers.get("content-type")).toBe(kind === "blur" ? "image/webp" : "image/png");
-            expect(res.headers.get("cache-control")).toContain("s-maxage=604800");
+            // T0 is 12:00 in Bangkok: the token dies at midnight, so no cache may hold it longer
+            expect(res.headers.get("cache-control")).toBe("public, max-age=43200, s-maxage=43200, immutable");
             expect(Buffer.from(await res.arrayBuffer()).equals(jpeg)).toBe(false);
         }
         // fetched through the moderated, allow-listed proxy path, from the server-side art URL
@@ -192,6 +195,28 @@ describe("image hints never expose the art URL", () => {
         expect(getModeratedImage).not.toHaveBeenCalled();
     });
 
+    it("a token is valid on its own Bangkok day only: today 200, yesterday's 404", async () => {
+        vi.mocked(getModeratedImage).mockResolvedValue({ ok: true, hash: "h", jpeg, checked: true });
+        const todays = hintImageToken({ day, charId: 101, kind: "blur" }, SALT);
+        const yesterdays = hintImageToken({ day: addDays(day, -1), charId: 101, kind: "blur" }, SALT);
+        expect((await hintImageGET(imgReq(todays))).status).toBe(200);
+        const old = await hintImageGET(imgReq(yesterdays));
+        expect(old.status).toBe(404);
+        expect(old.headers.get("cache-control")).toBe("no-store");
+
+        // one minute before Bangkok midnight: still valid, cached for at most that minute
+        clock = Date.parse("2026-10-27T16:59:00Z");
+        const late = await hintImageGET(imgReq(todays));
+        expect(late.status).toBe(200);
+        expect(late.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60, immutable");
+        // the next Bangkok day: the same token is now yesterday's
+        clock = Date.parse("2026-10-27T17:00:00Z");
+        const next = await hintImageGET(imgReq(todays));
+        expect(next.status).toBe(404);
+        expect(next.headers.get("cache-control")).toBe("no-store");
+        expect(vi.mocked(getModeratedImage)).toHaveBeenCalledTimes(2);
+    });
+
     it("is rate-limited before any work", async () => {
         vi.mocked(enforceRateLimit).mockResolvedValueOnce(new Response("slow down", { status: 429 }) as never);
         const res = await hintImageGET(imgReq(hintImageToken({ day, charId: 101, kind: "blur" }, SALT)));
@@ -199,6 +224,51 @@ describe("image hints never expose the art URL", () => {
         expect(res.headers.get("cache-control")).toBe("no-store");
         expect(vi.mocked(enforceRateLimit).mock.calls.at(-1)![1]).toMatchObject({ name: "gacha-image" });
         expect(getModeratedImage).not.toHaveBeenCalled();
+    });
+});
+
+describe("POST /api/gacha/hint (fixed slot ladder)", () => {
+    beforeEach(() => vi.stubEnv("DAILY_SALT", "hint-salt"));
+    const coins = async () => (await store.load(ID))!.coins;
+
+    it("rejects kind-specific and malformed bodies with 400, before any store access", async () => {
+        await todayGET(req("today"));
+        const before = touched;
+        for (const body of [{ kind: "blur" }, { key: "hair" }, { slot: 1, kind: "role" }, { slot: "1" }, { slot: 0 }, { slot: 6 }, { slot: 1.5 }]) {
+            const res = await hintPOST(req("hint", "POST", body));
+            expect(res.status).toBe(400);
+            expect(await res.json()).toMatchObject({ code: "invalid_hint_request" });
+            expect(res.headers.get("cache-control")).toBe("no-store");
+        }
+        for (const body of [[1], "1", null]) {
+            const res = await hintPOST(req("hint", "POST", body));
+            expect(res.status).toBe(400);
+            expect(await res.json()).toMatchObject({ code: "invalid_body" });
+        }
+        expect(touched).toBe(before);
+    });
+
+    it("rejects an out-of-order slot with 409 and charges nothing; the next slot works", async () => {
+        await todayGET(req("today"));
+        const start = await coins();
+        const skip = await hintPOST(req("hint", "POST", { slot: 3 }));
+        expect(skip.status).toBe(409);
+        expect(await skip.json()).toMatchObject({ code: "hint_out_of_order" });
+        expect(await coins()).toBe(start);
+
+        const ok = await hintPOST(req("hint", "POST", { slot: 1 }));
+        expect(ok.status).toBe(200);
+        const round = (await ok.json()) as RoundDto;
+        expect(round.hints).not.toHaveProperty("total");
+        expect(round.hints.next).toMatchObject({ slot: 2, price: 20 });
+        expect(await coins()).toBe(start - 15);
+
+        // a retried slot-1 request must not silently buy slot 2
+        expect((await hintPOST(req("hint", "POST", { slot: 1 }))).status).toBe(409);
+        expect(await coins()).toBe(start - 15);
+        // an empty body still buys "the next slot" (older clients)
+        expect((await hintPOST(req("hint", "POST", {}))).status).toBe(200);
+        expect(await coins()).toBe(start - 35);
     });
 });
 

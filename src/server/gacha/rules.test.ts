@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     addDays, bangkokDayKey, characterPool, dailyPick, dayNumber, fastBonus, hintLadder, hintValue, HAIR_KEYS, HAIR_STYLE,
-    missingHints, nextBuyableHint, openHintCount, plainAge, pullResult, storyUnlocked, streak, tierForGuesses,
+    HINT_ORDER, HINT_SLOTS, isEmptySlot, missingHints, nextBuyableSlot, openHintCount, plainAge, secondsUntilNextBangkokDay, pullResult, storyUnlocked, streak, tierForGuesses,
 } from "./rules";
 import { FIXTURE_CATALOG } from "./test-fixture";
 
@@ -39,19 +39,31 @@ describe("hint ladder", () => {
         expect(hintValue(char(107), "hair", img)).toMatchObject({ hair: "multicolour", stripes: expect.any(Array) });
         for (const k of HAIR_KEYS) expect(HAIR_STYLE[k].hex).toMatch(/^#[0-9a-f]{6}$/);
     });
-    it("open hints = wrong guesses + bought, capped; all when done", () => {
-        expect(openHintCount(5, 0, 0, false)).toBe(0);
-        expect(openHintCount(5, 2, 1, false)).toBe(3);
-        expect(openHintCount(2, 4, 1, false)).toBe(2);
-        expect(openHintCount(4, 0, 0, true)).toBe(4);
+    it("open slots = wrong guesses + bought, capped at the fixed 5; all when done", () => {
+        expect(HINT_SLOTS).toBe(5);
+        expect(openHintCount(0, 0, false)).toBe(0);
+        expect(openHintCount(2, 1, false)).toBe(3);
+        expect(openHintCount(4, 3, false)).toBe(5);
+        expect(openHintCount(0, 0, true)).toBe(5);
     });
-    it("next hint price is positional (15/20/25/30/35)", () => {
-        const ladder = hintLadder(char(101));
-        expect([0, 1, 2, 3, 4].map((n) => nextBuyableHint(ladder, n, false)?.price)).toEqual([15, 20, 25, 30, 35]);
-        expect(nextBuyableHint(ladder, 5, false)).toBeNull();
-        expect(nextBuyableHint(ladder, 1, true)).toBeNull();
-        // a shorter ladder still charges by position, not by kind
-        expect(nextBuyableHint(hintLadder(char(105)), 1, false)).toEqual({ index: 1, key: "silhouette", price: 20 });
+    it("next slot and price depend only on the slot index (15/20/25/30/35), never on the answer", () => {
+        expect([0, 1, 2, 3, 4].map((n) => nextBuyableSlot(n, false))).toEqual([
+            { slot: 1, price: 15 }, { slot: 2, price: 20 }, { slot: 3, price: 25 }, { slot: 4, price: 30 }, { slot: 5, price: 35 },
+        ]);
+        expect(nextBuyableSlot(5, false)).toBeNull();
+        expect(nextBuyableSlot(1, true)).toBeNull();
+    });
+    it("empty slots are always after every real hint", () => {
+        for (const c of [char(101), char(104), char(105), { ...char(105), image: "" }]) {
+            const ladder = hintLadder(c);
+            const flags = Array.from({ length: HINT_SLOTS }, (_, i) => isEmptySlot(ladder, i));
+            const firstEmpty = flags.indexOf(true);
+            if (firstEmpty >= 0) expect(flags.slice(firstEmpty).every(Boolean)).toBe(true);
+            expect(flags.filter((f) => !f)).toHaveLength(ladder.length);
+            // real hints keep HINT_ORDER among themselves; full ladder = real + missing = 5
+            expect(ladder).toEqual(HINT_ORDER.filter((k) => ladder.includes(k)));
+            expect(ladder.length + missingHints(ladder).length).toBe(HINT_SLOTS);
+        }
     });
     it("role hint adds the AniList age only when it is a plain number or range", () => {
         expect(hintValue({ ...char(101), age: "17" }, "role", img)).toMatchObject({ age: "17" });
@@ -85,6 +97,11 @@ describe("Bangkok calendar", () => {
         expect(bangkokDayKey(Date.parse("2026-10-25T16:59:59.999Z"))).toBe("2026-10-25");
         expect(bangkokDayKey(Date.parse("2026-10-25T17:00:00.000Z"))).toBe("2026-10-26");
         expect(bangkokDayKey(Date.parse("2026-12-31T17:30:00.000Z"))).toBe("2027-01-01");
+    });
+    it("seconds until the next Bangkok midnight", () => {
+        expect(secondsUntilNextBangkokDay(Date.parse("2026-10-27T16:59:00Z"))).toBe(60);
+        expect(secondsUntilNextBangkokDay(Date.parse("2026-10-27T17:00:00Z"))).toBe(86400);
+        expect(secondsUntilNextBangkokDay(Date.parse("2026-10-27T05:00:00Z"))).toBe(12 * 3600);
     });
     it("day number #1 is 2026-10-26", () => {
         expect(dayNumber("2026-10-26")).toBe(1);

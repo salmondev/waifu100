@@ -14,6 +14,10 @@ const PLACEHOLDER = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="
 
 const BASE_HEADERS = { "X-Content-Type-Options": "nosniff" } as const;
 
+/** Public cache policy, capped so no cache keeps serving a token past the day it is valid for. */
+const cachePolicy = (maxAge: number, sMaxAge: number, ttl: number, immutable = false) =>
+    `public, max-age=${Math.min(maxAge, ttl)}, s-maxage=${Math.min(sMaxAge, ttl)}${immutable ? ", immutable" : ""}`;
+
 /**
  * GET /api/gacha/hint-image?t=<token>
  *
@@ -22,7 +26,8 @@ const BASE_HEADERS = { "X-Content-Type-Options": "nosniff" } as const;
  * moderated fetch as /api/img, then is reduced server-side. The response
  * carries only the image, its type and a cache policy: no source URL, hash,
  * moderation header or ETag. The token is the same for every player that day,
- * so a checked image is CDN-cached.
+ * so a checked image is CDN-cached - but only until that Bangkok day ends: a
+ * token is valid for one day, and is 404 on any other.
  */
 export async function GET(req: NextRequest) {
     const limited = await gachaRateLimit(req, LIMITS.gachaImage);
@@ -42,7 +47,7 @@ export async function GET(req: NextRequest) {
                 headers: {
                     ...BASE_HEADERS,
                     "Content-Type": "image/svg+xml",
-                    "Cache-Control": art.definitive ? "public, max-age=3600, s-maxage=86400" : "public, max-age=30, s-maxage=60",
+                    "Cache-Control": art.definitive ? cachePolicy(3600, 86400, ref.expiresInSec) : cachePolicy(30, 60, ref.expiresInSec),
                 },
             });
         }
@@ -53,8 +58,8 @@ export async function GET(req: NextRequest) {
                 "Content-Type": ref.kind === "blur" ? "image/webp" : "image/png",
                 // Unchecked (moderation gave no answer): shown, re-checked soon.
                 "Cache-Control": art.checked
-                    ? "public, max-age=86400, s-maxage=604800, immutable"
-                    : "public, max-age=60, s-maxage=60",
+                    ? cachePolicy(86400, 86400, ref.expiresInSec, true)
+                    : cachePolicy(60, 60, ref.expiresInSec),
             },
         });
     } catch (e) {

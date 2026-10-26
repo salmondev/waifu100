@@ -25,6 +25,13 @@ export function bangkokDayKey(nowMs: number): string {
     return new Date(nowMs + BANGKOK_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+/** Whole seconds (at least 1) from `nowMs` until the next Bangkok midnight. */
+export function secondsUntilNextBangkokDay(nowMs: number): number {
+    const local = nowMs + BANGKOK_OFFSET_MS;
+    const nextMidnight = (Math.floor(local / DAY_MS) + 1) * DAY_MS;
+    return Math.max(1, Math.ceil((nextMidnight - local) / 1000));
+}
+
 /** Whole days since 1970-01-01 for a day key (a plain calendar count, no zone). */
 export function epochDay(dayKey: string): number {
     const [y, m, d] = dayKey.split("-").map(Number);
@@ -133,7 +140,7 @@ export function dailyPick(catalog: Catalog, dayKey: string, salt: string): Daily
 export type HintKey = "role" | "hair" | "quote" | "silhouette" | "blur";
 export const HINT_ORDER: readonly HintKey[] = ["role", "hair", "quote", "silhouette", "blur"];
 
-/** Price of buying the hint at ladder position i (0-based), whatever its kind. */
+/** Price of buying ladder slot i (0-based): set by the slot index alone, never by its kind. */
 export const HINT_PRICES: readonly number[] = [15, 20, 25, 30, 35];
 
 export const HAIR_KEYS = [
@@ -225,16 +232,34 @@ export function hintValue(answer: CatalogCharacter, key: HintKey, imageSrc: (kin
     }
 }
 
-/** How many ladder hints are open: one per wrong guess plus one per purchase, all when done. */
-export function openHintCount(ladderLength: number, wrongGuesses: number, bought: number, done: boolean): number {
-    if (done) return ladderLength;
-    return Math.min(ladderLength, Math.max(0, wrongGuesses) + Math.max(0, bought));
+/**
+ * Every round shows the same fixed ladder of HINT_SLOTS slots, whatever the
+ * answer has: its real hints first (hintLadder order), then one empty "no
+ * data" slot per missing kind, always at the end. So the slot count, the
+ * prices and the shop never say how many real hints exist; only reaching an
+ * empty slot does, and that can only happen after every real hint is open.
+ */
+export const HINT_SLOTS = HINT_ORDER.length;
+
+/** How many ladder slots are open: one per wrong guess plus one per purchase, all when done. */
+export function openHintCount(wrongGuesses: number, bought: number, done: boolean): number {
+    if (done) return HINT_SLOTS;
+    return Math.min(HINT_SLOTS, Math.max(0, wrongGuesses) + Math.max(0, bought));
 }
 
-/** The next locked hint and its price, or null when every hint is open or the round is over. */
-export function nextBuyableHint(ladder: readonly HintKey[], openCount: number, done: boolean): { index: number; key: HintKey; price: number } | null {
-    if (done || openCount >= ladder.length) return null;
-    return { index: openCount, key: ladder[openCount], price: HINT_PRICES[openCount] ?? HINT_PRICES[HINT_PRICES.length - 1] };
+/**
+ * The next slot to buy (1-based) and its price, or null when every slot is open
+ * or the round is over. Depends only on how many slots are open, never on the
+ * answer, so the price and the offer cannot leak what sits behind the slot.
+ */
+export function nextBuyableSlot(openCount: number, done: boolean): { slot: number; price: number } | null {
+    if (done || openCount >= HINT_SLOTS) return null;
+    return { slot: openCount + 1, price: HINT_PRICES[openCount] ?? HINT_PRICES[HINT_PRICES.length - 1] };
+}
+
+/** Whether ladder slot `index` (0-based) is an empty "no data" slot for this ladder. */
+export function isEmptySlot(ladder: readonly HintKey[], index: number): boolean {
+    return index >= ladder.length && index < HINT_SLOTS;
 }
 
 // ---- guesses, tiers, pulls --------------------------------------------------

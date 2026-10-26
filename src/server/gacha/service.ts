@@ -8,9 +8,9 @@ import { GachaConfigError, resolveDailySalt } from "./config";
 import { hintImageUrl, readHintImageToken, type HintImageRef } from "./hint-image";
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
 import {
-    addDays, bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus,
-    hintLadder, hintValue, MAX_GUESSES, missingHints, nextBuyableHint, openHintCount, pullResult, START_COINS, storyUnlocked,
-    streak, tierForGuesses, type HintKey, type HintValue, type PullResult, type Tier,
+    bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus,
+    HINT_SLOTS, hintLadder, hintValue, isEmptySlot, MAX_GUESSES, missingHints, nextBuyableSlot, openHintCount, pullResult, START_COINS, storyUnlocked,
+    secondsUntilNextBangkokDay, streak, tierForGuesses, type HintKey, type HintValue, type PullResult, type Tier,
 } from "./rules";
 import { defaultGachaStore, KEEP_ROUND_DAYS, withProfileLock, type GachaProfile, type GachaRound, type GachaStore } from "./store";
 
@@ -26,6 +26,7 @@ export type GachaErrorCode =
     | "round_over"
     | "no_hint"
     | "not_enough_coins"
+    | "hint_out_of_order"
     | "story_locked";
 
 const STATUS: Record<GachaErrorCode, number> = {
@@ -36,6 +37,7 @@ const STATUS: Record<GachaErrorCode, number> = {
     round_over: 409,
     no_hint: 409,
     not_enough_coins: 409,
+    hint_out_of_order: 409,
     story_locked: 409,
 };
 
@@ -113,17 +115,25 @@ export interface RoundDto {
     maxGuesses: number;
     guesses: { id: number; name: string; image: string; correct: boolean }[];
     hints: {
-        /** Values of the open hints only, in ladder order. */
+        /** Always HINT_SLOTS (5): the ladder has the same length for every answer. */
+        slots: number;
+        /** Values of the open real hints, in ladder order: slots 1..open.length. */
         open: HintValue[];
         /**
-         * HINT_ORDER kinds this character has no data for (shown as "no data", never filled in).
-         * Empty until every hint is open or the round is over, so the kinds of the
-         * still-locked hints are never sent early (E2 nit: keys leaked before reveal).
+         * Open slots with no data, right after `open` (empty slots are always last,
+         * so this is 0 until every real hint is open).
+         */
+        empty: number;
+        /**
+         * HINT_ORDER kinds this character has no data for, labelling the empty slots.
+         * Empty until every slot is open or the round is over, so neither the kinds
+         * nor the number of real hints are sent early (P3: hint-count leak).
          */
         missing: HintKey[];
-        total: number;
+        /** Slots still closed: slots - open.length - empty. */
         locked: number;
-        next: { price: number; affordable: boolean } | null;
+        /** The only slot the player can buy (strict ladder order) and its slot-indexed price. */
+        next: { slot: number; price: number; affordable: boolean } | null;
     };
     coins: number;
     streak: number;
@@ -248,8 +258,9 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
     const done = round.done;
     const ladder = hintLadder(answer);
     const wrong = round.guesses.filter((g) => g !== round.answerId).length;
-    const open = openHintCount(ladder.length, wrong, round.bought, !!done);
-    const next = nextBuyableHint(ladder, open, !!done);
+    const open = openHintCount(wrong, round.bought, !!done);
+    const openReal = Math.min(open, ladder.length);
+    const next = nextBuyableSlot(open, !!done);
     const byId = new Map(anime.characters.map((c) => [c.id, c]));
 
     return {
@@ -271,13 +282,14 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
             return c ? [{ id: c.id, name: c.name, image: c.image, correct: g === round.answerId }] : [];
         }),
         hints: {
-            open: ladder.slice(0, open).map((key) =>
+            slots: HINT_SLOTS,
+            open: ladder.slice(0, openReal).map((key) =>
                 hintValue(answer, key, (kind) => hintImageUrl({ day: round.day, charId: answer.id, kind }, salt))
             ),
-            missing: done || open >= ladder.length ? missingHints(ladder) : [],
-            total: ladder.length,
-            locked: ladder.length - open,
-            next: next ? { price: next.price, affordable: profile.coins >= next.price } : null,
+            empty: open - openReal,
+            missing: done || open >= HINT_SLOTS ? missingHints(ladder) : [],
+            locked: HINT_SLOTS - open,
+            next: next ? { slot: next.slot, price: next.price, affordable: profile.coins >= next.price } : null,
         },
         coins: profile.coins,
         streak: streak(profile.finishedDays, today),
@@ -368,8 +380,18 @@ export async function guess(id: string, charId: number): Promise<RoundDto> {
     });
 }
 
-/** Buys the next locked hint of today's round at its ladder price. */
-export async function buyHint(id: string): Promise<RoundDto> {
+/**
+ * Buys the next closed slot of today's ladder at its slot price. Strict ladder
+ * order: there is no way to name a kind, and `slot` (1-based, optional for
+ * older clients) must be exactly the next closed slot, so a retried or stale
+ * request is refused instead of buying a further slot.
+ *
+ * An empty ("no data") slot opens like any other but costs nothing net: the
+ * price is checked and charged like any slot (so affordability says nothing
+ * about the slot) and refunded in the same locked write. Coins can therefore
+ * never go up here, and each slot can be bought at most once.
+ */
+export async function buyHint(id: string, slot?: number): Promise<RoundDto> {
     const { store, now, salt } = deps();
     const idx = await getCatalog();
     const today = bangkokDayKey(now());
@@ -378,13 +400,18 @@ export async function buyHint(id: string): Promise<RoundDto> {
         const { profile, round } = await loadForWrite(store, id, today, idx, salt());
         if (round.done) throw new GachaError("round_over");
         const { answer } = roundParts(round, idx);
-        const ladder = hintLadder(answer);
         const wrong = round.guesses.filter((g) => g !== round.answerId).length;
-        const next = nextBuyableHint(ladder, openHintCount(ladder.length, wrong, round.bought, false), false);
+        const open = openHintCount(wrong, round.bought, false);
+        const next = nextBuyableSlot(open, false);
         if (!next) throw new GachaError("no_hint");
+        if (slot !== undefined && slot !== next.slot) throw new GachaError("hint_out_of_order");
         if (profile.coins < next.price) throw new GachaError("not_enough_coins");
 
         profile.coins -= next.price;
+        if (isEmptySlot(hintLadder(answer), open)) {
+            profile.coins += next.price;
+            round.refunded = (round.refunded ?? 0) + next.price;
+        }
         round.bought += 1;
         await store.save(id, profile);
         return roundDto(profile, round, idx, today, salt());
@@ -532,17 +559,19 @@ export async function restore(code: unknown): Promise<string | null> {
 // ---- hint images -------------------------------------------------------------
 
 /**
- * Resolves a /api/gacha/hint-image token to the art it stands for. null for a
- * forged or edited token, a round outside the kept window (or in the future),
- * or a character no longer in the catalog. The art URL stays on the server.
+ * Resolves a /api/gacha/hint-image token to the art it stands for. Tokens are
+ * valid for the Bangkok day they were minted on only: anything else (another
+ * day's token, a forged or edited token, a character no longer in the catalog)
+ * is null. The art URL stays on the server. `expiresInSec` is how long until
+ * the token stops working, so caches never outlive it.
  */
-export async function resolveHintImage(token: unknown): Promise<(HintImageRef & { artUrl: string }) | null> {
+export async function resolveHintImage(token: unknown): Promise<(HintImageRef & { artUrl: string; expiresInSec: number }) | null> {
     const { now, salt } = deps();
-    const ref = readHintImageToken(token, salt());
+    const nowMs = now();
+    const today = bangkokDayKey(nowMs);
+    const ref = readHintImageToken(token, salt(), today);
     if (!ref) return null;
-    const today = bangkokDayKey(now());
-    if (ref.day > today || ref.day <= addDays(today, -KEEP_ROUND_DAYS)) return null;
     const hit = (await getCatalog()).characters.get(ref.charId);
     if (!hit?.character.image) return null;
-    return { ...ref, artUrl: hit.character.image };
+    return { ...ref, artUrl: hit.character.image, expiresInSec: secondsUntilNextBangkokDay(nowMs) };
 }

@@ -64,7 +64,8 @@ async function call<T>(path: string, method: "GET" | "POST" = "GET", body?: unkn
 export const gachaApi = {
     today: () => call<RoundDto & { created?: boolean }>("today"),
     guess: (charId: number) => call<RoundDto>("guess", "POST", { charId }),
-    hint: () => call<RoundDto>("hint", "POST", {}),
+    /** Buys ladder slot `slot` (1-based); the server refuses any slot but the next closed one. */
+    hint: (slot: number) => call<RoundDto>("hint", "POST", { slot }),
     album: () => call<AlbumDto>("album"),
     storySeen: (animeId: number) => call<{ animeId: number; fresh: false }>("story-seen", "POST", { animeId }),
     recovery: () => call<{ code: string }>("recovery", "POST", {}),
