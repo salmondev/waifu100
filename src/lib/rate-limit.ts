@@ -200,4 +200,14 @@ export const LIMITS = {
   // /api/img cache MISSES only (a fetch + Gemini check). Cached verdicts are free.
   // A cold 100-cell grid needs ~100 misses once, then everything is cached.
   imgModerate: { name: "img-moderate", limit: 150, windowSec: 60 } satisfies RateLimit,
+  // Gacha Guess (/daily, T-0016): no metered API behind it, only Redis. Reads
+  // (today's round, the album) are a page load each; writes (guess, hint,
+  // recovery code) are a tap each, and a round is at most 6 guesses + 5 hints.
+  gachaRead: { name: "gacha-read", limit: 60, windowSec: 60 } satisfies RateLimit,
+  gachaWrite: { name: "gacha-write", limit: 30, windowSec: 60 } satisfies RateLimit,
+  // Consumed only when a request would create a NEW profile: every profile
+  // starts with free coins, so minting ids in a loop must not pay.
+  gachaCreate: { name: "gacha-create", limit: 5, windowSec: 600 } satisfies RateLimit,
+  // Recovery codes are 60 bits, but guessing them should still be slow.
+  gachaRestore: { name: "gacha-restore", limit: 5, windowSec: 600 } satisfies RateLimit,
 };
