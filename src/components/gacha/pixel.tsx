@@ -91,7 +91,7 @@ export const Coin = () => <Px rows={COIN_ROWS} className="coin" />;
 export type TierName = "common" | "rare" | "sr" | "ssr";
 export const TIER_NAME: Record<TierName, string> = { common: "Common", rare: "Rare", sr: "SR", ssr: "SSR" };
 export const TIER_LABEL: Record<TierName, string> = { common: "C", rare: "R", sr: "SR", ssr: "SSR" };
-/** Steps per tier: guesses, plus hints bought (r2). */
+/** Guesses per tier (hints never count, T-0023). */
 export const TIER_GUESSES: Record<TierName, string> = { ssr: "1", sr: "2", rare: "3-4", common: "5+" };
 
 export function TierMark({ tier }: { tier: TierName }) {

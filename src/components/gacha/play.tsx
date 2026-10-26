@@ -2,9 +2,11 @@
 /**
  * /daily play view (ported from the v2 prototype play.js). The server owns the
  * round: this only renders the RoundDto and sends guesses / hint purchases.
- * Typed autocomplete only, 6 guesses. A wrong guess shows a feedback row
+ * Typed autocomplete only. The first guess is free (T-0024: feedback, but no
+ * count for the tier, the cap or the fast bonus), then 6 counted guesses; rounds
+ * that had a guess before T-0024 keep 6 in all. A wrong guess shows a feedback row
  * (gender / role / age / birth month / popularity rank / JP voice actor);
- * hints are bought with coins and each one costs a tier step (r2). Rounds
+ * hints are bought with coins and never lower the card tier (r2; T-0023). Rounds
  * stored before r2 keep their old rule: a free hint per wrong guess.
  */
 import Link from "next/link";
@@ -14,7 +16,7 @@ import { DAILY_COINS, type CellState, type FeedbackCell, type HintKey, type Hint
 import { hintImageSrc } from "@/lib/gacha-hint-image";
 import { shareText } from "@/lib/gacha-share";
 import { proxied } from "@/lib/img-proxy";
-import { errorText, gachaApi, GachaClientError, type RoundDto } from "./api";
+import { errorText, freeGuessOf, gachaApi, GachaClientError, type RoundDto } from "./api";
 import { cardBackHtml, CardHtml, FOCAL } from "./card";
 import { animeSubtitle, animeTitle, thaiDate } from "./chrome";
 import { storyColours } from "./palette";
@@ -101,7 +103,7 @@ function FeedbackGrid({ guesses }: { guesses: RoundDto["guesses"] }) {
 /** Copies the spoiler-free result. The button itself says whether it worked: no toast, no popup. */
 function ShareButton({ round }: { round: RoundDto }) {
     const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
-    const text = shareText(round.day.number, round.maxGuesses, round.guesses, round.done === "won");
+    const text = shareText(round.day.number, round.maxGuesses, round.guesses, round.done === "won", freeGuessOf(round).used);
     const copy = async () => {
         try {
             await navigator.clipboard.writeText(text);
@@ -193,12 +195,17 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const [err, setErr] = useState<string | null>(null);
     const [shakeKey, setShakeKey] = useState(0);
     const colours = storyColours(round.anime.coverColor);
+    // Track slots: the free guess (when the round has one) takes slot 0, counted guesses follow.
+    const free = freeGuessOf(round);
+    const slotCount = round.maxGuesses + (free.on ? 1 : 0);
     const used = round.guesses.length;
     const wrongs = round.guesses.filter((g) => !g.correct).length;
-    // r2: hints are bought and each counts as a tier step. Legacy rounds: wrong guesses open hints free.
+    // r2: hints are bought (they never lower the tier). Legacy rounds: wrong guesses open hints free.
     const r2 = round.steps.hintsCostTier;
     const freeOpen = r2 ? 0 : wrongs;
+    // Counted guesses (the server leaves the free guess out): tier, remaining and the result line.
     const steps = round.steps.used;
+    const left = round.maxGuesses - steps;
     const done = round.done;
     const answer = round.result?.answer ?? null;
     const blur = round.hints.open.find((h) => h.key === "blur");
@@ -206,6 +213,9 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const eyes = round.hints.open.find((h) => h.key === "eyes");
     const won = (round.result?.pull?.tier as TierName | undefined) ?? tierFor(steps);
     const now = done === "won" ? won : done ? null : tierFor(steps + 1);
+    // Stored tiers are never recomputed. A round scored under the T-0016 rule
+    // (bought hints counted) can hold a tier the table no longer gives; say so.
+    const oldRule = done === "won" && !!round.result?.pull && won !== tierFor(Math.max(1, steps));
     const archDay = round.archive ? round.day.key : undefined;
     // Every write names this round's day, so a page left open past Bangkok
     // midnight still lands on the round on screen, never on the new day's.
@@ -309,10 +319,10 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     <div>
                         <div className="g-track-h">
                             <b>GUESS</b>
-                            <span>{done ? "จบรอบนี้" : <>เหลือ <em>{round.maxGuesses - used}</em> ครั้ง</>}</span>
+                            <span>{done ? "จบรอบนี้" : <>{free.on && !free.used ? "เดาครั้งแรกฟรี · " : ""}เหลือ <em>{left}</em> ครั้ง</>}</span>
                         </div>
-                        <ol className="g-track">
-                            {Array.from({ length: round.maxGuesses }, (_, i) => {
+                        <ol className={free.on ? "g-track free" : "g-track"}>
+                            {Array.from({ length: slotCount }, (_, i) => {
                                 const g = round.guesses[i];
                                 if (g)
                                     return (
@@ -321,13 +331,12 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                                             <span><Icon name={g.correct ? "check" : "cross"} /></span>
                                         </li>
                                     );
-                                return <li key={i} className={i === used && !done ? "now" : ""}><em>{i + 1}</em></li>;
+                                return <li key={i} className={[i === used && !done ? "now" : "", free.on && i === 0 ? "free-slot" : ""].filter(Boolean).join(" ") || undefined}><em>{free.on ? (i === 0 ? "ฟรี" : i) : i + 1}</em></li>;
                             })}
                         </ol>
                     </div>
                     <div>
                         <p className="g-stake-h">{done === "won" ? "ได้การ์ดระดับ" : done ? "ระดับตามครั้งที่เดาถูก" : "ถ้าเดาถูกตอนนี้"}</p>
-                        {r2 && !done && round.steps.used > used ? <p className="g-stake-n">นับคำใบ้ที่ซื้อ +{round.steps.used - used}</p> : null}
                         <ul className="g-ladder">
                             {LADDER.map((t) => (
                                 <li key={t} className={t === now ? "on" : ""}><Chip tier={t} /><small>{TIER_GUESSES[t]}</small></li>
@@ -342,9 +351,9 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         <p className="g-stamp">เดาถูก</p>
                         <p className="g-lead">{answer.name}</p>
                         <p className="g-sub">
-                            เดาครั้งที่ <b>{used}</b>
-                            {steps > used ? <> + คำใบ้ <b>{steps - used}</b></> : null} ได้การ์ด <Chip tier={won} />
+                            {free.used && steps === 0 ? <>เดาถูกตั้งแต่ครั้งฟรี ได้การ์ด <Chip tier={won} /></> : <>เดาครั้งที่ <b>{steps}</b> ได้การ์ด <Chip tier={won} /></>}
                         </p>
+                        {oldRule && <p className="g-note">รอบนี้คิดระดับการ์ดตามกฎเดิม (ตอนนั้นคำใบ้ที่ซื้อนับเป็นครั้งเดา)</p>}
                         <ul className="g-rew">
                             <li><span><Icon name="card" />การ์ด</span><Chip tier={won} /></li>
                             {round.result?.bonus ? <li><span><Coin />โบนัสเดาไว</span><b className="g-plus">+{round.result.bonus}</b></li> : null}
@@ -357,7 +366,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     </div>
                 ) : done === "lost" ? (
                     <div className="g-result lost win">
-                        <p className="g-stamp ink">ครบ 6 ครั้ง</p>
+                        <p className="g-stamp ink">{free.used ? "ครบ 6 ครั้ง + เดาฟรี" : "ครบ 6 ครั้ง"}</p>
                         <p className="g-sub">คำตอบคือ</p>
                         <p className="g-lead">{answer?.name ?? ""}</p>
                         <p className="g-note">{archDay ? "รอบนี้ไม่ได้การ์ด รอบย้อนหลังไม่นับวันติดกัน" : "รอบนี้ไม่ได้การ์ด สตรีคยังนับต่อ เพราะเล่นจบรอบแล้ว พรุ่งนี้มีตัวละครใหม่"}</p>
@@ -373,7 +382,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
             </section>
             <FeedbackGrid guesses={round.guesses} />
             <section className="g-hints win" aria-label="คำใบ้">
-                <h3 className="g-h3">คำใบ้ <small>{r2 ? "ซื้อทีละข้อ แต่ละข้อนับเป็น 1 ครั้ง" : "เปิดทีละข้อเมื่อเดาผิด"}</small></h3>
+                <h3 className="g-h3">คำใบ้ <small>{r2 ? "ซื้อทีละข้อ ไม่นับเป็นครั้งที่เดา" : "เปิดทีละข้อเมื่อเดาผิด"}</small></h3>
                 {Array.from({ length: round.hints.slots }, (_, i) => {
                     // Fixed five-slot ladder. Locked slots are numbered only: the server does not say
                     // which kind sits behind them, nor how many real hints there are.
@@ -431,12 +440,16 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                             <span className="g-nm">
                                 คำใบ้ข้อที่ {round.hints.next.slot}
                                 <small>
-                                    {r2 ? "นับเป็น 1 ครั้งตอนจัดระดับการ์ด" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
+                                    {r2 ? "ไม่นับเป็นครั้งที่เดา" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
                                 </small>
+                                {!round.hints.next.affordable && (
+                                    <small className="g-short" id="g-short">เหรียญไม่พอ (มี {round.coins} ต้องใช้ {round.hints.next.price})</small>
+                                )}
                             </span>
                             <button
                                 className="g-btn sm coin"
                                 type="button"
+                                aria-describedby={round.hints.next.affordable ? undefined : "g-short"}
                                 disabled={busy || !round.hints.next.affordable}
                                 onClick={() => buy(round.hints.next!.slot)}
                                 aria-label={`ซื้อคำใบ้ ${round.hints.next.price} เหรียญ`}
@@ -556,8 +569,9 @@ function GuessBox({ round, busy, shakeKey, onGuess }: { round: RoundDto; busy: b
             {bad && <p className="g-err" id="gerr">ไม่มีชื่อนี้ในเรื่องนี้ เลือกจากรายการ</p>}
             {round.guesses.length === 0 && (
                 <p className="g-rules">
+                    {freeGuessOf(round).on ? "เดาครั้งแรกฟรี ไม่นับเป็นครั้งที่เดา " : ""}
                     {round.steps.hintsCostTier
-                        ? "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน ยิ่งใช้ครั้งเดาและคำใบ้น้อย การ์ดยิ่งหายาก"
+                        ? "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก ซื้อคำใบ้ได้โดยไม่ลดระดับการ์ด"
                         : "เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"}
                 </p>
             )}

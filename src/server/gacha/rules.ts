@@ -288,7 +288,7 @@ export type HintKey = "eyes" | "va" | "silhouette" | "blur" | "initial";
 export const HINT_ORDER: readonly HintKey[] = ["eyes", "va", "silhouette", "blur", "initial"];
 
 /** Price of buying ladder slot i (0-based): set by the slot index alone, never by its kind. */
-export const HINT_PRICES: readonly number[] = [15, 20, 25, 30, 35];
+export const HINT_PRICES: readonly number[] = [30, 40, 50, 60, 70];
 
 export type HintImageHintKind = "eyes" | "silhouette" | "blur";
 
@@ -381,6 +381,7 @@ export function isEmptySlot(ladder: readonly HintKey[], index: number): boolean 
 
 // ---- guesses, tiers, pulls --------------------------------------------------
 
+/** Counted guesses per round. A round's free first guess (see GachaRound.free) comes on top. */
 export const MAX_GUESSES = 6;
 
 export type Tier = "common" | "rare" | "sr" | "ssr";
@@ -390,7 +391,7 @@ export const TIERS: readonly Tier[] = ["common", "rare", "sr", "ssr"];
 export const tierRank = (t: Tier): number => TIERS.indexOf(t);
 
 /**
- * Tier from "steps" used: guesses, plus (r2 rounds) hints bought. 1 SSR, 2 SR,
+ * Tier from the number of guesses only (hints never count). 1 SSR, 2 SR,
  * 3-4 Rare, 5+ Common. A lost round gets no card at all.
  */
 export function tierForGuesses(guessCount: number): Tier {
@@ -419,10 +420,10 @@ export const START_COINS = 35;
 export const DAILY_COINS = 10;
 export const FAST_BONUS: Readonly<Record<number, number>> = { 1: 30, 2: 20, 3: 10 };
 
-/** Keyed by the same steps value as the tier (guesses + bought hints in r2 rounds). */
+/** Keyed by tierSteps (guesses + bought hints in r2 rounds); the tier itself counts guesses only. */
 export const fastBonus = (steps: number): number => FAST_BONUS[steps] ?? 0;
 
-/** The steps a round's tier and fast bonus are read from. Pre-r2 rounds count guesses only. */
+/** The steps a round's fast bonus is read from (not the tier). Pre-r2 rounds count guesses only. */
 export function tierSteps(guesses: number, bought: number, r2: boolean): number {
     return guesses + (r2 ? Math.max(0, bought) : 0);
 }

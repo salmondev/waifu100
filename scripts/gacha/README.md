@@ -48,9 +48,30 @@ The app never calls AniList at runtime. Images are hot-linked through the existi
   constant, not an env var) before the first production deploy; changing it later
   renumbers days and re-draws picks of days nobody has played yet.
 - Archive rules: a never-played past day (1-30 days back, never before `FIRST_DAY_KEY`,
-  never in the future) can be played once; a finished one is view-only. Same 6 guesses,
+  never in the future) can be played once; a finished one is view-only. Same free first guess + 6 counted guesses,
   tier and hint prices as a normal day; hints are paid from the current balance. When an
   archive round finishes (won or lost) it pays the normal daily coins once per day key
   (idempotent: the finished round refuses further writes under the profile lock and
   records the grant in `dailyCoins`). No fast bonus, and the streak only counts rounds
   finished on their own day, so the archive never extends or repairs it.
+
+## Free first guess (T-0024)
+
+- The first guess of every round (archive included) is free: it gets normal feedback but
+  does not count for the card tier, the 6-guess cap, or the fast bonus. A round therefore
+  allows 7 guesses; the round is lost after the free one + 6 counted wrong ones, and any
+  further guess is `409 round_over`. A right free guess = SSR + the +30 fast bonus.
+- Persisted as `GachaRound.free: true`, set when a round receives its first guess under
+  this code. Tier = `tierForGuesses(max(1, counted))`, counted = guesses - (free ? 1 : 0).
+- In-flight rule (deploy day): a round that already had >= 1 guess before the deploy keeps
+  the old rule (6 guesses, all counted, no free flag); a stored round with 0 guesses gets
+  the free guess on its first guess. Finished rounds and stored cards are never recomputed.
+- DTO: `maxGuesses` = 6 (counted), `steps.used` = counted guesses,
+  `freeGuess: { on, used }`; guesses left = `maxGuesses - steps.used` (+1 while the free
+  guess is on and unused). The UI shows "เดาครั้งแรกฟรี · เหลือ N ครั้ง" and a 7-slot track.
+- Hint prices (`HINT_PRICES`): 30 / 40 / 50 / 60 / 70 coins for slots 1-5.
+- Share text (`src/lib/gacha-share.ts`), squares only, never names:
+  - free round won on counted guess S: `waifu100 Daily #N S/6 +free`
+  - won on the free guess: `waifu100 Daily #N FREE/6`
+  - free round lost: `waifu100 Daily #N X/6 +free`
+  - the free guess row is prefixed with `🆓 `; old-rule rounds keep `S/6` / `X/6` unchanged.

@@ -69,7 +69,7 @@ describe("GachaApp past Bangkok midnight", () => {
         expect(c.querySelector(".g-fbrow")).toBeNull();
         expect(c.textContent).not.toContain("ซื้อแล้ว");
 
-        fireEvent.click([...c.querySelectorAll("button")].find((b) => b.textContent?.includes("15"))!);
+        fireEvent.click([...c.querySelectorAll("button")].find((b) => b.textContent?.includes("30"))!);
         await vi.waitFor(() => expect(c.querySelector(".g-hint.open")?.textContent).toContain("ซื้อแล้ว"));
         // slot 1 now shows the bought hint itself, not the lock
         const slot1 = c.querySelector(".g-hints .g-hint")!;

@@ -47,10 +47,20 @@ export interface GachaRound {
     refunded?: number;
     /**
      * 2 = created under the T-0016 r2 rules: hints open only when bought, and the
-     * tier / fast bonus count guesses + bought hints. Absent on older rounds,
-     * which keep their rules (a free hint per wrong guess, tier by guesses only).
+     * fast bonus counts guesses + bought hints. Since T-0023 the tier counts
+     * guesses only on every round; a finished round keeps the tier stored at its
+     * win. Absent on older rounds (a free hint per wrong guess).
      */
     rules?: 2;
+    /**
+     * true = this round's first guess was free (T-0024): it gets feedback like any
+     * guess but counts for neither the tier, the 6-guess cap nor the fast bonus,
+     * so the round has MAX_GUESSES + 1 guesses in all. Set by guess() when the
+     * round's first guess is made (no guesses stored yet), archive rounds alike.
+     * Rounds that already had a guess stored before T-0024 never get it and keep
+     * the old rule (MAX_GUESSES guesses, all counted); finished rounds are never touched.
+     */
+    free?: true;
     /**
      * true = started from the archive (a past day this profile never played):
      * no daily coins on creation; the normal daily coins are paid once when it

@@ -3,21 +3,24 @@ import { cleanup, render } from "@testing-library/react";
 
 vi.mock("@/lib/redis", () => ({ withRedis: async () => { throw new Error("no redis in tests"); } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+vi.mock("./pack-scene", () => ({ createPackScene: () => new Promise(() => {}), T: { reveal: 0 } }));
 
 import { indexCatalog } from "@/server/gacha/catalog";
 import { roundDto, type RoundDto } from "@/server/gacha/service";
 import type { GachaProfile, GachaRound } from "@/server/gacha/store";
 import { FIXTURE_CATALOG } from "@/server/gacha/test-fixture";
+import { PackView } from "./pack";
 import { PlayView } from "./play";
 
 const idx = indexCatalog(FIXTURE_CATALOG);
 const DAY = "2026-10-27";
 
 /** A real DTO from the server's own roundDto, for a fixture answer with gaps. */
-function dto(answerId: number, wrong: number[], done: GachaRound["done"] = null, bought = 0, r2 = false): RoundDto {
+function dto(answerId: number, wrong: number[], done: GachaRound["done"] = null, bought = 0, r2 = false, extra: Partial<GachaRound> = {}): RoundDto {
     const round: GachaRound = {
         day: DAY, animeId: 9001, answerId, guesses: wrong, bought, done, dailyCoins: 10, bonus: 0, pull: null, storyUnlockedNow: false,
         ...(r2 ? { rules: 2 as const } : {}),
+        ...extra,
     };
     const profile = { coins: 50, rounds: { [DAY]: round }, finishedDays: [], collection: {}, storySeen: [] } as unknown as GachaProfile;
     return roundDto(profile, round, idx, DAY, "play-test-salt");
@@ -139,9 +142,10 @@ describe("r2 round: feedback rows, bought hints count, share", () => {
         for (const u of unknown) expect(u.textContent).toContain("?");
     });
 
-    it("the stake counts bought hints; a won round offers the copy button", async () => {
+    it("the stake ignores bought hints; a won round offers the copy button", async () => {
         const playing = view(dto(101, [103], null, 1, true));
-        expect(playing.textContent).toContain("นับคำใบ้ที่ซื้อ");
+        expect(playing.textContent).not.toContain("นับคำใบ้ที่ซื้อ");
+        expect(playing.querySelector(".g-ladder li.on .t-sr")).not.toBeNull(); // 1 wrong guess: next guess is SR, the hint does not count
         cleanup();
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
@@ -165,5 +169,166 @@ describe("r2 round: feedback rows, bought hints count, share", () => {
         btn.click();
         await vi.waitFor(() => expect(c.querySelector(".g-sharebox textarea")).not.toBeNull());
         expect((c.querySelector(".g-sharebox textarea") as HTMLTextAreaElement).value).toMatch(/ X\/6\n/);
+    });
+});
+
+describe("free first guess (T-0024): counter, track, result line", () => {
+    const track = (c: HTMLElement) => [...c.querySelectorAll<HTMLElement>(".g-track li")];
+    const head = (c: HTMLElement) => c.querySelector(".g-track-h span")!.textContent;
+
+    it("a fresh round says the first guess is free and shows 7 slots, the free one first", () => {
+        const c = view(dto(101, [], null, 0, true));
+        expect(head(c)).toBe("เดาครั้งแรกฟรี · เหลือ 6 ครั้ง");
+        const slots = track(c);
+        expect(slots).toHaveLength(7);
+        expect(slots.map((li) => li.textContent)).toEqual(["ฟรี", "1", "2", "3", "4", "5", "6"]);
+        expect(slots[0].classList.contains("now")).toBe(true);
+        expect(c.querySelector(".g-rules")!.textContent).toContain("เดาครั้งแรกฟรี ไม่นับเป็นครั้งที่เดา");
+        expect(c.querySelector(".g-ladder li.on .t-ssr")).not.toBeNull();
+    });
+
+    it("after a wrong free guess: 6 left, the next slot is counted guess 1 and still SSR", () => {
+        const c = view(dto(101, [103], null, 0, true, { free: true }));
+        expect(head(c)).toBe("เหลือ 6 ครั้ง");
+        const slots = track(c);
+        expect(slots).toHaveLength(7);
+        expect(slots[1].classList.contains("now")).toBe(true);
+        expect(slots[1].textContent).toBe("1");
+        expect(c.querySelector(".g-ladder li.on .t-ssr")).not.toBeNull();
+        cleanup();
+        const later = view(dto(101, [103, 104, 105], null, 0, true, { free: true }));
+        expect(head(later)).toBe("เหลือ 4 ครั้ง");
+    });
+
+    it("an old-rule round in flight keeps 6 slots and the plain counter", () => {
+        const c = view(dto(101, [103, 104], null, 0, true));
+        expect(head(c)).toBe("เหลือ 4 ครั้ง");
+        expect(track(c)).toHaveLength(6);
+        expect(c.querySelector(".g-track")!.textContent).not.toContain("ฟรี");
+        expect(c.querySelector(".g-track-h")!.textContent).not.toContain("ฟรี");
+    });
+
+    it("result line: a free-guess win, a counted win, and a loss after the free guess", () => {
+        const pull = (tier: string) => ({ result: "new" as const, prevTier: null, tier: tier as "ssr" });
+        const free = view(dto(101, [101], "won", 0, true, { free: true, pull: pull("ssr") }));
+        expect(free.querySelector(".g-result .g-sub")!.textContent).toContain("เดาถูกตั้งแต่ครั้งฟรี");
+        expect(free.textContent).not.toContain("กฎเดิม");
+        cleanup();
+        const counted = view(dto(101, [103, 104, 101], "won", 0, true, { free: true, pull: pull("sr") }));
+        expect(counted.querySelector(".g-result .g-sub")!.textContent).toContain("เดาครั้งที่ 2 ได้การ์ด");
+        expect(counted.textContent).not.toContain("กฎเดิม");
+        cleanup();
+        const lost = view(dto(101, [102, 103, 104, 105, 106, 107, 108], "lost", 0, true, { free: true }));
+        expect(lost.querySelector(".g-stamp")!.textContent).toBe("ครบ 6 ครั้ง + เดาฟรี");
+    });
+
+    it("a round scored under the old rule says so, and keeps its stored tier", () => {
+        // T-0016 rule: 1 guess + 2 bought hints = Rare; the table now says 1 guess = SSR
+        const old = view(dto(101, [101], "won", 2, true, { pull: { result: "new", prevTier: null, tier: "rare" } }));
+        const sub = old.querySelector(".g-result .g-sub")!;
+        expect(sub.textContent).toContain("เดาครั้งที่ 1 ได้การ์ด");
+        expect(sub.querySelector(".t-rare")).not.toBeNull();
+        expect(old.textContent).toContain("รอบนี้คิดระดับการ์ดตามกฎเดิม");
+        cleanup();
+        const match = view(dto(101, [103, 101], "won", 0, true, { pull: { result: "new", prevTier: null, tier: "sr" } }));
+        expect(match.textContent).not.toContain("กฎเดิม");
+    });
+
+    it("the share text of a free round marks the free row", async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+        const c = view(dto(101, [103, 101], "won", 0, true, { free: true, pull: { result: "new", prevTier: null, tier: "ssr" } }));
+        [...c.querySelectorAll("button")].find((b) => b.textContent?.includes("คัดลอกผลลัพธ์"))!.click();
+        await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
+        const lines = (writeText.mock.calls[0][0] as string).split("\n");
+        expect(lines[0]).toMatch(/^waifu100 Daily #\d+ 1\/6 \+free$/);
+        expect(lines[1].startsWith("🆓 ")).toBe(true);
+        expect(lines[2]).toBe("🟩🟩🟩🟩🟩🟩");
+    });
+});
+
+describe("pack recap counts only counted guesses (T-0024)", () => {
+    const pull = { result: "new" as const, prevTier: null, tier: "ssr" as const };
+    const recap = (r: RoundDto) => render(<PackView round={r} coins={0} />).container;
+
+    it("a free-guess win: 'ครั้งฟรี', 6 + 1 free, 7 slots", () => {
+        const c = recap(dto(101, [101], "won", 0, true, { free: true, pull }));
+        expect(c.querySelector(".g-recap-h")!.textContent).toBe("เดาถูกครั้งฟรีจาก 6 + ฟรี 1");
+        expect(c.querySelectorAll(".g-recap .g-track li")).toHaveLength(7);
+    });
+
+    it("free wrong then right: counted guess 1; an old-rule round keeps 6 slots", () => {
+        const c = recap(dto(101, [103, 101], "won", 0, true, { free: true, pull }));
+        expect(c.querySelector(".g-recap-h")!.textContent).toBe("เดาถูกครั้งที่ 1จาก 6 + ฟรี 1");
+        cleanup();
+        const old = recap(dto(101, [103, 101], "won", 0, true, { pull: { ...pull, tier: "sr" } }));
+        expect(old.querySelector(".g-recap-h")!.textContent).toBe("เดาถูกครั้งที่ 2จาก 6");
+        expect(old.querySelectorAll(".g-recap .g-track li")).toHaveLength(6);
+    });
+});
+
+describe("rollback skew (T-0024 r2): a server without freeGuess (old code) does not crash the new client", () => {
+    /** What eaed3e3 sends: the same DTO with no `freeGuess` field at all. */
+    const old = (r: RoundDto): RoundDto => {
+        const { freeGuess: _drop, ...rest } = r;
+        void _drop;
+        return rest as RoundDto;
+    };
+
+    it("renders an in-progress round as the old rule: 6 counted slots, no free label or rule text", () => {
+        const c = view(old(dto(105, [])));
+        const track = c.querySelector(".g-track")!;
+        expect(track.classList.contains("free")).toBe(false);
+        expect(track.querySelectorAll("li")).toHaveLength(6);
+        expect(c.textContent).not.toContain("ฟรี ไม่นับ");
+        expect(c.querySelector(".free-slot")).toBeNull();
+    });
+
+    it("renders a finished round (share button) and the pack recap", () => {
+        expect(() => view(old(dto(105, [101, 105], "won")))).not.toThrow();
+        expect(() => render(<PackView round={old(dto(105, [101, 105], "won"))} coins={0} />)).not.toThrow();
+    });
+
+    it("gachaApi normalizes a round response without freeGuess to {on:false, used:false}", async () => {
+        const { gachaApi } = await import("./api");
+        const body = old(dto(105, [101]));
+        const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }));
+        vi.stubGlobal("fetch", fetchMock);
+        try {
+            for (const r of [await gachaApi.today(), await gachaApi.day(DAY), await gachaApi.guess(102, DAY), await gachaApi.hint(1, DAY)]) {
+                expect(r.freeGuess).toEqual({ on: false, used: false });
+            }
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+});
+
+describe("hint shop: not enough coins (T-0024 r2)", () => {
+    /** Same as dto() but the profile holds `coins`. */
+    function withCoins(coins: number, wrong: number[] = []): RoundDto {
+        const round: GachaRound = {
+            day: DAY, animeId: 9001, answerId: 105, guesses: wrong, bought: 0, done: null, dailyCoins: 10, bonus: 0, pull: null, storyUnlockedNow: false, rules: 2,
+        };
+        const profile = { coins, rounds: { [DAY]: round }, finishedDays: [], collection: {}, storySeen: [] } as unknown as GachaProfile;
+        return roundDto(profile, round, idx, DAY, "play-test-salt");
+    }
+
+    it("shows the inline reason with have/need next to the disabled button", () => {
+        const r = withCoins(12);
+        expect(r.hints.next).toMatchObject({ price: 30, affordable: false });
+        const c = view(r);
+        const reason = c.querySelector(".g-shoprow .g-short");
+        expect(reason?.textContent).toBe("เหรียญไม่พอ (มี 12 ต้องใช้ 30)");
+        const btn = c.querySelector<HTMLButtonElement>(".g-shoprow button")!;
+        expect(btn.disabled).toBe(true);
+        expect(btn.getAttribute("aria-describedby")).toBe(reason!.id);
+        expect(c.querySelector("[role=dialog], [role=alert]")).toBeNull();
+    });
+
+    it("shows no reason when the hint is affordable", () => {
+        const c = view(withCoins(50));
+        expect(c.querySelector(".g-short")).toBeNull();
+        expect(c.querySelector<HTMLButtonElement>(".g-shoprow button")!.hasAttribute("aria-describedby")).toBe(false);
     });
 });
