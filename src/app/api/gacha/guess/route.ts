@@ -8,7 +8,9 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/gacha/guess { charId, day? } -> the updated round (answer included only once it is over).
- * `day` (YYYY-MM-DD) targets an archive day; omitted = today.
+ * `day` (YYYY-MM-DD) is the round's own day (the client always sends it, so a page open past
+ * Bangkok midnight still writes to its own round); it must be today or an archive day, never
+ * future. Omitted = today, kept only for tabs loaded before the client sent it.
  */
 export async function POST(req: Request) {
     const auth = requireGachaId(req);

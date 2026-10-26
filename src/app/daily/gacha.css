@@ -488,7 +488,7 @@
 .g-fbhead span { font: 400 12px/1.15 var(--th); text-align: center; overflow-wrap: anywhere; }
 .g-fbname { margin: 0 0 3px; display: flex; gap: 6px; align-items: baseline; font: 500 13px/1.25 var(--th); }
 .g-fbname b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.g-fbname em { font: 700 11px/1 var(--bit); font-style: normal; background: var(--green); padding: 2px 4px 1px; box-shadow: 0 0 0 2px var(--ink); }
+.g-fbname em { font: 500 12px/1 var(--th); font-style: normal; background: var(--green); padding: 2px 4px 1px; box-shadow: 0 0 0 2px var(--ink); }
 .g-cell { display: grid; justify-items: center; align-content: center; gap: 3px; min-height: 46px; padding: 4px 2px; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
 .g-cell .pxi { width: 14px; height: 14px; }
 .g-cell small { font: 400 12px/1.1 var(--th); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

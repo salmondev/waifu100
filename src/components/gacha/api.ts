@@ -66,10 +66,10 @@ export const gachaApi = {
     /** A past day from the archive (YYYY-MM-DD); viewing it never uses the day up. */
     day: (day: string) => call<RoundDto>(`today?day=${encodeURIComponent(day)}`),
     archive: () => call<ArchiveDto>("archive"),
-    /** `day` only for archive rounds; today's round sends none (old servers ignore nothing new). */
-    guess: (charId: number, day?: string) => call<RoundDto>("guess", "POST", day ? { charId, day } : { charId }),
-    /** Buys ladder slot `slot` (1-based); the server refuses any slot but the next closed one. */
-    hint: (slot: number, day?: string) => call<RoundDto>("hint", "POST", day ? { slot, day } : { slot }),
+    /** `day` is the round's own day (YYYY-MM-DD), today's included: the server never moves a write to another day. */
+    guess: (charId: number, day: string) => call<RoundDto>("guess", "POST", { charId, day }),
+    /** Buys ladder slot `slot` (1-based) of `day`'s round; the server refuses any slot but the next closed one. */
+    hint: (slot: number, day: string) => call<RoundDto>("hint", "POST", { slot, day }),
     album: () => call<AlbumDto>("album"),
     storySeen: (animeId: number) => call<{ animeId: number; fresh: false }>("story-seen", "POST", { animeId }),
     recovery: () => call<{ code: string }>("recovery", "POST", {}),

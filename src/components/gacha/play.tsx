@@ -206,8 +206,10 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const eyes = round.hints.open.find((h) => h.key === "eyes");
     const won = (round.result?.pull?.tier as TierName | undefined) ?? tierFor(steps);
     const now = done === "won" ? won : done ? null : tierFor(steps + 1);
-    // Archive rounds (a past day) send their day with every write; today's round sends none.
     const archDay = round.archive ? round.day.key : undefined;
+    // Every write names this round's day, so a page left open past Bangkok
+    // midnight still lands on the round on screen, never on the new day's.
+    const roundDay = round.day.key;
 
     const send = async (fn: () => Promise<RoundDto>, wrongShake = false) => {
         if (busy) return;
@@ -228,9 +230,9 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const buy = (slot: number) =>
         send(async () => {
             try {
-                return await gachaApi.hint(slot, archDay);
+                return await gachaApi.hint(slot, roundDay);
             } catch (e) {
-                if (e instanceof GachaClientError && e.code === "hint_out_of_order") return archDay ? gachaApi.day(archDay) : gachaApi.today();
+                if (e instanceof GachaClientError && e.code === "hint_out_of_order") return gachaApi.day(roundDay);
                 throw e;
             }
         });
@@ -365,7 +367,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         </div>
                     </div>
                 ) : (
-                    <GuessBox round={round} busy={busy} shakeKey={shakeKey} onGuess={(id) => send(() => gachaApi.guess(id, archDay), true)} />
+                    <GuessBox round={round} busy={busy} shakeKey={shakeKey} onGuess={(id) => send(() => gachaApi.guess(id, roundDay), true)} />
                 )}
                 {err && <p className="g-err" role="alert">{err}</p>}
             </section>

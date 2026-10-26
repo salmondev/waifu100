@@ -12,7 +12,8 @@ const badRequest = () => gachaFail(400, "invalid_hint_request", "Hints open in l
  * POST /api/gacha/hint -> buys the next closed hint slot with coins; returns the updated round.
  *
  * Body: `{}` or `{ "slot": n, "day"?: "YYYY-MM-DD" }` (slot 1-based, must be the
- * next closed slot; day targets an archive day, omitted = today). Hints
+ * next closed slot; day is the round's own day, always sent by the client, and must be today
+ * or an archive day; omitted = today only for tabs loaded before that). Hints
  * open strictly in ladder order, so any other field (a kind, an index) is
  * refused with 400, and a slot other than the next one with 409.
  */

@@ -62,6 +62,18 @@ describe("hint image tokens", () => {
         expect(readHintImageToken(tomorrow, SALT, "2026-10-28")).toEqual({ ...REF, day: "2026-10-28" });
         expect(readHintImageToken(tomorrow, SALT, "2026-10-27")).toBeNull();
     });
+    it("player-bound tokens carry the player id encrypted, still fit the client's token shape, and only take a v4 player id", () => {
+        const PID = "3f1c2b7a-9d4e-4a6b-8c1d-2e3f4a5b6c7d";
+        const bound = { ...REF, pid: PID };
+        const t = hintImageToken(bound, SALT);
+        expect(readHintImageToken(t, SALT, REF.day)).toEqual(bound);
+        expect(t).toMatch(/^[A-Za-z0-9_-]{24,200}$/);
+        expect(Buffer.from(t, "base64url").toString("latin1")).not.toContain(PID.slice(0, 8));
+        expect(t).not.toBe(hintImageToken(REF, SALT));
+        expect(t).not.toBe(hintImageToken({ ...REF, pid: "7a2b3c4d-5e6f-4a1b-9c2d-3e4f5a6b7c8d" }, SALT));
+        expect(() => hintImageToken({ ...REF, pid: "not-a-player" }, SALT)).toThrow();
+        expect(() => hintImageToken({ ...REF, pid: "3f1c2b7a-9d4e-1a6b-8c1d-2e3f4a5b6c7d" }, SALT)).toThrow(); // v1, not v4
+    });
 });
 
 describe("hint image renderers", () => {

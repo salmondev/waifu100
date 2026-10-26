@@ -25,9 +25,10 @@ const cachePolicy = (maxAge: number, sMaxAge: number, ttl: number, immutable = f
  * art's URL or a sharp copy of it. The art goes through the same allow-listed,
  * moderated fetch as /api/img, then is reduced server-side. The response
  * carries only the image, its type and a cache policy: no source URL, hash,
- * moderation header or ETag. The token is the same for every player that day,
- * so a checked image is CDN-cached - but only until that Bangkok day ends: a
- * token is valid for one day, and is 404 on any other.
+ * moderation header or ETag. The token is bound to one player's stored round
+ * (its day and its stored answer, see resolveHintImage), so a token for any
+ * other character, day or player is 404. A checked image is cached - but only
+ * until that Bangkok day ends, the earliest the archive window can move.
  */
 export async function GET(req: NextRequest) {
     const limited = await gachaRateLimit(req, LIMITS.gachaImage);

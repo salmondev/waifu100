@@ -226,6 +226,42 @@ describe("image hints never expose the art URL", () => {
         // and tomorrow's (now today's) token never worked before its day: checked in the 404 test above
     });
 
+    it("a legacy-shaped stored round whose answer != the new dailyPick: its hint images serve 200, any other character 404", async () => {
+        vi.mocked(getModeratedImage).mockResolvedValue({ ok: true, hash: "h", jpeg, checked: true });
+        const y = addDays(day, -1);
+        const newPick = dailyPick(FIXTURE_CATALOG, y, SALT);
+        const anime = FIXTURE_CATALOG.anime.find((a) => a.id !== newPick.animeId)!;
+        const oldAnswer = anime.characters.find((c) => c.image)!;
+        const wrong = anime.characters.filter((c) => c.id !== oldAnswer.id).map((c) => c.id);
+        // 7ad2672 shape: no `rules`, no `archive`; answer chosen by the old picker
+        await store.save(ID, {
+            v: 1, createdAt: T0 - 2 * 86_400_000, coins: 50, recoveryHash: null, storySeen: [], collection: {}, finishedDays: [y],
+            rounds: { [y]: { day: y, animeId: anime.id, answerId: oldAnswer.id, guesses: wrong.slice(0, 2), bought: 0, done: "lost", dailyCoins: 10, bonus: 0, pull: null, storyUnlockedNow: false } },
+        } as never);
+        const res = await todayGET(req(`today?day=${y}`));
+        expect(res.status).toBe(200);
+        const round = (await res.json()) as RoundDto;
+        expect(round.result!.answer.id).toBe(oldAnswer.id);
+        const srcs = round.hints.open.flatMap((h) => ("src" in h && typeof h.src === "string" ? [h.src] : []));
+        expect(srcs.length).toBeGreaterThan(0);
+        for (const src of srcs) {
+            const img = await hintImageGET(imgReq(new URL(src, "http://x").searchParams.get("t")!));
+            expect(img.status).toBe(200);
+            expect(img.headers.get("content-type")).toMatch(/^image\/(webp|png)$/);
+        }
+        expect(vi.mocked(getModeratedImage).mock.calls.every((c) => c[0] === oldAnswer.image)).toBe(true);
+        // still bound: the new picker's answer, another character of that anime, or another player's token are 404
+        for (const t of [
+            hintImageToken({ day: y, charId: newPick.answerId, kind: "blur", pid: ID }, SALT),
+            hintImageToken({ day: y, charId: wrong[0], kind: "blur", pid: ID }, SALT),
+            hintImageToken({ day: y, charId: oldAnswer.id, kind: "blur", pid: "7a2b3c4d-5e6f-4a1b-9c2d-3e4f5a6b7c8d" }, SALT),
+        ]) {
+            const bad = await hintImageGET(imgReq(t));
+            expect(bad.status).toBe(404);
+            expect(bad.headers.get("cache-control")).toBe("no-store");
+        }
+    });
+
     it("is rate-limited before any work", async () => {
         vi.mocked(enforceRateLimit).mockResolvedValueOnce(new Response("slow down", { status: 429 }) as never);
         const res = await hintImageGET(imgReq(hintImageToken({ day, charId: 101, kind: "blur" }, SALT)));
@@ -370,5 +406,39 @@ describe("archive (past days) routes", () => {
         const view = await todayGET(req(`today?day=${y}`));
         expect(await view.json()).toMatchObject({ done: "won", archive: true, coins: 40 });
         expect(vi.mocked(enforceRateLimit).mock.calls.some((c) => (c[1] as { name: string }).name === "gacha-write")).toBe(true);
+    });
+
+    it("a page open past Bangkok midnight: guess and hint sent with the round's day land on that round, never the new day", async () => {
+        await todayGET(req("today"));
+        const p = (await store.load(ID))!;
+        p.coins = 100;
+        await store.save(ID, p);
+        clock = Date.parse("2026-10-27T17:01:00Z"); // 00:01 the next Bangkok day
+        const next = addDays(day, 1);
+        const h = await hintPOST(req("hint", "POST", { slot: 1, day }));
+        expect(h.status).toBe(200);
+        expect(await h.json()).toMatchObject({ day: { key: day }, archive: true });
+        const r0 = (await store.load(ID))!.rounds[day];
+        const wrong = FIXTURE_CATALOG.anime.find((a) => a.id === r0.animeId)!.characters.find((c) => c.id !== r0.answerId)!.id;
+        const g = await guessPOST(req("guess", "POST", { charId: wrong, day }));
+        expect(g.status).toBe(200);
+        expect(await g.json()).toMatchObject({ day: { key: day } });
+        const saved = (await store.load(ID))!;
+        expect(saved.rounds[day]).toMatchObject({ bought: 1, guesses: [wrong] });
+        expect(saved.rounds[next]?.bought ?? 0).toBe(0);
+        expect(saved.rounds[next]?.guesses ?? []).toEqual([]);
+        // a day the page could not have had: future or out of the window is still 404, nothing written
+        expect((await guessPOST(req("guess", "POST", { charId: wrong, day: addDays(next, 1) }))).status).toBe(404);
+        expect((await hintPOST(req("hint", "POST", { slot: 1, day: addDays(next, -31) }))).status).toBe(404);
+    });
+
+    it("GET /archive gives today's tier once today is won", async () => {
+        await todayGET(req("today"));
+        const answer = dailyPick(FIXTURE_CATALOG, day, "arch-salt").answerId;
+        const won = await (await guessPOST(req("guess", "POST", { charId: answer, day }))).json();
+        expect(won.done).toBe("won");
+        const body = await (await archiveGET(req("archive"))).json();
+        expect(body.today).toEqual({ key: day, number: expect.any(Number), state: "won", tier: won.result.pull.tier });
+        expect(body.today.tier).not.toBeNull();
     });
 });

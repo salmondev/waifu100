@@ -19,7 +19,7 @@ const STATE_TEXT: Record<ArchiveDayState, string> = {
 
 function StateTag({ state, tier }: { state: ArchiveDayState; tier: string | null }) {
     if (state === "won" && tier) return <span className="g-arch-st won"><Icon name="check" />{STATE_TEXT.won}<Chip tier={tier as TierName} /></span>;
-    const icon = state === "lost" ? "cross" : state === "playing" ? "next" : "unknown";
+    const icon = state === "won" ? "check" : state === "lost" ? "cross" : state === "playing" ? "next" : "unknown";
     return <span className={`g-arch-st ${state}`}><Icon name={icon} />{STATE_TEXT[state]}</span>;
 }
 
@@ -38,7 +38,7 @@ export function ArchiveView({ archive }: { archive: ArchiveDto }) {
                 </p>
                 <Link className="g-btn red g-arch-today" href="/daily" scroll={false}>
                     <Icon name="back" />วันนี้ #{archive.today.number}
-                    <StateTag state={archive.today.state} tier={null} />
+                    <StateTag state={archive.today.state} tier={archive.today.tier} />
                 </Link>
             </section>
             {archive.days.length === 0 ? (

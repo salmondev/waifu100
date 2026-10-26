@@ -613,7 +613,7 @@ describe("archive (past days)", () => {
         expect(list.days).toHaveLength(30);
         expect(list.days.at(-1)!.key).toBe(FIRST_DAY_KEY);
         expect(list.days.every((d) => d.state === "new" && d.key < today())).toBe(true);
-        expect(list.today).toEqual({ key: today(), number: 31, state: "playing" });
+        expect(list.today).toEqual({ key: today(), number: 31, state: "playing", tier: null });
     });
 
     it("window edges follow Bangkok midnight, not UTC", async () => {
@@ -825,5 +825,77 @@ describe("archive (past days)", () => {
         expect(await code(guess(ID, pickOn(legacyDay).answerId, legacyDay))).toBe("round_over");
         expect((await getToday(ID)).streak).toBe(1);
         expect((await profile()).rounds[legacyDay].archive).toBeUndefined();
+    });
+
+    /** A pre-r2 round stored under the OLD picker: its answer is not today's dailyPick for that day. */
+    const legacyOtherPick = (day: string, done: "lost" | null) => {
+        const anime = FIXTURE_CATALOG.anime.find((a) => a.id !== pickOn(day).animeId && a.characters.filter((c) => c.image).length >= 3)!;
+        const answerChar = anime.characters.find((c) => c.image && c.id !== pickOn(day).answerId)!;
+        const wrong = anime.characters.filter((c) => c.id !== answerChar.id).map((c) => c.id);
+        return {
+            answerId: answerChar.id,
+            wrong,
+            profile: {
+                v: 1,
+                createdAt: now - 2 * 86_400_000,
+                coins: 50,
+                recoveryHash: null,
+                storySeen: [],
+                collection: {},
+                finishedDays: done ? [day] : [],
+                rounds: {
+                    [day]: { day, animeId: anime.id, answerId: answerChar.id, guesses: wrong.slice(0, 2), bought: 0, done, dailyCoins: 10, bonus: 0, pull: null, storyUnlockedNow: false },
+                },
+            },
+        };
+    };
+    const imageTokens = (dto: RoundDto) =>
+        dto.hints.open.flatMap((h) => ("src" in h && typeof h.src === "string" ? [new URL(h.src, "http://x").searchParams.get("t")!] : []));
+
+    it("legacy round whose stored answer != the new dailyPick: DTO, reveal and image tokens all use the stored answer", async () => {
+        const day = yesterday();
+        const legacy = legacyOtherPick(day, "lost");
+        expect(legacy.answerId).not.toBe(pickOn(day).answerId);
+        store.profiles.set(ID, JSON.stringify(legacy.profile));
+
+        const dto = await getDay(ID, day);
+        expect(dto.anime.id).toBe(legacy.profile.rounds[day].animeId);
+        expect(dto.result!.answer.id).toBe(legacy.answerId); // reveal
+        const tokens = imageTokens(dto);
+        expect(tokens.length).toBeGreaterThan(0);
+        for (const t of tokens) expect(await resolveHintImage(t)).toMatchObject({ day, charId: legacy.answerId, pid: ID });
+
+        // Bound to the stored round: another character (even the new pick), another player, a day without a round: refused.
+        expect(await resolveHintImage(hintImageToken({ day, charId: pickOn(day).answerId, kind: "eyes", pid: ID }, SALT))).toBeNull();
+        expect(await resolveHintImage(hintImageToken({ day, charId: legacy.wrong[0], kind: "eyes", pid: ID }, SALT))).toBeNull();
+        expect(await resolveHintImage(hintImageToken({ day, charId: legacy.answerId, kind: "eyes", pid: ID2 }, SALT))).toBeNull();
+        const noRound = addDays(today(), -3);
+        expect(await resolveHintImage(hintImageToken({ day: noRound, charId: pickOn(noRound).answerId, kind: "eyes", pid: ID }, SALT))).toBeNull();
+        // The archive list reads the stored round too.
+        expect((await getArchive(ID)).days[0]).toMatchObject({ key: day, state: "lost" });
+    });
+
+    it("legacy in-progress round with an old-picker answer: guesses and hints play against the stored answer", async () => {
+        const day = yesterday();
+        const legacy = legacyOtherPick(day, null);
+        store.profiles.set(ID, JSON.stringify(legacy.profile));
+        const before = await getDay(ID, day);
+        expect(before.done).toBeNull();
+        for (const t of imageTokens(before)) expect((await resolveHintImage(t))?.charId).toBe(legacy.answerId);
+        // The new pick's answer is just a wrong guess here (or not in this anime at all).
+        expect(await code(guess(ID, pickOn(day).answerId, day))).toBe("invalid_character");
+        const won = await guess(ID, legacy.answerId, day);
+        expect(won.done).toBe("won");
+        expect(won.result!.answer.id).toBe(legacy.answerId);
+        expect((await profile()).rounds[day].answerId).toBe(legacy.answerId);
+    });
+
+    it("a stored round whose answer left the catalog is day_unavailable (404), never a 500", async () => {
+        const day = yesterday();
+        const legacy = legacyOtherPick(day, "lost");
+        legacy.profile.rounds[day].answerId = 987654321;
+        store.profiles.set(ID, JSON.stringify(legacy.profile));
+        expect(await code(getDay(ID, day))).toBe("day_unavailable");
+        expect(await resolveHintImage(hintImageToken({ day, charId: 987654321, kind: "eyes", pid: ID }, SALT))).toBeNull();
     });
 });

@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac } from "node:crypto";
 import sharp from "sharp";
+import { isValidGachaId } from "@/lib/gacha-id";
 import { hintImagePath, isHintImageToken, type HintImageKind } from "@/lib/gacha-hint-image";
 
 /**
@@ -14,6 +15,13 @@ import { hintImagePath, isHintImageToken, type HintImageKind } from "@/lib/gacha
  * player gets the same URL for the same day's hint, and the CDN can cache it
  * (until that day ends). Without the salt a token cannot be minted or read,
  * and GCM rejects any edited token.
+ *
+ * Tokens minted for a player's round also carry that player's id (encrypted,
+ * never readable without the salt): the resolver then checks the token's
+ * character against the answer STORED in that player's round for that day, so
+ * a round created under an older answer picker (e.g. pre-r2 rounds) keeps
+ * working, and a token for any other character is refused. Such tokens are
+ * per player, so the CDN shares them less, which is the price of that check.
  */
 
 const KINDS: readonly HintImageKind[] = ["eyes", "blur", "silhouette"];
@@ -31,12 +39,16 @@ export interface HintImageRef {
     day: string;
     charId: number;
     kind: HintImageKind;
+    /** The player whose stored round this token was minted for (absent on older, shared tokens). */
+    pid?: string;
 }
+
 
 export function hintImageToken(ref: HintImageRef, salt: string): string {
     if (!DAY_RE.test(ref.day)) throw new Error("hint image token needs a YYYY-MM-DD day");
+    if (ref.pid !== undefined && !isValidGachaId(ref.pid)) throw new Error("hint image token pid must be a player id");
     const { enc, iv: ivKey } = keys(salt, ref.day);
-    const plain = Buffer.from(`${ref.day}|${ref.charId}|${ref.kind}`, "utf8");
+    const plain = Buffer.from(`${ref.day}|${ref.charId}|${ref.kind}${ref.pid ? `|${ref.pid}` : ""}`, "utf8");
     const iv = createHmac("sha256", ivKey).update(plain).digest().subarray(0, 12);
     const cipher = createCipheriv("aes-256-gcm", enc, iv);
     const ct = Buffer.concat([cipher.update(plain), cipher.final()]);
@@ -60,11 +72,14 @@ export function readHintImageToken(token: unknown, salt: string, day: string): H
         const decipher = createDecipheriv("aes-256-gcm", keys(salt, day).enc, raw.subarray(0, 12));
         decipher.setAuthTag(raw.subarray(raw.length - 16));
         const plain = Buffer.concat([decipher.update(raw.subarray(12, raw.length - 16)), decipher.final()]).toString("utf8");
-        const [tokenDay, id, kind] = plain.split("|");
+        const parts = plain.split("|");
+        if (parts.length !== 3 && parts.length !== 4) return null;
+        const [tokenDay, id, kind, pid] = parts;
         const charId = Number(id);
         if (tokenDay !== day || !Number.isSafeInteger(charId) || charId <= 0) return null;
         if (!KINDS.includes(kind as HintImageKind)) return null;
-        return { day, charId, kind: kind as HintImageKind };
+        if (pid !== undefined && !isValidGachaId(pid)) return null;
+        return pid === undefined ? { day, charId, kind: kind as HintImageKind } : { day, charId, kind: kind as HintImageKind, pid };
     } catch {
         return null;
     }

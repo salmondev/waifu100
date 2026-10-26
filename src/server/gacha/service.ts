@@ -178,7 +178,7 @@ export interface RoundDto {
 }
 
 export interface ArchiveDto {
-    today: { key: string; number: number; state: ArchiveDayState };
+    today: { key: string; number: number; state: ArchiveDayState; tier: Tier | null };
     /** The playable window, newest first: ARCHIVE_DAYS past days, never before the epoch, never future. */
     days: { key: string; number: number; state: ArchiveDayState; tier: Tier | null }[];
 }
@@ -266,11 +266,17 @@ function ensureRound(profile: GachaProfile, today: string, idx: CatalogIndex, sa
     return true;
 }
 
+/**
+ * The anime + answer a round was STORED with. Everything about an existing
+ * round (feedback, hints, hint-image tokens, reveal) reads round.answerId;
+ * dailyPick is only used to create a new round, so rounds made under an older
+ * picker keep their own answer. A round whose answer is no longer in the
+ * catalog (regenerated without it) is day_unavailable (404), never a 500.
+ */
 function roundParts(round: GachaRound, idx: CatalogIndex): { anime: CatalogAnime; answer: CatalogCharacter } {
     const anime = idx.anime.get(round.animeId);
     const answer = anime?.characters.find((c) => c.id === round.answerId);
-    // Only possible if the catalog was regenerated without this anime mid-day.
-    if (!anime || !answer) throw new Error("gacha round refers to a character missing from the catalog");
+    if (!anime || !answer) throw new GachaError("day_unavailable");
     return { anime, answer };
 }
 
@@ -333,7 +339,12 @@ function commitPull(profile: GachaProfile, round: GachaRound, answer: CatalogCha
     round.storyUnlockedNow = !storyUnlocked(before) && storyUnlocked(ownedIn(profile, round.animeId));
 }
 
-export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogIndex, today: string, salt: string): RoundDto {
+/**
+ * The client's view of a stored (or previewed) round. `pid` binds the round's
+ * hint-image tokens to this player, so the image endpoint checks them against
+ * this player's stored round (see resolveHintImage).
+ */
+export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogIndex, today: string, salt: string, pid?: string): RoundDto {
     const { anime, answer } = roundParts(round, idx);
     const done = round.done;
     const ladder = hintLadder(answer);
@@ -370,7 +381,7 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
         hints: {
             slots: HINT_SLOTS,
             open: ladder.slice(0, openReal).map((key) =>
-                hintValue(answer, key, (kind) => hintImageUrl({ day: round.day, charId: answer.id, kind }, salt))
+                hintValue(answer, key, (kind) => hintImageUrl({ day: round.day, charId: answer.id, kind, ...(pid ? { pid } : {}) }, salt))
             ),
             empty: open - openReal,
             missing: done || open >= HINT_SLOTS ? missingHints(ladder) : [],
@@ -412,7 +423,7 @@ export async function getToday(id: string, opts: GetTodayOptions = {}): Promise<
     // Fast path: the common reload needs no lock and no write.
     const existing = await store.load(id);
     const ready = existing?.rounds[today];
-    if (existing && ready) return { ...roundDto(existing, ready, idx, today, salt()), created: false };
+    if (existing && ready) return { ...roundDto(existing, ready, idx, today, salt(), id), created: false };
 
     return withProfileLock(store, id, async () => {
         let profile = await store.load(id);
@@ -424,7 +435,7 @@ export async function getToday(id: string, opts: GetTodayOptions = {}): Promise<
         }
         const changed = ensureRound(profile, today, idx, salt());
         if (changed || created) await store.save(id, profile);
-        return { ...roundDto(profile, profile.rounds[today], idx, today, salt()), created };
+        return { ...roundDto(profile, profile.rounds[today], idx, today, salt(), id), created };
     });
 }
 
@@ -451,7 +462,7 @@ export async function getDay(id: string, day: string): Promise<RoundDto> {
     const profile = await store.load(id);
     if (!profile) throw new GachaError("no_profile");
     const round = profile.rounds[target] ?? freshRound(target, idx, salt(), true);
-    return roundDto(profile, round, idx, today, salt());
+    return roundDto(profile, round, idx, today, salt(), id);
 }
 
 /** Archive list: today plus the playable window, with this profile's state for each day. Read-only. */
@@ -466,7 +477,7 @@ export async function getArchive(id: string): Promise<ArchiveDto> {
         return { key, number: dayNumber(key), state, tier: r?.pull?.tier ?? null };
     };
     const t = entry(today);
-    return { today: { key: t.key, number: t.number, state: t.state }, days: archiveDays(today).map(entry) };
+    return { today: t, days: archiveDays(today).map(entry) };
 }
 
 /**
@@ -534,7 +545,7 @@ export async function guess(id: string, charId: number, day?: string): Promise<R
             grantArchiveDailyCoins(profile, round);
         }
         await store.save(id, profile);
-        return roundDto(profile, round, idx, today, salt());
+        return roundDto(profile, round, idx, today, salt(), id);
     });
 }
 
@@ -572,7 +583,7 @@ export async function buyHint(id: string, slot?: number, day?: string): Promise<
         }
         round.bought += 1;
         await store.save(id, profile);
-        return roundDto(profile, round, idx, today, salt());
+        return roundDto(profile, round, idx, today, salt(), id);
     });
 }
 
@@ -720,26 +731,35 @@ export async function restore(code: unknown): Promise<string | null> {
  * Resolves a /api/gacha/hint-image token to the art it stands for. A token is
  * bound to the day of the round it was minted for, and is readable only while
  * that day is today or an archive day (ARCHIVE_DAYS back, never before the
- * epoch, never in the future: a future day's key is simply never tried). For a
- * past day the character must also be that day's answer, so a token can only
- * ever show that day's round. Anything else (forged, edited, other salt, out of
- * the window, a character no longer in the catalog) is null. The art URL stays
- * on the server. `expiresInSec` runs to the next Bangkok midnight, the
- * earliest moment the window moves, so no cache keeps an image past it.
+ * epoch, never in the future: a future day's key is simply never tried).
+ *
+ * Player-bound tokens (every token minted since r2 fix): the character must be
+ * the answer STORED in that player's round for that day, whatever picker made
+ * it (an old round keeps its old answer), so a token for any other character,
+ * day or player is null. Older shared tokens (no player): today's are taken as
+ * before; a past day's must be that day's current dailyPick.
+ *
+ * Anything else (forged, edited, other salt, out of the window, a character no
+ * longer in the catalog) is null. The art URL stays on the server.
+ * `expiresInSec` runs to the next Bangkok midnight, the earliest moment the
+ * window moves, so no cache keeps an image past it.
  */
 export async function resolveHintImage(token: unknown): Promise<(HintImageRef & { artUrl: string; expiresInSec: number }) | null> {
-    const { now, salt } = deps();
+    const { store, now, salt } = deps();
     const nowMs = now();
     const today = bangkokDayKey(nowMs);
     let ref = readHintImageToken(token, salt(), today);
+    for (const day of ref ? [] : archiveDays(today)) {
+        ref = readHintImageToken(token, salt(), day);
+        if (ref) break;
+    }
+    if (!ref) return null;
     const idx = await getCatalog();
-    if (!ref) {
-        for (const day of archiveDays(today)) {
-            ref = readHintImageToken(token, salt(), day);
-            if (ref) break;
-        }
-        // Past days: only that day's own answer (stored rounds keep the pick they were made with).
-        if (!ref || dailyPick(idx.catalog, ref.day, salt()).answerId !== ref.charId) return null;
+    if (ref.pid) {
+        const round = (await store.load(ref.pid))?.rounds[ref.day];
+        if (!round || round.answerId !== ref.charId) return null;
+    } else if (ref.day !== today && dailyPick(idx.catalog, ref.day, salt()).answerId !== ref.charId) {
+        return null;
     }
     const hit = idx.characters.get(ref.charId);
     if (!hit?.character.image) return null;
