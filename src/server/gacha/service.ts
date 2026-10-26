@@ -105,8 +105,9 @@ export interface RoundDto {
     day: { key: string; number: number };
     /**
      * true when this is a past day opened from the archive (not today's round).
-     * Archive rounds give no daily coins and no fast bonus, and never count for
-     * the streak; clients send `day` with every guess / hint for them.
+     * Archive rounds pay the normal daily coins once, when they finish; they get
+     * no fast bonus and never count for the streak. Clients send `day` with
+     * every guess / hint for them.
      */
     archive: boolean;
     anime: {
@@ -160,7 +161,10 @@ export interface RoundDto {
     };
     coins: number;
     streak: number;
-    /** Coins this day's round granted on creation. */
+    /**
+     * Daily coins this day's round granted: on creation for today's round, on
+     * finish (once) for an archive round, so 0 while an archive round is open.
+     */
     dailyCoins: number;
     done: "won" | "lost" | null;
     result: {
@@ -217,7 +221,10 @@ function newProfile(nowMs: number): GachaProfile {
     };
 }
 
-/** A fresh r2 round for `day` (not stored). Archive rounds carry no daily coins. */
+/**
+ * A fresh r2 round for `day` (not stored). Archive rounds start with no daily
+ * coins: they get them once, when the round finishes (grantArchiveDailyCoins).
+ */
 function freshRound(day: string, idx: CatalogIndex, salt: string, archive: boolean): GachaRound {
     const pick = dailyPick(idx.catalog, day, salt);
     return {
@@ -464,7 +471,8 @@ export async function getArchive(id: string): Promise<ArchiveDto> {
 
 /**
  * Loads the profile for a write on `day`, making sure today's round exists
- * (as before) and, for an archive day, creating its round with no coins.
+ * (as before) and, for an archive day, creating its round (its daily coins
+ * come when it finishes).
  * Caller holds the lock.
  */
 async function loadForWrite(store: GachaStore, id: string, today: string, idx: CatalogIndex, salt: string, day: string = today) {
@@ -478,9 +486,24 @@ async function loadForWrite(store: GachaStore, id: string, today: string, idx: C
 /**
  * Finishing a round: the fast bonus and the streak only count when the round
  * is finished on its own day. Archive plays (and a past day's own round
- * finished late) give the card by tier but no coins and no streak day.
+ * finished late) give the card by tier but no fast bonus and no streak day.
  */
 const onOwnDay = (round: GachaRound, today: string) => round.day === today;
+
+/**
+ * An archive round pays the normal daily coins once, when it finishes (won or
+ * lost), so past days farm coins like a normal day. Idempotent per profile +
+ * day: a round exists once per day key, a finished round refuses further
+ * writes (round_over), writes are serialised by the profile lock, and
+ * `dailyCoins` records the grant, so a replay, refresh or parallel finish
+ * pays nothing extra. Rounds started on their own day already got theirs on
+ * creation (dailyCoins > 0) and are left alone.
+ */
+function grantArchiveDailyCoins(profile: GachaProfile, round: GachaRound): void {
+    if (!round.archive || round.dailyCoins > 0) return;
+    round.dailyCoins = DAILY_COINS;
+    profile.coins += DAILY_COINS;
+}
 
 export async function guess(id: string, charId: number, day?: string): Promise<RoundDto> {
     const { store, now, salt } = deps();
@@ -504,9 +527,11 @@ export async function guess(id: string, charId: number, day?: string): Promise<R
             // reload or a second tab reads it back instead of pulling again.
             commitPull(profile, round, answer);
             if (onOwnDay(round, today)) markFinished(profile, today);
+            grantArchiveDailyCoins(profile, round);
         } else if (round.guesses.length >= MAX_GUESSES) {
             round.done = "lost";
             if (onOwnDay(round, today)) markFinished(profile, today);
+            grantArchiveDailyCoins(profile, round);
         }
         await store.save(id, profile);
         return roundDto(profile, round, idx, today, salt());

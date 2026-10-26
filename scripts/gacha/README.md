@@ -47,3 +47,10 @@ The app never calls AniList at runtime. Images are hot-linked through the existi
   (`/daily?view=archive`). To move the launch, change only `LAUNCH_DAY_KEY` (a code
   constant, not an env var) before the first production deploy; changing it later
   renumbers days and re-draws picks of days nobody has played yet.
+- Archive rules: a never-played past day (1-30 days back, never before `FIRST_DAY_KEY`,
+  never in the future) can be played once; a finished one is view-only. Same 6 guesses,
+  tier and hint prices as a normal day; hints are paid from the current balance. When an
+  archive round finishes (won or lost) it pays the normal daily coins once per day key
+  (idempotent: the finished round refuses further writes under the profile lock and
+  records the grant in `dailyCoins`). No fast bonus, and the streak only counts rounds
+  finished on their own day, so the archive never extends or repairs it.

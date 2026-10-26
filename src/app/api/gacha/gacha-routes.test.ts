@@ -363,12 +363,12 @@ describe("archive (past days) routes", () => {
         expect(await h.json()).toMatchObject({ archive: true, coins: 30 });
         const answer = dailyPick(FIXTURE_CATALOG, y, "arch-salt").answerId;
         const won = await guessPOST(req("guess", "POST", { charId: answer, day: y }));
-        expect(await won.json()).toMatchObject({ done: "won", archive: true, coins: 30, streak: 0 });
+        expect(await won.json()).toMatchObject({ done: "won", archive: true, coins: 40, dailyCoins: 10, streak: 0 }); // that day's daily coins, paid on finish
         const again = await guessPOST(req("guess", "POST", { charId: answer, day: y }));
         expect(again.status).toBe(409);
         expect(await again.json()).toMatchObject({ code: "round_over" });
         const view = await todayGET(req(`today?day=${y}`));
-        expect(await view.json()).toMatchObject({ done: "won", archive: true });
+        expect(await view.json()).toMatchObject({ done: "won", archive: true, coins: 40 });
         expect(vi.mocked(enforceRateLimit).mock.calls.some((c) => (c[1] as { name: string }).name === "gacha-write")).toBe(true);
     });
 });

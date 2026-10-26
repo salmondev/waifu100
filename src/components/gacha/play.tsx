@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { m } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { CellState, FeedbackCell, HintKey, HintValue } from "@/server/gacha/rules";
+import { DAILY_COINS, type CellState, type FeedbackCell, type HintKey, type HintValue } from "@/server/gacha/rules";
 import { hintImageSrc } from "@/lib/gacha-hint-image";
 import { shareText } from "@/lib/gacha-share";
 import { proxied } from "@/lib/img-proxy";
@@ -289,7 +289,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         <Link className="g-btn sm" href="/daily?view=archive" scroll={false}>เล่นย้อนหลัง 30 วัน</Link>
                     )}
                 </nav>
-                {archDay ? <p className="g-archnote">รอบย้อนหลัง: ได้การ์ดตามระดับเหมือนปกติ แต่ไม่มีเหรียญรายวัน ไม่มีโบนัสเดาไว และไม่นับวันติดกัน คำใบ้ใช้เหรียญที่มีอยู่</p> : null}
+                {archDay ? <p className="g-archnote">รอบย้อนหลัง: ได้การ์ดตามระดับและเหรียญรายวันตอนจบรอบเหมือนปกติ แต่ไม่มีโบนัสเดาไว และไม่นับวันติดกัน</p> : null}
                 <div className="g-story">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={proxied(round.anime.cover, 160)} alt="" />
@@ -417,7 +417,11 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
             {!done && (
                 <section className="g-shop win">
                     <h3 className="g-h3">
-                        {r2 ? "ซื้อคำใบ้" : "ซื้อคำใบ้ก่อน"} {round.dailyCoins ? <span className="g-free"><Coin />รับฟรีวันนี้ +{round.dailyCoins}</span> : null}
+                        {r2 ? "ซื้อคำใบ้" : "ซื้อคำใบ้ก่อน"} {round.dailyCoins ? (
+                            <span className="g-free"><Coin />รับฟรีวันนี้ +{round.dailyCoins}</span>
+                        ) : round.archive ? (
+                            <span className="g-free"><Coin />จบรอบรับ +{DAILY_COINS}</span>
+                        ) : null}
                     </h3>
                     {round.hints.next ? (
                         <div className="g-shoprow">

@@ -53,13 +53,14 @@ export interface GachaRound {
     rules?: 2;
     /**
      * true = started from the archive (a past day this profile never played):
-     * no daily coins were granted. Absent on rounds started on their own day.
+     * no daily coins on creation; the normal daily coins are paid once when it
+     * finishes (dailyCoins goes 0 -> DAILY_COINS). Absent on rounds started on their own day.
      * Whether a finish counts for the streak / fast bonus is decided by the
      * finishing day (it must be the round's own day), not by this flag.
      */
     archive?: true;
     done: "won" | "lost" | null;
-    /** Coins granted when this round was created (the daily +10). */
+    /** Daily coins this round granted: +10 on creation, or on finish for archive rounds (0 until then). */
     dailyCoins: number;
     /** Fast-guess bonus paid at win time. */
     bonus: number;

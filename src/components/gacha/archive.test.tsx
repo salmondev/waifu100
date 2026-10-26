@@ -58,14 +58,14 @@ describe("PlayView on an archive day", () => {
         return roundDto(profile, round, idx, TODAY, "arch-test-salt");
     }
 
-    it("says it is a past day, shows no daily coins, and sends the day with every guess", async () => {
+    it("says it is a past day, promises the daily coins on finish, and sends the day with every guess", async () => {
         const fetchMock = vi.fn(async () => new Response(JSON.stringify(pastDto()), { status: 200 }));
         vi.stubGlobal("fetch", fetchMock);
         const dto = pastDto();
         expect(dto.archive).toBe(true);
         const c = render(<PlayView round={dto} onRound={() => {}} onOpenPack={() => {}} opened={false} />).container;
         expect(c.textContent).toContain("รอบย้อนหลัง");
-        expect(c.textContent).toContain("ไม่มีเหรียญรายวัน");
+        expect(c.textContent).toContain("จบรอบรับ +10");
         expect(c.textContent).not.toContain("รับฟรีวันนี้");
         expect(c.querySelector('a[href="/daily"]')).not.toBeNull();
         // buy the first hint: the body carries the archive day

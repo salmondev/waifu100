@@ -646,19 +646,22 @@ describe("archive (past days)", () => {
         expect(withoutCandidates(dto)).not.toContain(`"id":${pickOn(yesterday()).answerId},`);
     });
 
-    it("an archive win gives the tier card but no daily coins, no fast bonus and no streak", async () => {
+    it("an archive win gives the tier card and the daily coins once on finish, but no fast bonus and no streak", async () => {
         await getToday(ID);
         const day = yesterday();
+        expect((await guess(ID, wrongOn(day)[0], day)).coins).toBe(45); // nothing until the round finishes
+        expect((await profile()).rounds[day].dailyCoins).toBe(0);
         const dto = await guess(ID, pickOn(day).answerId, day);
         expect(dto.done).toBe("won");
         expect(dto.archive).toBe(true);
-        expect(dto.result?.pull?.tier).toBe("ssr");
+        expect(dto.result?.pull?.tier).toBe("sr");
         expect(dto.result?.bonus).toBe(0);
-        expect(dto.coins).toBe(45); // 35 start + today's 10 only
+        expect(dto.dailyCoins).toBe(10);
+        expect(dto.coins).toBe(55); // 35 start + today's 10 + that day's 10, no fast bonus
         expect(dto.streak).toBe(0);
         const p = await profile();
         expect(p.finishedDays).toEqual([]);
-        expect(p.rounds[day]).toMatchObject({ archive: true, dailyCoins: 0, bonus: 0, rules: 2, day });
+        expect(p.rounds[day]).toMatchObject({ archive: true, dailyCoins: 10, bonus: 0, rules: 2, day });
         expect(p.collection[String(pickOn(day).answerId)]).toBeTruthy();
         expect((await getToday(ID)).streak).toBe(0);
     });
@@ -691,12 +694,34 @@ describe("archive (past days)", () => {
         await store.save(ID, { ...p0, rounds: { ...p0.rounds, [day]: { ...p0.rounds[today()], day, animeId: pickOn(day).animeId, answerId: pickOn(day).answerId, guesses: wrongOn(day).slice(0, 5), done: null, pull: null, dailyCoins: 0, bonus: 0, archive: true } } });
         const before = Object.keys(p0.collection).length;
         const last = wrongOn(day)[5] ?? FIXTURE_CATALOG.anime.flatMap((a) => a.characters).find((c) => c.id !== pickOn(day).answerId && !wrongOn(day).slice(0, 5).includes(c.id))!.id;
+        const coins0 = p0.coins;
         const dto = await guess(ID, last, day);
         expect(dto.done).toBe("lost");
         expect(dto.result?.pull ?? null).toBeNull();
+        expect(dto.coins).toBe(coins0 + 10); // a loss still pays that day's daily coins, once
+        expect((await profile()).rounds[day].dailyCoins).toBe(10);
         expect(Object.keys((await profile()).collection).length).toBe(before);
         expect(dto.streak).toBe(1);
         expect((await profile()).finishedDays).toEqual([today()]);
+    });
+
+    it("an archive day's daily coins are paid once: replay, refresh and a parallel finish add nothing", async () => {
+        await getToday(ID);
+        const day = yesterday();
+        const [a, b] = await Promise.all([code(guess(ID, pickOn(day).answerId, day)), code(guess(ID, pickOn(day).answerId, day))]);
+        expect([a, b].sort()).toEqual(["ok", "round_over"]);
+        expect((await profile()).coins).toBe(55);
+        expect(await code(guess(ID, wrongOn(day)[0], day))).toBe("round_over");
+        expect(await code(buyHint(ID, 1, day))).toBe("round_over");
+        expect((await getDay(ID, day)).coins).toBe(55);
+        expect((await getArchive(ID)).days.find((d) => d.key === day)!.state).toBe("won");
+        expect((await getToday(ID)).coins).toBe(55);
+        // today's round still pays exactly once, on creation, and nothing more when it finishes
+        await guess(ID, wrongIds()[0]);
+        expect((await profile()).coins).toBe(55);
+        // a different past day pays its own daily coins once
+        const d2 = addDays(today(), -3);
+        expect((await guess(ID, pickOn(d2).answerId, d2)).coins).toBe(65);
     });
 
     it("archive play never extends or repairs a streak", async () => {
