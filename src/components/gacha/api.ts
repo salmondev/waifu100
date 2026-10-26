@@ -61,15 +61,29 @@ async function call<T>(path: string, method: "GET" | "POST" = "GET", body?: unkn
     return data as T;
 }
 
+/**
+ * T-0024 version skew: a server without the free first guess (e.g. after a rollback to
+ * eaed3e3) sends rounds with no `freeGuess`. Treat that as "no free guess" (the old
+ * rule: 6 guesses, all counted) instead of crashing. Every reader goes through this.
+ */
+export const NO_FREE_GUESS: RoundDto["freeGuess"] = Object.freeze({ on: false, used: false });
+export function freeGuessOf(round: { freeGuess?: RoundDto["freeGuess"] | null }): RoundDto["freeGuess"] {
+    return round.freeGuess ?? NO_FREE_GUESS;
+}
+/** Normalizes a round response at the point it is parsed (see freeGuessOf). */
+export function normalizeRound<T extends RoundDto>(round: T): T {
+    return round.freeGuess ? round : { ...round, freeGuess: NO_FREE_GUESS };
+}
+
 export const gachaApi = {
-    today: () => call<RoundDto & { created?: boolean }>("today"),
+    today: () => call<RoundDto & { created?: boolean }>("today").then(normalizeRound),
     /** A past day from the archive (YYYY-MM-DD); viewing it never uses the day up. */
-    day: (day: string) => call<RoundDto>(`today?day=${encodeURIComponent(day)}`),
+    day: (day: string) => call<RoundDto>(`today?day=${encodeURIComponent(day)}`).then(normalizeRound),
     archive: () => call<ArchiveDto>("archive"),
     /** `day` is the round's own day (YYYY-MM-DD), today's included: the server never moves a write to another day. */
-    guess: (charId: number, day: string) => call<RoundDto>("guess", "POST", { charId, day }),
+    guess: (charId: number, day: string) => call<RoundDto>("guess", "POST", { charId, day }).then(normalizeRound),
     /** Buys ladder slot `slot` (1-based) of `day`'s round; the server refuses any slot but the next closed one. */
-    hint: (slot: number, day: string) => call<RoundDto>("hint", "POST", { slot, day }),
+    hint: (slot: number, day: string) => call<RoundDto>("hint", "POST", { slot, day }).then(normalizeRound),
     album: () => call<AlbumDto>("album"),
     storySeen: (animeId: number) => call<{ animeId: number; fresh: false }>("story-seen", "POST", { animeId }),
     recovery: () => call<{ code: string }>("recovery", "POST", {}),

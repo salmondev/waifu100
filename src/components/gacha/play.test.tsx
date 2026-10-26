@@ -266,3 +266,69 @@ describe("pack recap counts only counted guesses (T-0024)", () => {
         expect(old.querySelectorAll(".g-recap .g-track li")).toHaveLength(6);
     });
 });
+
+describe("rollback skew (T-0024 r2): a server without freeGuess (old code) does not crash the new client", () => {
+    /** What eaed3e3 sends: the same DTO with no `freeGuess` field at all. */
+    const old = (r: RoundDto): RoundDto => {
+        const { freeGuess: _drop, ...rest } = r;
+        void _drop;
+        return rest as RoundDto;
+    };
+
+    it("renders an in-progress round as the old rule: 6 counted slots, no free label or rule text", () => {
+        const c = view(old(dto(105, [])));
+        const track = c.querySelector(".g-track")!;
+        expect(track.classList.contains("free")).toBe(false);
+        expect(track.querySelectorAll("li")).toHaveLength(6);
+        expect(c.textContent).not.toContain("ฟรี ไม่นับ");
+        expect(c.querySelector(".free-slot")).toBeNull();
+    });
+
+    it("renders a finished round (share button) and the pack recap", () => {
+        expect(() => view(old(dto(105, [101, 105], "won")))).not.toThrow();
+        expect(() => render(<PackView round={old(dto(105, [101, 105], "won"))} coins={0} />)).not.toThrow();
+    });
+
+    it("gachaApi normalizes a round response without freeGuess to {on:false, used:false}", async () => {
+        const { gachaApi } = await import("./api");
+        const body = old(dto(105, [101]));
+        const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }));
+        vi.stubGlobal("fetch", fetchMock);
+        try {
+            for (const r of [await gachaApi.today(), await gachaApi.day(DAY), await gachaApi.guess(102, DAY), await gachaApi.hint(1, DAY)]) {
+                expect(r.freeGuess).toEqual({ on: false, used: false });
+            }
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+});
+
+describe("hint shop: not enough coins (T-0024 r2)", () => {
+    /** Same as dto() but the profile holds `coins`. */
+    function withCoins(coins: number, wrong: number[] = []): RoundDto {
+        const round: GachaRound = {
+            day: DAY, animeId: 9001, answerId: 105, guesses: wrong, bought: 0, done: null, dailyCoins: 10, bonus: 0, pull: null, storyUnlockedNow: false, rules: 2,
+        };
+        const profile = { coins, rounds: { [DAY]: round }, finishedDays: [], collection: {}, storySeen: [] } as unknown as GachaProfile;
+        return roundDto(profile, round, idx, DAY, "play-test-salt");
+    }
+
+    it("shows the inline reason with have/need next to the disabled button", () => {
+        const r = withCoins(12);
+        expect(r.hints.next).toMatchObject({ price: 30, affordable: false });
+        const c = view(r);
+        const reason = c.querySelector(".g-shoprow .g-short");
+        expect(reason?.textContent).toBe("เหรียญไม่พอ (มี 12 ต้องใช้ 30)");
+        const btn = c.querySelector<HTMLButtonElement>(".g-shoprow button")!;
+        expect(btn.disabled).toBe(true);
+        expect(btn.getAttribute("aria-describedby")).toBe(reason!.id);
+        expect(c.querySelector("[role=dialog], [role=alert]")).toBeNull();
+    });
+
+    it("shows no reason when the hint is affordable", () => {
+        const c = view(withCoins(50));
+        expect(c.querySelector(".g-short")).toBeNull();
+        expect(c.querySelector<HTMLButtonElement>(".g-shoprow button")!.hasAttribute("aria-describedby")).toBe(false);
+    });
+});

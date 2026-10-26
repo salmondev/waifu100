@@ -303,7 +303,7 @@
 .g-track li em { font: 400 10px/1 var(--bit); font-style: normal; opacity: .55; }
 /* T-0024: a round with a free first guess has 7 slots, the free one first and marked. */
 .g-track.free { grid-template-columns: repeat(7, 1fr); }
-.g-track li.free-slot em { font: 700 10px/1 var(--th); opacity: .8; }
+.g-track li.free-slot em { font: 700 12px/1 var(--th); opacity: .8; } /* Thai text stays >= 12px */
 .g-track li.now { background: var(--ink); box-shadow: none; } .g-track li.now em { color: var(--paper); opacity: 1; }
 .g-track li img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; box-shadow: inset 0 0 0 2px var(--ink); }
 .g-track li.miss img { filter: grayscale(1) contrast(.8); opacity: .65; }
@@ -366,6 +366,7 @@
 .g-free .pxi { width: 12px; height: 12px; }
 .g-shoprow { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 2px dotted rgba(29, 43, 83, .25); }
 .g-nm { flex: 1; display: grid; font: 400 14px/1.3 var(--th); } .g-nm small { font: 300 12px/1.3 var(--th); }
+.g-nm small.g-short { font-weight: 400; margin-top: 2px; } /* T-0024 r2: why the buy button is disabled */
 .g-shoprow .g-btn { min-width: 74px; }
 .g-shoprow .g-btn b { font: 700 13px/1 var(--bit); }
 .g-ctl { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; padding-top: 2px; }

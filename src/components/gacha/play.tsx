@@ -16,7 +16,7 @@ import { DAILY_COINS, type CellState, type FeedbackCell, type HintKey, type Hint
 import { hintImageSrc } from "@/lib/gacha-hint-image";
 import { shareText } from "@/lib/gacha-share";
 import { proxied } from "@/lib/img-proxy";
-import { errorText, gachaApi, GachaClientError, type RoundDto } from "./api";
+import { errorText, freeGuessOf, gachaApi, GachaClientError, type RoundDto } from "./api";
 import { cardBackHtml, CardHtml, FOCAL } from "./card";
 import { animeSubtitle, animeTitle, thaiDate } from "./chrome";
 import { storyColours } from "./palette";
@@ -103,7 +103,7 @@ function FeedbackGrid({ guesses }: { guesses: RoundDto["guesses"] }) {
 /** Copies the spoiler-free result. The button itself says whether it worked: no toast, no popup. */
 function ShareButton({ round }: { round: RoundDto }) {
     const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
-    const text = shareText(round.day.number, round.maxGuesses, round.guesses, round.done === "won", round.freeGuess.used);
+    const text = shareText(round.day.number, round.maxGuesses, round.guesses, round.done === "won", freeGuessOf(round).used);
     const copy = async () => {
         try {
             await navigator.clipboard.writeText(text);
@@ -196,7 +196,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const [shakeKey, setShakeKey] = useState(0);
     const colours = storyColours(round.anime.coverColor);
     // Track slots: the free guess (when the round has one) takes slot 0, counted guesses follow.
-    const free = round.freeGuess;
+    const free = freeGuessOf(round);
     const slotCount = round.maxGuesses + (free.on ? 1 : 0);
     const used = round.guesses.length;
     const wrongs = round.guesses.filter((g) => !g.correct).length;
@@ -442,10 +442,14 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                                 <small>
                                     {r2 ? "ไม่นับเป็นครั้งที่เดา" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
                                 </small>
+                                {!round.hints.next.affordable && (
+                                    <small className="g-short" id="g-short">เหรียญไม่พอ (มี {round.coins} ต้องใช้ {round.hints.next.price})</small>
+                                )}
                             </span>
                             <button
                                 className="g-btn sm coin"
                                 type="button"
+                                aria-describedby={round.hints.next.affordable ? undefined : "g-short"}
                                 disabled={busy || !round.hints.next.affordable}
                                 onClick={() => buy(round.hints.next!.slot)}
                                 aria-label={`ซื้อคำใบ้ ${round.hints.next.price} เหรียญ`}
@@ -565,7 +569,7 @@ function GuessBox({ round, busy, shakeKey, onGuess }: { round: RoundDto; busy: b
             {bad && <p className="g-err" id="gerr">ไม่มีชื่อนี้ในเรื่องนี้ เลือกจากรายการ</p>}
             {round.guesses.length === 0 && (
                 <p className="g-rules">
-                    {round.freeGuess.on ? "เดาครั้งแรกฟรี ไม่นับเป็นครั้งที่เดา " : ""}
+                    {freeGuessOf(round).on ? "เดาครั้งแรกฟรี ไม่นับเป็นครั้งที่เดา " : ""}
                     {round.steps.hintsCostTier
                         ? "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก ซื้อคำใบ้ได้โดยไม่ลดระดับการ์ด"
                         : "เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"}

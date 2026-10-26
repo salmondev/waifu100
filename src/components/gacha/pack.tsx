@@ -8,7 +8,7 @@
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { RoundDto } from "./api";
+import { freeGuessOf, type RoundDto } from "./api";
 import { cardHtml, CardHtml, FOCAL } from "./card";
 import { animeTitle } from "./chrome";
 import { storyColours } from "./palette";
@@ -45,7 +45,7 @@ export function PackView({ round, coins }: { round: RoundDto; coins: number }) {
     const tier = (res?.pull?.tier ?? "common") as TierName;
     // Counted guesses (T-0024: the free first guess is not counted); a free-guess win shows "ฟรี".
     const n = round.steps.used;
-    const free = round.freeGuess;
+    const free = freeGuessOf(round);
     const slotCount = round.maxGuesses + (free.on ? 1 : 0);
 
     useEffect(() => {
