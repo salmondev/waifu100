@@ -1568,6 +1568,14 @@ export default function Home() {
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-300 to-purple-300">Story100: Anime &amp; Manga grid</span>
            </NextLink>
 
+           {/* Gacha Guess: the daily character guessing game (T-0016). */}
+           <NextLink
+              href="/daily"
+              className="w-full py-2 mb-2 bg-zinc-900/60 hover:bg-zinc-800 border border-amber-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all"
+           >
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-pink-300">Gacha Guess: daily character</span>
+           </NextLink>
+
            <button
               type="button"
               onClick={() => setTogetherOpen(true)}
