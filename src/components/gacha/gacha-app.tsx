@@ -78,7 +78,14 @@ export function GachaApp() {
 
     const isPast = !!dayParam && !!today && dayParam !== today.day.key;
     const round = isPast ? (past?.day.key === dayParam ? past : null) : today;
-    const setRound = (r: RoundDto) => (r.archive ? setPast(r) : setToday(r));
+    // A write lands on the round it names. After Bangkok midnight the round on screen as
+    // "today" comes back with archive=true, so match by day first and use the flag only as a fallback.
+    const setRound = (r: RoundDto) => {
+        if (today?.day.key === r.day.key) setToday(r);
+        else if (past?.day.key === r.day.key) setPast(r);
+        else if (r.archive) setPast(r);
+        else setToday(r);
+    };
     // Every DTO carries the profile's coins / streak; the round on screen is the freshest.
     const coins = (round ?? today)?.coins ?? album?.coins ?? null;
     const streak = (round ?? today)?.streak ?? album?.streak ?? 0;
