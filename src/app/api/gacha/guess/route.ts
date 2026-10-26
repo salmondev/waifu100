@@ -1,11 +1,15 @@
 import { LIMITS } from "@/lib/rate-limit";
-import { gachaErrorResponse, gachaFail, gachaJson, gachaRateLimit, readJsonBody, requireGachaId } from "@/server/gacha/http";
+import { gachaErrorResponse, gachaFail, gachaJson, gachaRateLimit, invalidDay, readJsonBody, requireGachaId } from "@/server/gacha/http";
+import { isDayKey } from "@/server/gacha/rules";
 import { guess } from "@/server/gacha/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** POST /api/gacha/guess { charId } -> the updated round (answer included only once it is over). */
+/**
+ * POST /api/gacha/guess { charId, day? } -> the updated round (answer included only once it is over).
+ * `day` (YYYY-MM-DD) targets an archive day; omitted = today.
+ */
 export async function POST(req: Request) {
     const auth = requireGachaId(req);
     if ("response" in auth) return auth.response;
@@ -19,8 +23,11 @@ export async function POST(req: Request) {
         return gachaFail(400, "invalid_character", "charId must be a character id.");
     }
 
+    const day = parsed.body.day;
+    if (day !== undefined && !isDayKey(day)) return invalidDay();
+
     try {
-        return gachaJson(await guess(auth.id, charId));
+        return gachaJson(await guess(auth.id, charId, day));
     } catch (e) {
         return gachaErrorResponse(e, "guess");
     }

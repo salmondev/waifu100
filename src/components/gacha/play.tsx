@@ -206,6 +206,8 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const eyes = round.hints.open.find((h) => h.key === "eyes");
     const won = (round.result?.pull?.tier as TierName | undefined) ?? tierFor(steps);
     const now = done === "won" ? won : done ? null : tierFor(steps + 1);
+    // Archive rounds (a past day) send their day with every write; today's round sends none.
+    const archDay = round.archive ? round.day.key : undefined;
 
     const send = async (fn: () => Promise<RoundDto>, wrongShake = false) => {
         if (busy) return;
@@ -226,9 +228,9 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const buy = (slot: number) =>
         send(async () => {
             try {
-                return await gachaApi.hint(slot);
+                return await gachaApi.hint(slot, archDay);
             } catch (e) {
-                if (e instanceof GachaClientError && e.code === "hint_out_of_order") return gachaApi.today();
+                if (e instanceof GachaClientError && e.code === "hint_out_of_order") return archDay ? gachaApi.day(archDay) : gachaApi.today();
                 throw e;
             }
         });
@@ -275,13 +277,24 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
             <section className="g-today win">
                 <div className="g-dayline">
                     <h1><span>#</span>{round.day.number}</h1>
-                    <p><span>{thaiDate(round.day.key)}</span><span>เดาได้วันละ 1 ตัว</span></p>
+                    <p><span>{thaiDate(round.day.key)}</span><span>{archDay ? "รอบย้อนหลัง" : "เดาได้วันละ 1 ตัว"}</span></p>
                 </div>
+                <nav className="g-archline" aria-label="เลือกวัน">
+                    {archDay ? (
+                        <>
+                            <Link className="g-btn sm" href="/daily" scroll={false}><Icon name="back" />กลับไปวันนี้</Link>
+                            <Link className="g-btn sm" href="/daily?view=archive" scroll={false}>วันอื่น</Link>
+                        </>
+                    ) : (
+                        <Link className="g-btn sm" href="/daily?view=archive" scroll={false}>เล่นย้อนหลัง 30 วัน</Link>
+                    )}
+                </nav>
+                {archDay ? <p className="g-archnote">รอบย้อนหลัง: ได้การ์ดตามระดับเหมือนปกติ แต่ไม่มีเหรียญรายวัน ไม่มีโบนัสเดาไว และไม่นับวันติดกัน คำใบ้ใช้เหรียญที่มีอยู่</p> : null}
                 <div className="g-story">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={proxied(round.anime.cover, 160)} alt="" />
                     <div>
-                        <small>เรื่องของวันนี้</small>
+                        <small>{archDay ? "เรื่องของวันนั้น" : "เรื่องของวันนี้"}</small>
                         <h2>{animeTitle(round.anime)}</h2>
                         {animeSubtitle(round.anime) && <p>{animeSubtitle(round.anime)}</p>}
                         <p className="g-n">ตัวละครให้เลือก <b>{round.candidates.length}</b> ตัว</p>
@@ -345,14 +358,14 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         <p className="g-stamp ink">ครบ 6 ครั้ง</p>
                         <p className="g-sub">คำตอบคือ</p>
                         <p className="g-lead">{answer?.name ?? ""}</p>
-                        <p className="g-note">รอบนี้ไม่ได้การ์ด สตรีคยังนับต่อ เพราะเล่นจบรอบแล้ว พรุ่งนี้มีตัวละครใหม่</p>
+                        <p className="g-note">{archDay ? "รอบนี้ไม่ได้การ์ด รอบย้อนหลังไม่นับวันติดกัน" : "รอบนี้ไม่ได้การ์ด สตรีคยังนับต่อ เพราะเล่นจบรอบแล้ว พรุ่งนี้มีตัวละครใหม่"}</p>
                         <div className="g-row">
                             <Link className="g-btn" href={`/daily?view=album&anime=${round.anime.id}`} scroll={false}><Icon name="album" />ดูอัลบั้ม</Link>
                             <ShareButton round={round} />
                         </div>
                     </div>
                 ) : (
-                    <GuessBox round={round} busy={busy} shakeKey={shakeKey} onGuess={(id) => send(() => gachaApi.guess(id), true)} />
+                    <GuessBox round={round} busy={busy} shakeKey={shakeKey} onGuess={(id) => send(() => gachaApi.guess(id, archDay), true)} />
                 )}
                 {err && <p className="g-err" role="alert">{err}</p>}
             </section>

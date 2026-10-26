@@ -4,9 +4,9 @@
  * is the only source of truth for the round, coins and album.
  */
 import { GACHA_ID_HEADER, GACHA_ID_STORAGE_KEY, isValidGachaId } from "@/lib/gacha-id";
-import type { AlbumDto, RoundDto } from "@/server/gacha/service";
+import type { AlbumDto, ArchiveDto, RoundDto } from "@/server/gacha/service";
 
-export type { AlbumDto, CardDto, RoundDto } from "@/server/gacha/service";
+export type { AlbumDto, ArchiveDto, ArchiveDayState, CardDto, RoundDto } from "@/server/gacha/service";
 
 export class GachaClientError extends Error {
     constructor(public status: number, public code: string, message: string) {
@@ -63,9 +63,13 @@ async function call<T>(path: string, method: "GET" | "POST" = "GET", body?: unkn
 
 export const gachaApi = {
     today: () => call<RoundDto & { created?: boolean }>("today"),
-    guess: (charId: number) => call<RoundDto>("guess", "POST", { charId }),
+    /** A past day from the archive (YYYY-MM-DD); viewing it never uses the day up. */
+    day: (day: string) => call<RoundDto>(`today?day=${encodeURIComponent(day)}`),
+    archive: () => call<ArchiveDto>("archive"),
+    /** `day` only for archive rounds; today's round sends none (old servers ignore nothing new). */
+    guess: (charId: number, day?: string) => call<RoundDto>("guess", "POST", day ? { charId, day } : { charId }),
     /** Buys ladder slot `slot` (1-based); the server refuses any slot but the next closed one. */
-    hint: (slot: number) => call<RoundDto>("hint", "POST", { slot }),
+    hint: (slot: number, day?: string) => call<RoundDto>("hint", "POST", day ? { slot, day } : { slot }),
     album: () => call<AlbumDto>("album"),
     storySeen: (animeId: number) => call<{ animeId: number; fresh: false }>("story-seen", "POST", { animeId }),
     recovery: () => call<{ code: string }>("recovery", "POST", {}),
@@ -80,6 +84,7 @@ export function errorText(e: unknown): string {
         if (e.code === "not_enough_coins") return "เหรียญไม่พอ";
         if (e.code === "already_guessed") return "เดาชื่อนี้ไปแล้ว";
         if (e.code === "round_over") return "รอบนี้จบแล้ว";
+        if (e.code === "day_unavailable" || e.code === "invalid_day") return "วันนี้ยังเล่นไม่ได้ เลือกวันอื่นจากรายการย้อนหลัง";
     }
     return "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง";
 }

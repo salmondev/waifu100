@@ -9,7 +9,7 @@ import { hintImageUrl, readHintImageToken, type HintImageRef } from "./hint-imag
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
 import type { RosterCharacter } from "./catalog-types";
 import {
-    bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus, guessFeedback, guessRoster,
+    archiveDays, bangkokDayKey, isArchiveDay, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus, guessFeedback, guessRoster,
     HINT_SLOTS, hintLadder, hintValue, isEmptySlot, MAX_GUESSES, missingHints, nextBuyableSlot, openHintCount, pullResult, START_COINS, storyUnlocked,
     secondsUntilNextBangkokDay, streak, tierForGuesses, tierSteps, type FeedbackCell, type HintKey, type HintValue, type PullResult, type Tier,
 } from "./rules";
@@ -28,6 +28,7 @@ export type GachaErrorCode =
     | "no_hint"
     | "not_enough_coins"
     | "hint_out_of_order"
+    | "day_unavailable"
     | "story_locked";
 
 const STATUS: Record<GachaErrorCode, number> = {
@@ -39,6 +40,7 @@ const STATUS: Record<GachaErrorCode, number> = {
     no_hint: 409,
     not_enough_coins: 409,
     hint_out_of_order: 409,
+    day_unavailable: 404,
     story_locked: 409,
 };
 
@@ -101,6 +103,12 @@ export interface CardDto {
 
 export interface RoundDto {
     day: { key: string; number: number };
+    /**
+     * true when this is a past day opened from the archive (not today's round).
+     * Archive rounds give no daily coins and no fast bonus, and never count for
+     * the streak; clients send `day` with every guess / hint for them.
+     */
+    archive: boolean;
     anime: {
         id: number;
         titleRomaji: string;
@@ -165,6 +173,15 @@ export interface RoundDto {
     } | null;
 }
 
+export interface ArchiveDto {
+    today: { key: string; number: number; state: ArchiveDayState };
+    /** The playable window, newest first: ARCHIVE_DAYS past days, never before the epoch, never future. */
+    days: { key: string; number: number; state: ArchiveDayState; tier: Tier | null }[];
+}
+
+/** new = never played (playable); playing = started, not finished; won / lost = finished (view only). */
+export type ArchiveDayState = "new" | "playing" | "won" | "lost";
+
 export interface AlbumDto {
     coins: number;
     streak: number;
@@ -197,6 +214,25 @@ function newProfile(nowMs: number): GachaProfile {
         collection: {},
         storySeen: [],
         recoveryHash: null,
+    };
+}
+
+/** A fresh r2 round for `day` (not stored). Archive rounds carry no daily coins. */
+function freshRound(day: string, idx: CatalogIndex, salt: string, archive: boolean): GachaRound {
+    const pick = dailyPick(idx.catalog, day, salt);
+    return {
+        day,
+        animeId: pick.animeId,
+        answerId: pick.answerId,
+        guesses: [],
+        bought: 0,
+        done: null,
+        dailyCoins: archive ? 0 : DAILY_COINS,
+        bonus: 0,
+        pull: null,
+        storyUnlockedNow: false,
+        rules: 2,
+        ...(archive ? { archive: true as const } : {}),
     };
 }
 
@@ -303,6 +339,7 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
 
     return {
         day: { key: round.day, number: dayNumber(round.day) },
+        archive: round.day !== today,
         anime: {
             id: anime.id,
             titleRomaji: anime.titleRomaji,
@@ -384,21 +421,75 @@ export async function getToday(id: string, opts: GetTodayOptions = {}): Promise<
     });
 }
 
-/** Loads the profile for a write, making sure today's round exists. Caller holds the lock. */
-async function loadForWrite(store: GachaStore, id: string, today: string, idx: CatalogIndex, salt: string) {
-    const profile = await store.load(id);
-    if (!profile) throw new GachaError("no_profile");
-    ensureRound(profile, today, idx, salt);
-    return { profile, round: profile.rounds[today] };
+/** `day` (default today) if it is today or an archive day, else day_unavailable. */
+function targetDay(day: string | undefined, today: string): string {
+    if (day === undefined || day === today) return today;
+    if (!isArchiveDay(day, today)) throw new GachaError("day_unavailable");
+    return day;
 }
 
-export async function guess(id: string, charId: number): Promise<RoundDto> {
+/**
+ * A past day for `id`: the stored round if this profile ever played that day
+ * (finished ones are view only), otherwise a preview of the day's round that
+ * is NOT stored - opening the archive never uses a day up; the first guess or
+ * bought hint does. Future days, days older than the window and days before
+ * the epoch are day_unavailable. Needs an existing profile (no free coins here).
+ */
+export async function getDay(id: string, day: string): Promise<RoundDto> {
     const { store, now, salt } = deps();
     const idx = await getCatalog();
     const today = bangkokDayKey(now());
+    if (day === today) return getToday(id);
+    const target = targetDay(day, today);
+    const profile = await store.load(id);
+    if (!profile) throw new GachaError("no_profile");
+    const round = profile.rounds[target] ?? freshRound(target, idx, salt(), true);
+    return roundDto(profile, round, idx, today, salt());
+}
+
+/** Archive list: today plus the playable window, with this profile's state for each day. Read-only. */
+export async function getArchive(id: string): Promise<ArchiveDto> {
+    const { store, now } = deps();
+    const today = bangkokDayKey(now());
+    const profile = await store.load(id);
+    if (!profile) throw new GachaError("no_profile");
+    const entry = (key: string) => {
+        const r = profile.rounds[key];
+        const state: ArchiveDayState = !r ? "new" : r.done ?? "playing";
+        return { key, number: dayNumber(key), state, tier: r?.pull?.tier ?? null };
+    };
+    const t = entry(today);
+    return { today: { key: t.key, number: t.number, state: t.state }, days: archiveDays(today).map(entry) };
+}
+
+/**
+ * Loads the profile for a write on `day`, making sure today's round exists
+ * (as before) and, for an archive day, creating its round with no coins.
+ * Caller holds the lock.
+ */
+async function loadForWrite(store: GachaStore, id: string, today: string, idx: CatalogIndex, salt: string, day: string = today) {
+    const profile = await store.load(id);
+    if (!profile) throw new GachaError("no_profile");
+    ensureRound(profile, today, idx, salt);
+    profile.rounds[day] ??= freshRound(day, idx, salt, true);
+    return { profile, round: profile.rounds[day] };
+}
+
+/**
+ * Finishing a round: the fast bonus and the streak only count when the round
+ * is finished on its own day. Archive plays (and a past day's own round
+ * finished late) give the card by tier but no coins and no streak day.
+ */
+const onOwnDay = (round: GachaRound, today: string) => round.day === today;
+
+export async function guess(id: string, charId: number, day?: string): Promise<RoundDto> {
+    const { store, now, salt } = deps();
+    const idx = await getCatalog();
+    const today = bangkokDayKey(now());
+    const target = targetDay(day, today);
 
     return withProfileLock(store, id, async () => {
-        const { profile, round } = await loadForWrite(store, id, today, idx, salt());
+        const { profile, round } = await loadForWrite(store, id, today, idx, salt(), target);
         if (round.done) throw new GachaError("round_over");
         const { anime, answer } = roundParts(round, idx);
         if (!guessRoster(anime).some((c) => c.id === charId)) throw new GachaError("invalid_character");
@@ -407,15 +498,15 @@ export async function guess(id: string, charId: number): Promise<RoundDto> {
         round.guesses.push(charId);
         if (charId === round.answerId) {
             round.done = "won";
-            round.bonus = fastBonus(roundSteps(round, answer));
+            round.bonus = onOwnDay(round, today) ? fastBonus(roundSteps(round, answer)) : 0;
             profile.coins += round.bonus;
             // The pull is committed here, with the win, in the same write - so a
             // reload or a second tab reads it back instead of pulling again.
             commitPull(profile, round, answer);
-            markFinished(profile, today);
+            if (onOwnDay(round, today)) markFinished(profile, today);
         } else if (round.guesses.length >= MAX_GUESSES) {
             round.done = "lost";
-            markFinished(profile, today);
+            if (onOwnDay(round, today)) markFinished(profile, today);
         }
         await store.save(id, profile);
         return roundDto(profile, round, idx, today, salt());
@@ -433,13 +524,14 @@ export async function guess(id: string, charId: number): Promise<RoundDto> {
  * about the slot) and refunded in the same locked write. Coins can therefore
  * never go up here, and each slot can be bought at most once.
  */
-export async function buyHint(id: string, slot?: number): Promise<RoundDto> {
+export async function buyHint(id: string, slot?: number, day?: string): Promise<RoundDto> {
     const { store, now, salt } = deps();
     const idx = await getCatalog();
     const today = bangkokDayKey(now());
+    const target = targetDay(day, today);
 
     return withProfileLock(store, id, async () => {
-        const { profile, round } = await loadForWrite(store, id, today, idx, salt());
+        const { profile, round } = await loadForWrite(store, id, today, idx, salt(), target);
         if (round.done) throw new GachaError("round_over");
         const { answer } = roundParts(round, idx);
         const open = openHintCount(freeHints(round), round.bought, false);
@@ -600,19 +692,31 @@ export async function restore(code: unknown): Promise<string | null> {
 // ---- hint images -------------------------------------------------------------
 
 /**
- * Resolves a /api/gacha/hint-image token to the art it stands for. Tokens are
- * valid for the Bangkok day they were minted on only: anything else (another
- * day's token, a forged or edited token, a character no longer in the catalog)
- * is null. The art URL stays on the server. `expiresInSec` is how long until
- * the token stops working, so caches never outlive it.
+ * Resolves a /api/gacha/hint-image token to the art it stands for. A token is
+ * bound to the day of the round it was minted for, and is readable only while
+ * that day is today or an archive day (ARCHIVE_DAYS back, never before the
+ * epoch, never in the future: a future day's key is simply never tried). For a
+ * past day the character must also be that day's answer, so a token can only
+ * ever show that day's round. Anything else (forged, edited, other salt, out of
+ * the window, a character no longer in the catalog) is null. The art URL stays
+ * on the server. `expiresInSec` runs to the next Bangkok midnight, the
+ * earliest moment the window moves, so no cache keeps an image past it.
  */
 export async function resolveHintImage(token: unknown): Promise<(HintImageRef & { artUrl: string; expiresInSec: number }) | null> {
     const { now, salt } = deps();
     const nowMs = now();
     const today = bangkokDayKey(nowMs);
-    const ref = readHintImageToken(token, salt(), today);
-    if (!ref) return null;
-    const hit = (await getCatalog()).characters.get(ref.charId);
+    let ref = readHintImageToken(token, salt(), today);
+    const idx = await getCatalog();
+    if (!ref) {
+        for (const day of archiveDays(today)) {
+            ref = readHintImageToken(token, salt(), day);
+            if (ref) break;
+        }
+        // Past days: only that day's own answer (stored rounds keep the pick they were made with).
+        if (!ref || dailyPick(idx.catalog, ref.day, salt()).answerId !== ref.charId) return null;
+    }
+    const hit = idx.characters.get(ref.charId);
     if (!hit?.character.image) return null;
     return { ...ref, artUrl: hit.character.image, expiresInSec: secondsUntilNextBangkokDay(nowMs) };
 }

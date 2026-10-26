@@ -26,6 +26,7 @@ import { configureGacha, type RoundDto } from "@/server/gacha/service";
 import { memoryGachaStore } from "@/server/gacha/store";
 import { FIXTURE_CATALOG } from "@/server/gacha/test-fixture";
 import { GET as albumGET } from "./album/route";
+import { GET as archiveGET } from "./archive/route";
 import { POST as guessPOST } from "./guess/route";
 import { POST as hintPOST } from "./hint/route";
 import { POST as recoveryPOST } from "./recovery/route";
@@ -198,12 +199,18 @@ describe("image hints never expose the art URL", () => {
         expect(getModeratedImage).not.toHaveBeenCalled();
     });
 
-    it("a token is valid on its own Bangkok day only: today 200, yesterday's 404", async () => {
+    it("a token is bound to its round's day: today any card character, a past day only that day's answer, in the window", async () => {
         vi.mocked(getModeratedImage).mockResolvedValue({ ok: true, hash: "h", jpeg, checked: true });
+        const y = addDays(day, -1);
+        const yAnswer = dailyPick(FIXTURE_CATALOG, y, SALT).answerId;
+        const yOther = FIXTURE_CATALOG.anime.flatMap((a) => a.characters).find((c) => c.id !== yAnswer)!.id;
         const todays = hintImageToken({ day, charId: 101, kind: "blur" }, SALT);
-        const yesterdays = hintImageToken({ day: addDays(day, -1), charId: 101, kind: "blur" }, SALT);
         expect((await hintImageGET(imgReq(todays))).status).toBe(200);
-        const old = await hintImageGET(imgReq(yesterdays));
+        // yesterday's round: its own answer is served, any other character is not
+        const yOk = await hintImageGET(imgReq(hintImageToken({ day: y, charId: yAnswer, kind: "blur" }, SALT)));
+        expect(yOk.status).toBe(200);
+        expect(yOk.headers.get("cache-control")).toBe("public, max-age=43200, s-maxage=43200, immutable");
+        const old = await hintImageGET(imgReq(hintImageToken({ day: y, charId: yOther, kind: "blur" }, SALT)));
         expect(old.status).toBe(404);
         expect(old.headers.get("cache-control")).toBe("no-store");
 
@@ -212,12 +219,11 @@ describe("image hints never expose the art URL", () => {
         const late = await hintImageGET(imgReq(todays));
         expect(late.status).toBe(200);
         expect(late.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60, immutable");
-        // the next Bangkok day: the same token is now yesterday's
+        // the next Bangkok day: the token is now a past day's and serves only if 101 was that day's answer
         clock = Date.parse("2026-10-27T17:00:00Z");
         const next = await hintImageGET(imgReq(todays));
-        expect(next.status).toBe(404);
-        expect(next.headers.get("cache-control")).toBe("no-store");
-        expect(vi.mocked(getModeratedImage)).toHaveBeenCalledTimes(2);
+        expect(next.status).toBe(dailyPick(FIXTURE_CATALOG, day, SALT).answerId === 101 ? 200 : 404);
+        // and tomorrow's (now today's) token never worked before its day: checked in the 404 test above
     });
 
     it("is rate-limited before any work", async () => {
@@ -303,5 +309,66 @@ describe("POST /api/gacha/story-seen", () => {
         }
         expect((await store.load(ID))!.storySeen).toEqual([frieren.id]);
         expect((await (await albumGET(req("album"))).json()).anime[0].story).toEqual({ unlocked: true, fresh: false });
+    });
+});
+
+describe("archive (past days) routes", () => {
+    beforeEach(() => vi.stubEnv("DAILY_SALT", "arch-salt"));
+    const day = bangkokDayKey(T0);
+    const y = addDays(day, -1);
+
+    it("GET /archive lists 30 past days, newest first, never future; 404 for an unknown player; rate-limited as a read", async () => {
+        expect((await archiveGET(req("archive"))).status).toBe(404);
+        await todayGET(req("today"));
+        const res = await archiveGET(req("archive"));
+        expect(res.status).toBe(200);
+        expect(res.headers.get("cache-control")).toBe("no-store");
+        const body = await res.json();
+        expect(body.today).toMatchObject({ key: day, state: "playing" });
+        expect(body.days).toHaveLength(30);
+        expect(body.days[0]).toMatchObject({ key: y, state: "new", tier: null });
+        expect(body.days.every((d: { key: string }) => d.key < day)).toBe(true);
+        vi.mocked(enforceRateLimit).mockResolvedValueOnce(new Response("slow down", { status: 429 }) as never);
+        expect((await archiveGET(req("archive"))).status).toBe(429);
+        expect(vi.mocked(enforceRateLimit).mock.calls.at(-1)![1]).toMatchObject({ name: "gacha-read" });
+    });
+
+    it("GET /today?day= : 400 malformed, 404 future / out of window, 200 for a past day (not stored)", async () => {
+        await todayGET(req("today"));
+        for (const bad of ["2026-13-01", "2026-02-31", "yesterday", "2026-10-26T00:00"]) {
+            const res = await todayGET(req(`today?day=${encodeURIComponent(bad)}`));
+            expect(res.status).toBe(400);
+            expect(await res.json()).toMatchObject({ code: "invalid_day" });
+        }
+        for (const gone of [addDays(day, 1), addDays(day, -31), "2020-01-01"]) {
+            const res = await todayGET(req(`today?day=${gone}`));
+            expect(res.status).toBe(404);
+            expect(await res.json()).toMatchObject({ code: "day_unavailable" });
+        }
+        const ok = await todayGET(req(`today?day=${y}`));
+        expect(ok.status).toBe(200);
+        expect(await ok.json()).toMatchObject({ archive: true, dailyCoins: 0, day: { key: y } });
+        expect(Object.keys((await store.load(ID))!.rounds)).toEqual([day]);
+    });
+
+    it("POST guess / hint take an optional day: 400 malformed, 404 future, 200 for a past day; a finished day is 409", async () => {
+        await todayGET(req("today"));
+        expect((await guessPOST(req("guess", "POST", { charId: 101, day: "nope" }))).status).toBe(400);
+        expect((await hintPOST(req("hint", "POST", { slot: 1, day: 20261026 }))).status).toBe(400);
+        const fut = await guessPOST(req("guess", "POST", { charId: 101, day: addDays(day, 1) }));
+        expect(fut.status).toBe(404);
+        expect((await hintPOST(req("hint", "POST", { slot: 1, day: addDays(day, 1) }))).status).toBe(404);
+        const h = await hintPOST(req("hint", "POST", { slot: 1, day: y }));
+        expect(h.status).toBe(200);
+        expect(await h.json()).toMatchObject({ archive: true, coins: 30 });
+        const answer = dailyPick(FIXTURE_CATALOG, y, "arch-salt").answerId;
+        const won = await guessPOST(req("guess", "POST", { charId: answer, day: y }));
+        expect(await won.json()).toMatchObject({ done: "won", archive: true, coins: 30, streak: 0 });
+        const again = await guessPOST(req("guess", "POST", { charId: answer, day: y }));
+        expect(again.status).toBe(409);
+        expect(await again.json()).toMatchObject({ code: "round_over" });
+        const view = await todayGET(req(`today?day=${y}`));
+        expect(await view.json()).toMatchObject({ done: "won", archive: true });
+        expect(vi.mocked(enforceRateLimit).mock.calls.some((c) => (c[1] as { name: string }).name === "gacha-write")).toBe(true);
     });
 });

@@ -64,6 +64,7 @@ const MESSAGES: Record<string, string> = {
     no_hint: "No hint left to buy.",
     not_enough_coins: "Not enough coins.",
     hint_out_of_order: "Hints open in ladder order; that slot is not the next one.",
+    day_unavailable: "That day is not open: only today and the archive window can be played.",
 };
 
 const UUID_ANYWHERE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -85,3 +86,5 @@ export function gachaErrorResponse(e: unknown, where: string): NextResponse {
     console.error(`[gacha] ${where} failed:`, message.replace(UUID_ANYWHERE, "<id>").slice(0, 300));
     return gachaFail(503, "gacha_unavailable", "The daily game is unavailable right now.");
 }
+
+export const invalidDay = () => gachaFail(400, "invalid_day", "day must be a YYYY-MM-DD calendar day.");

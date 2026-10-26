@@ -9,7 +9,23 @@ vi.mock("@/lib/redis", () => ({
 
 import { setCatalog } from "./catalog";
 import { addDays, bangkokDayKey, dailyPick, guessRoster, hintLadder, type Tier } from "./rules";
-import { buyHint, configureGacha, GachaError, getAlbum, getToday, guess, markStorySeen, mintRecovery, restore, type RoundDto } from "./service";
+import { hintImageToken } from "./hint-image";
+import { ARCHIVE_DAYS, FIRST_DAY_KEY } from "./rules";
+import {
+    buyHint,
+    configureGacha,
+    GachaError,
+    getAlbum,
+    getArchive,
+    getDay,
+    getToday,
+    guess,
+    markStorySeen,
+    mintRecovery,
+    resolveHintImage,
+    restore,
+    type RoundDto,
+} from "./service";
 import { memoryGachaStore, type GachaProfile } from "./store";
 import { FIXTURE_CATALOG } from "./test-fixture";
 
@@ -61,7 +77,8 @@ describe("getToday", () => {
         expect(dto.created).toBe(true);
         expect(dto.coins).toBe(45);
         expect(dto.dailyCoins).toBe(10);
-        expect(dto.day).toEqual({ key: "2026-10-27", number: 2 });
+        expect(dto.day).toEqual({ key: "2026-10-27", number: 31 });
+        expect(dto.archive).toBe(false);
         expect(dto.anime.id).toBe(pick().animeId);
         expect(dto.candidates).toHaveLength(guessRoster(animeOf(pick().animeId)).length);
         expect(dto.steps).toEqual({ used: 0, hintsCostTier: true });
@@ -563,5 +580,225 @@ describe("day rollover", () => {
         await guess(ID, pick().answerId);
         expect((await getToday(ID)).streak).toBe(2);
         expect(addDays(today(), -1)).toBe("2026-10-27");
+    });
+});
+
+describe("archive (past days)", () => {
+    const pickOn = (day: string) => dailyPick(FIXTURE_CATALOG, day, SALT);
+    const wrongOn = (day: string) => animeOf(pickOn(day).animeId).characters.filter((c) => c.id !== pickOn(day).answerId).map((c) => c.id);
+    const yesterday = () => addDays(today(), -1);
+    const tokenOf = (dto: RoundDto) => {
+        const h = dto.hints.open.find((x) => "src" in x && typeof x.src === "string") as { src: string } | undefined;
+        return new URL(h!.src, "http://x").searchParams.get("t")!;
+    };
+
+    it("rejects future days, days past the window and days before the epoch (reads and writes)", async () => {
+        await getToday(ID);
+        for (const day of [addDays(today(), 1), addDays(today(), 400), addDays(today(), -(ARCHIVE_DAYS + 1)), addDays(FIRST_DAY_KEY, -1)]) {
+            expect(await code(getDay(ID, day))).toBe("day_unavailable");
+            expect(await code(guess(ID, 101, day))).toBe("day_unavailable");
+            expect(await code(buyHint(ID, 1, day))).toBe("day_unavailable");
+        }
+        expect(Object.keys((await profile()).rounds)).toEqual([today()]);
+    });
+
+    it("epoch boundary: on launch day #1 (the epoch) is open, the day before it never is", async () => {
+        expect(today()).toBe("2026-10-27"); // T0 is launch day
+        await getToday(ID);
+        const first = await getDay(ID, FIRST_DAY_KEY);
+        expect(first.day).toEqual({ key: FIRST_DAY_KEY, number: 1 });
+        expect(first.archive).toBe(true);
+        expect(await code(getDay(ID, addDays(FIRST_DAY_KEY, -1)))).toBe("day_unavailable");
+        const list = await getArchive(ID);
+        expect(list.days).toHaveLength(30);
+        expect(list.days.at(-1)!.key).toBe(FIRST_DAY_KEY);
+        expect(list.days.every((d) => d.state === "new" && d.key < today())).toBe(true);
+        expect(list.today).toEqual({ key: today(), number: 31, state: "playing" });
+    });
+
+    it("window edges follow Bangkok midnight, not UTC", async () => {
+        now = Date.parse("2026-11-10T16:59:59Z"); // 23:59:59 on Nov 10 in Bangkok
+        await getToday(ID);
+        expect(today()).toBe("2026-11-10");
+        expect(await code(getDay(ID, "2026-11-11"))).toBe("day_unavailable"); // still tomorrow in Bangkok
+        expect((await getDay(ID, "2026-10-11")).archive).toBe(true); // 30 back
+        expect(await code(getDay(ID, "2026-10-10"))).toBe("day_unavailable"); // 31 back
+        now += 1000; // 00:00:00 Nov 11 in Bangkok (17:00 UTC Nov 10)
+        await getToday(ID);
+        const t = await getDay(ID, "2026-11-11");
+        expect(t.archive).toBe(false);
+        expect(t.dailyCoins).toBe(10);
+        expect(await code(getDay(ID, "2026-10-11"))).toBe("day_unavailable"); // fell out at Bangkok midnight
+        expect((await getDay(ID, "2026-10-12")).archive).toBe(true);
+        expect(await code(getDay(ID, "2026-11-12"))).toBe("day_unavailable");
+    });
+
+    it("viewing a past day does not use it up and needs an existing player", async () => {
+        expect(await code(getDay(ID, yesterday()))).toBe("no_profile");
+        await getToday(ID);
+        const dto = await getDay(ID, yesterday());
+        expect(dto.archive).toBe(true);
+        expect(dto.dailyCoins).toBe(0);
+        expect(dto.done).toBeNull();
+        expect(dto.anime.id).toBe(pickOn(yesterday()).animeId);
+        expect(dto.coins).toBe(45);
+        expect(Object.keys((await profile()).rounds)).toEqual([today()]);
+        expect(withoutCandidates(dto)).not.toContain(`"id":${pickOn(yesterday()).answerId},`);
+    });
+
+    it("an archive win gives the tier card but no daily coins, no fast bonus and no streak", async () => {
+        await getToday(ID);
+        const day = yesterday();
+        const dto = await guess(ID, pickOn(day).answerId, day);
+        expect(dto.done).toBe("won");
+        expect(dto.archive).toBe(true);
+        expect(dto.result?.pull?.tier).toBe("ssr");
+        expect(dto.result?.bonus).toBe(0);
+        expect(dto.coins).toBe(45); // 35 start + today's 10 only
+        expect(dto.streak).toBe(0);
+        const p = await profile();
+        expect(p.finishedDays).toEqual([]);
+        expect(p.rounds[day]).toMatchObject({ archive: true, dailyCoins: 0, bonus: 0, rules: 2, day });
+        expect(p.collection[String(pickOn(day).answerId)]).toBeTruthy();
+        expect((await getToday(ID)).streak).toBe(0);
+    });
+
+    it("a played day is view only: the result shows, further guesses and hints are refused", async () => {
+        await getToday(ID);
+        const day = yesterday();
+        for (const w of wrongOn(day).slice(0, 6)) await guess(ID, w, day);
+        let dto = await getDay(ID, day);
+        if (dto.done !== "lost") {
+            // fixture anime may have fewer than 6 wrong names: finish with the answer instead
+            dto = await guess(ID, pickOn(day).answerId, day);
+        }
+        expect(dto.done).not.toBeNull();
+        const view = await getDay(ID, day);
+        expect(view.done).toBe(dto.done);
+        expect(view.result?.answer?.id).toBe(pickOn(day).answerId);
+        expect(view.guesses.length).toBe(dto.guesses.length);
+        expect(await code(guess(ID, pickOn(day).answerId, day))).toBe("round_over");
+        expect(await code(buyHint(ID, undefined, day))).toBe("round_over");
+        const list = await getArchive(ID);
+        expect(list.days.find((d) => d.key === day)!.state).toBe(dto.done);
+    });
+
+    it("an archive loss gives no card and leaves the streak alone", async () => {
+        await getToday(ID);
+        await guess(ID, pick().answerId); // today won: streak 1
+        const day = addDays(today(), -2);
+        const p0 = await profile();
+        await store.save(ID, { ...p0, rounds: { ...p0.rounds, [day]: { ...p0.rounds[today()], day, animeId: pickOn(day).animeId, answerId: pickOn(day).answerId, guesses: wrongOn(day).slice(0, 5), done: null, pull: null, dailyCoins: 0, bonus: 0, archive: true } } });
+        const before = Object.keys(p0.collection).length;
+        const last = wrongOn(day)[5] ?? FIXTURE_CATALOG.anime.flatMap((a) => a.characters).find((c) => c.id !== pickOn(day).answerId && !wrongOn(day).slice(0, 5).includes(c.id))!.id;
+        const dto = await guess(ID, last, day);
+        expect(dto.done).toBe("lost");
+        expect(dto.result?.pull ?? null).toBeNull();
+        expect(Object.keys((await profile()).collection).length).toBe(before);
+        expect(dto.streak).toBe(1);
+        expect((await profile()).finishedDays).toEqual([today()]);
+    });
+
+    it("archive play never extends or repairs a streak", async () => {
+        // Played and finished the day before yesterday on its own day, skipped yesterday, won today.
+        now -= 2 * 86_400_000;
+        await getToday(ID);
+        await guess(ID, pick().answerId);
+        now += 2 * 86_400_000;
+        await getToday(ID);
+        await guess(ID, pick().answerId);
+        expect((await getToday(ID)).streak).toBe(1);
+        // Filling yesterday from the archive does not repair the gap.
+        const dto = await guess(ID, pickOn(yesterday()).answerId, yesterday());
+        expect(dto.done).toBe("won");
+        expect(dto.streak).toBe(1);
+        expect((await profile()).finishedDays).not.toContain(yesterday());
+    });
+
+    it("a round left unfinished on its own day can be finished later, without bonus or streak", async () => {
+        await getToday(ID);
+        await guess(ID, wrongIds()[0]);
+        const day = today();
+        now += 86_400_000;
+        const dto = await guess(ID, pickOn(day).answerId, day);
+        expect(dto.done).toBe("won");
+        expect(dto.archive).toBe(true);
+        expect(dto.result?.bonus).toBe(0);
+        expect((await profile()).finishedDays).toEqual([]);
+        expect((await profile()).rounds[day].dailyCoins).toBe(10); // granted back on its own day, once
+    });
+
+    it("archive hints cost coins from the existing balance; a failed buy stores nothing", async () => {
+        await getToday(ID);
+        const day = yesterday();
+        const dto = await buyHint(ID, 1, day);
+        expect(dto.coins).toBe(30);
+        expect(dto.hints.open).toHaveLength(1);
+        expect(dto.steps.used).toBe(1);
+        const p = await profile();
+        await store.save(ID, { ...p, coins: 5 });
+        const other = addDays(today(), -3);
+        expect(await code(buyHint(ID, 1, other))).toBe("not_enough_coins");
+        expect((await profile()).rounds[other]).toBeUndefined();
+        expect((await profile()).coins).toBe(5);
+    });
+
+    it("hint-image tokens are bound to their round's day and the window", async () => {
+        await getToday(ID);
+        const day = yesterday();
+        const dto = await buyHint(ID, 1, day);
+        const token = tokenOf(dto);
+        const ref = await resolveHintImage(token);
+        expect(ref).toMatchObject({ day, charId: pickOn(day).answerId });
+        // Another day's character, even well formed for that day, is refused.
+        const notAnswer = wrongOn(day)[0];
+        expect(await resolveHintImage(hintImageToken({ day, charId: notAnswer, kind: "eyes" }, SALT))).toBeNull();
+        // A future day's token is never readable, even with the right answer.
+        const tomorrow = addDays(today(), 1);
+        expect(await resolveHintImage(hintImageToken({ day: tomorrow, charId: pickOn(tomorrow).answerId, kind: "eyes" }, SALT))).toBeNull();
+        // Before the epoch: refused.
+        const pre = addDays(FIRST_DAY_KEY, -1);
+        expect(await resolveHintImage(hintImageToken({ day: pre, charId: pickOn(pre).answerId, kind: "eyes" }, SALT))).toBeNull();
+        // Cache never outlives the next Bangkok midnight.
+        expect(ref!.expiresInSec).toBeLessThanOrEqual(12 * 3600);
+        // Once the day leaves the 30-day window, its token dies.
+        now += (ARCHIVE_DAYS - 1) * 86_400_000; // the day is now 30 back
+        expect(await resolveHintImage(token)).not.toBeNull(); // exactly 30 back
+        now += 86_400_000;
+        expect(await resolveHintImage(token)).toBeNull();
+    });
+
+    it("legacy profile: old-shape rounds show in the archive and stay view only", async () => {
+        const legacyDay = yesterday();
+        const legacy = {
+            v: 1,
+            createdAt: now - 86_400_000,
+            coins: 50,
+            recoveryHash: null,
+            storySeen: [],
+            collection: {},
+            finishedDays: [legacyDay],
+            rounds: {
+                [legacyDay]: {
+                    day: legacyDay,
+                    animeId: pickOn(legacyDay).animeId,
+                    answerId: pickOn(legacyDay).answerId,
+                    guesses: wrongOn(legacyDay).slice(0, 2),
+                    bought: 0,
+                    done: "lost",
+                    dailyCoins: 10,
+                    bonus: 0,
+                    pull: null,
+                    storyUnlockedNow: false,
+                },
+            },
+        };
+        store.profiles.set(ID, JSON.stringify(legacy));
+        const list = await getArchive(ID);
+        expect(list.days[0]).toMatchObject({ key: legacyDay, state: "lost", tier: null });
+        expect((await getDay(ID, legacyDay)).done).toBe("lost");
+        expect(await code(guess(ID, pickOn(legacyDay).answerId, legacyDay))).toBe("round_over");
+        expect((await getToday(ID)).streak).toBe(1);
+        expect((await profile()).rounds[legacyDay].archive).toBeUndefined();
     });
 });

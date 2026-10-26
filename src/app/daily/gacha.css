@@ -513,3 +513,20 @@
 .g-stake-n { margin: -2px 0 6px; font: 400 12px/1.2 var(--th); }
 .g-sharebox { display: grid; gap: 4px; margin-top: 10px; font: 400 12px/1.3 var(--th); text-align: left; }
 .g-sharebox textarea { font: 400 14px/1.3 var(--th); color: var(--ink); background: var(--paper); border: 0; box-shadow: 0 0 0 2px var(--ink); padding: 6px; resize: none; }
+
+/* archive (?view=archive): a list inside /daily, same windows and type scale; Thai >= 12px */
+.g-archline { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+.g-archnote { margin: 0 0 8px; font: 300 12px/1.45 var(--th); }
+.g-arch-head { padding: 12px 14px; display: grid; gap: 4px; }
+.g-arch-head .g-dayline h1 { font: 600 24px/1 var(--th); }
+.g-arch-today { justify-self: start; display: inline-flex; gap: 8px; align-items: center; }
+.g-arch-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.g-arch-day { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; color: var(--ink); text-decoration: none; }
+.g-arch-day b { font: 700 16px/1 var(--bit); }
+.g-arch-date { font: 400 13px/1.3 var(--th); }
+.g-arch-day:focus-visible, .g-arch-today:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.g-arch-day.new { background: #fff; }
+.g-arch-day.won, .g-arch-day.lost { background: var(--paper); }
+.g-arch-st { display: inline-flex; align-items: center; gap: 4px; font: 400 12px/1.2 var(--th); color: var(--ink); }
+.g-arch-today .g-arch-st { color: inherit; }
+.g-arch-empty { padding: 14px; margin: 0; font: 400 13px/1.4 var(--th); text-align: center; }

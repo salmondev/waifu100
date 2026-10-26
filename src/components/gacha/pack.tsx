@@ -103,7 +103,7 @@ export function PackView({ round, coins }: { round: RoundDto; coins: number }) {
             <main className="g-pack g-empty">
                 <div className="win g-emptywin">
                     <p>ยังไม่มีซองให้เปิด เดาตัวละครของวันนี้ให้ถูกก่อน</p>
-                    <Link className="g-btn red" href="/daily" scroll={false}><Icon name="back" />กลับไปเล่น</Link>
+                    <Link className="g-btn red" href={round.archive ? `/daily?day=${round.day.key}` : "/daily"} scroll={false}><Icon name="back" />กลับไปเล่น</Link>
                 </div>
             </main>
         );
@@ -185,7 +185,7 @@ export function PackView({ round, coins }: { round: RoundDto; coins: number }) {
                         )}
                     </div>
                     <div className="g-row">
-                        <Link className="g-btn" href="/daily" scroll={false}><Icon name="back" />กลับ</Link>
+                        <Link className="g-btn" href={round.archive ? `/daily?day=${round.day.key}` : "/daily"} scroll={false}><Icon name="back" />กลับ</Link>
                         <Link className="g-btn red" href={`/daily?view=album&anime=${round.anime.id}`} scroll={false}>
                             <Icon name="album" />{res.storyUnlockedNow ? "ดูสตอรี่การ์ด" : "ดูในอัลบั้ม"}
                         </Link>

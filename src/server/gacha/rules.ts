@@ -14,13 +14,57 @@ export type { CellState } from "./feedback";
 const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Puzzle #1 is this Bangkok calendar day. */
-export const FIRST_DAY_KEY = "2026-10-26";
+/**
+ * Archive window: besides today, a player can play any of the ARCHIVE_DAYS
+ * Bangkok days before it that they have never played.
+ */
+export const ARCHIVE_DAYS = 30;
+
+/**
+ * The production launch day (Bangkok). To move the launch, change this one
+ * constant: the game's first day (FIRST_DAY_KEY, puzzle #1) is ARCHIVE_DAYS
+ * before it, so on launch day the archive is already full (30 playable past
+ * days), and no day before FIRST_DAY_KEY is ever shown or playable. Setting it
+ * a day or two before the real deploy is harmless (the window is still full);
+ * setting it after the deploy day leaves the window short until then.
+ */
+export const LAUNCH_DAY_KEY = "2026-10-27";
+
+/** Puzzle #1 (the game epoch): LAUNCH_DAY_KEY - ARCHIVE_DAYS. Derived, never set by hand. */
+export const FIRST_DAY_KEY = (() => {
+    const [y, m, d] = LAUNCH_DAY_KEY.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d) - ARCHIVE_DAYS * DAY_MS).toISOString().slice(0, 10);
+})();
 
 const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** A real calendar day written as YYYY-MM-DD (2026-02-31 is not one). */
 export function isDayKey(value: unknown): value is string {
-    return typeof value === "string" && DAY_KEY_RE.test(value) && !Number.isNaN(epochDay(value));
+    if (typeof value !== "string" || !DAY_KEY_RE.test(value)) return false;
+    const n = epochDay(value);
+    return Number.isFinite(n) && dayKeyFromEpochDay(n) === value;
+}
+
+/**
+ * Whether `day` is a past day a player may open from the archive on `today`:
+ * strictly before today, at most ARCHIVE_DAYS back, and not before the epoch.
+ * Today itself is not an archive day (it is the normal round); future days never are.
+ */
+export function isArchiveDay(day: unknown, today: string): day is string {
+    if (!isDayKey(day) || !isDayKey(today)) return false;
+    const back = epochDay(today) - epochDay(day);
+    return back >= 1 && back <= ARCHIVE_DAYS && epochDay(day) >= epochDay(FIRST_DAY_KEY);
+}
+
+/** The archive days for `today`, newest first (empty before the epoch has 1 past day). */
+export function archiveDays(today: string): string[] {
+    const out: string[] = [];
+    for (let back = 1; back <= ARCHIVE_DAYS; back++) {
+        const day = addDays(today, -back);
+        if (!isArchiveDay(day, today)) break;
+        out.push(day);
+    }
+    return out;
 }
 
 /** YYYY-MM-DD of the Bangkok calendar day containing `nowMs`. */

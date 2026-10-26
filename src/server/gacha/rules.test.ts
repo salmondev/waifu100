@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+    ARCHIVE_DAYS,
+    archiveDays,
+    FIRST_DAY_KEY,
+    isArchiveDay,
+    isDayKey,
+    LAUNCH_DAY_KEY,
     addDays, answerPool, answerWeight, bangkokDayKey, dailyPick, dayNumber, fastBonus, FEEDBACK_COLUMNS, guessFeedback, guessRoster, hintLadder, hintValue,
     HINT_ORDER, HINT_SLOTS, isEmptySlot, missingHints, nameShape, nextBuyableSlot, openHintCount, playableAnime, secondsUntilNextBangkokDay, pullResult,
     storyUnlocked, streak, tierForGuesses, tierSteps,
 } from "./rules";
+import { KEEP_ROUND_DAYS } from "./store";
 import { FIXTURE_CATALOG } from "./test-fixture";
 
 const frieren = FIXTURE_CATALOG.anime[0];
@@ -150,11 +157,51 @@ describe("Bangkok calendar", () => {
         expect(secondsUntilNextBangkokDay(Date.parse("2026-10-27T17:00:00Z"))).toBe(86400);
         expect(secondsUntilNextBangkokDay(Date.parse("2026-10-27T05:00:00Z"))).toBe(12 * 3600);
     });
-    it("day number #1 is 2026-10-26", () => {
-        expect(dayNumber("2026-10-26")).toBe(1);
-        expect(dayNumber("2026-10-27")).toBe(2);
-        expect(dayNumber("2027-10-26")).toBe(366);
+    it("day number #1 is the epoch: launch day minus 30, so launch day is #31", () => {
+        expect(LAUNCH_DAY_KEY).toBe("2026-10-27");
+        expect(FIRST_DAY_KEY).toBe("2026-09-27");
+        expect(dayNumber(FIRST_DAY_KEY)).toBe(1);
+        expect(dayNumber("2026-09-28")).toBe(2);
+        expect(dayNumber(LAUNCH_DAY_KEY)).toBe(ARCHIVE_DAYS + 1);
+        expect(dayNumber("2027-09-27")).toBe(366);
         expect(addDays("2026-10-26", -1)).toBe("2026-10-25");
+    });
+    it("isDayKey takes real calendar days only", () => {
+        expect(isDayKey("2026-10-27")).toBe(true);
+        expect(isDayKey("2028-02-29")).toBe(true);
+        for (const bad of ["2026-02-31", "2026-13-01", "2026-10-7", "2026-10-27T00", "", null, 20261027]) expect(isDayKey(bad)).toBe(false);
+    });
+});
+
+describe("archive window", () => {
+    it("is the 30 days before today, never today or the future", () => {
+        const today = "2026-11-15";
+        expect(isArchiveDay("2026-11-14", today)).toBe(true);
+        expect(isArchiveDay(addDays(today, -30), today)).toBe(true);
+        expect(isArchiveDay(addDays(today, -31), today)).toBe(false);
+        expect(isArchiveDay(today, today)).toBe(false);
+        expect(isArchiveDay("2026-11-16", today)).toBe(false);
+        expect(isArchiveDay("2027-01-01", today)).toBe(false);
+        expect(isArchiveDay("2026-02-31", today)).toBe(false);
+        const days = archiveDays(today);
+        expect(days).toHaveLength(ARCHIVE_DAYS);
+        expect(days[0]).toBe("2026-11-14");
+        expect(days.at(-1)).toBe(addDays(today, -30));
+    });
+    it("on launch day the window is full and ends exactly at the epoch", () => {
+        const days = archiveDays(LAUNCH_DAY_KEY);
+        expect(days).toHaveLength(30);
+        expect(days.at(-1)).toBe(FIRST_DAY_KEY);
+        expect(days.map(dayNumber)).toEqual(Array.from({ length: 30 }, (_, i) => 30 - i));
+    });
+    it("never reaches before the epoch", () => {
+        expect(isArchiveDay(addDays(FIRST_DAY_KEY, -1), addDays(FIRST_DAY_KEY, 5))).toBe(false);
+        expect(archiveDays(addDays(FIRST_DAY_KEY, 5))).toEqual([4, 3, 2, 1, 0].map((n) => addDays(FIRST_DAY_KEY, n)));
+        expect(archiveDays(FIRST_DAY_KEY)).toEqual([]);
+        expect(archiveDays(addDays(FIRST_DAY_KEY, -10))).toEqual([]);
+    });
+    it("keeps played rounds longer than the window, so a played day stays view-only", () => {
+        expect(KEEP_ROUND_DAYS).toBeGreaterThan(ARCHIVE_DAYS + 1);
     });
 });
 
@@ -171,7 +218,7 @@ describe("daily pick", () => {
     });
     it("each anime comes once per cycle", () => {
         for (const cycle of [0, 1, 2]) {
-            const start = addDays("2026-10-26", cycle * list.length);
+            const start = addDays(FIRST_DAY_KEY, cycle * list.length);
             const picks = days(start, list.length).map((d) => dailyPick(FIXTURE_CATALOG, d, "s1"));
             expect(new Set(picks.map((p) => p.animeId)).size).toBe(list.length);
             expect(picks.every((p) => p.cycle === cycle)).toBe(true);
@@ -209,7 +256,7 @@ describe("daily pick", () => {
         }
     });
     it("days before #1 still pick (negative index wraps into a cycle)", () => {
-        expect(dailyPick(FIXTURE_CATALOG, "2026-10-20", "x").cycle).toBe(-3); // 6 days early, 2 anime per cycle
+        expect(dailyPick(FIXTURE_CATALOG, addDays(FIRST_DAY_KEY, -6), "x").cycle).toBe(-3); // 6 days early, 2 anime per cycle
     });
     it("ignores catalog order", () => {
         const shuffled = { ...FIXTURE_CATALOG, anime: [...FIXTURE_CATALOG.anime].reverse().map((a) => ({ ...a, characters: [...a.characters].reverse() })) };
