@@ -1,0 +1,22 @@
+{
+ "generatedAt": "2026-10-26T11:02:07.078Z",
+ "anime": 150,
+ "animeFailed": 0,
+ "characters": 918,
+ "charactersPerAnime": {
+  "min": 6,
+  "max": 10,
+  "avg": 6.12
+ },
+ "missing": {
+  "hair": 885,
+  "hairFromDescriptionProse": 31,
+  "hairRawButUnnormalised": 0,
+  "occupation": 782,
+  "gender": 79,
+  "age": 354,
+  "quote": 918,
+  "silhouette": 918
+ },
+ "animeUnderMinCharacters": []
+}
