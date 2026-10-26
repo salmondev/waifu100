@@ -1,6 +1,8 @@
 "use client";
 
+import { cacheGallery, getCachedGallery } from "@/lib/gallery-cache";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { proxied } from "@/lib/img-proxy";
 import NextLink from "next/link";
 import { Search, Download, X, Trash2, Loader2, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ImageIcon, Images, Lightbulb, GripVertical, Upload, Link, Save, FileJson, Copy, Check, AlertCircle, Info, Menu, Share2, Pencil, CheckSquare, MousePointer2, ArrowRight, Users, LayoutGrid } from "lucide-react";
 import { toBlob } from "html-to-image";
@@ -8,6 +10,9 @@ import { MouseSensor, TouchSensor, useSensor, useSensors, DndContext, DragStartE
 import { cn } from "@/lib/utils";
 import { Character, GridCell, ImageResult, AnalysisResult, VerdictFeedback } from "@/types";
 import { GridCell as GridComponent } from "@/components/grid/GridCell";
+import { applyGridDrop, placeOnEmpty, type DropSource, type DropTarget } from "@/lib/waifu-grid-ops";
+import { MediaGrid } from "@/components/grid/MediaGrid";
+import { FittedImage } from "@/components/media/FittedImage";
 import { DraggableSidebarItem } from "@/components/sidebar/DraggableSidebarItem";
 import { DragOverlayWrapper } from "@/components/dnd/DragOverlayWrapper";
 import { TrashZone } from "@/components/dnd/TrashZone";
@@ -16,6 +21,13 @@ import { ShareModal } from "@/components/share/ShareModal";
 import { AnalysisModal } from "@/components/analysis/AnalysisModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ensureUserId } from "@/lib/user-id";
+import { isValidShareId } from "@/lib/share-keys";
+import { loadShareForEdit, updateOwnShare } from "@/lib/own-share";
+import { defaultWaifuTitle, parseWaifuStorage, resizeWaifuGrid, waifuSyncBody, type WaifuPersisted } from "@/lib/waifu-board";
+import { STORY_SIZES, STORY_SIZE_LABELS, TITLE_STYLES, TITLE_STYLE_LABELS, isStoryLayout, storyColumns, type TitleStyle } from "@/lib/story/config";
+import { CustomSizeControl } from "@/components/story/CustomSizeControl";
+import { TogetherStartConfirm } from "@/components/together/TogetherBoard";
+import { WAIFU_BTN } from "@/components/story/waifu-styles";
 
 // --- Types ---
 interface Notification {
@@ -73,12 +85,21 @@ export default function Home() {
   const [grid, setGrid] = useState<GridCell[]>(() =>
     Array(100).fill(null).map(() => ({ character: null }))
   );
+  const [size, setSize] = useState(100);
+  const [titleStyle, setTitleStyle] = useState<TitleStyle>("overlay");
+  const [cols, setCols] = useState<number | null>(null);
+  /** Public link this board updates. Null until the first share, or after Clear. */
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [pendingLayout, setPendingLayout] = useState<{ size: number; cols: number | null; lost: number } | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showRightPanel, setShowRightPanel] = useState(false); // Default closed to satisfy mobile requirement
   const [mounted, setMounted] = useState(false);
   const [showNameHint, setShowNameHint] = useState(false);
 
   useEffect(() => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
       setMounted(true);
       // Auto-open gallery on desktop
       if (window.innerWidth >= 1024) {
@@ -88,6 +109,7 @@ export default function Home() {
 
   // --- State: Notifications ---
   const [notification, setNotification] = useState<Notification | null>(null);
+  const [togetherOpen, setTogetherOpen] = useState(false);
 
 
 
@@ -98,7 +120,7 @@ export default function Home() {
   
   // --- State: Search (Left Panel) ---
   const [searchQuery, setSearchQuery] = useState("");
-  const debouncedQuery = useDebounce(searchQuery, 600); // 600ms debounce to reduce API spam
+  const debouncedQuery = useDebounce(searchQuery, 300);
   const [characterResults, setCharacterResults] = useState<Character[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
@@ -212,6 +234,7 @@ export default function Home() {
 
   useEffect(() => {
       const count = parseInt(localStorage.getItem('waifu100-gallery-usage-count') || '0', 10);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
       setGalleryUsageCount(count);
   }, []);
   
@@ -311,34 +334,60 @@ export default function Home() {
   }, []);
 
   // --- Persistence ---
+  // Load the local board first, then a ?edit= link replaces it when this browser owns that share.
+  // `hydrated` flips only after that, so the save effect cannot write the empty initial grid over the real one.
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { 
-         const parsed = JSON.parse(saved);
-         if (Array.isArray(parsed)) {
-            setGrid(parsed);
-         } else if (parsed.grid) {
-            setGrid(parsed.grid);
-            if (parsed.verdict) setVerdict(parsed.verdict);
-            if (parsed.verdictFeedback) setVerdictFeedback(parsed.verdictFeedback);
-         }
-      } catch (e) { console.error(e); }
-    }
-  }, []);
+    let cancel = false;
+    (async () => {
+      let next: WaifuPersisted = parseWaifuStorage(localStorage.getItem(STORAGE_KEY));
+      const edit = new URLSearchParams(window.location.search).get("edit");
+      if (edit && isValidShareId(edit)) {
+        const remote = await loadShareForEdit(edit);
+        if (!cancel && remote?.kind === "waifu" && remote.owned) {
+          next = {
+            grid: resizeWaifuGrid(remote.grid, remote.size),
+            size: remote.size,
+            cols: remote.cols,
+            title: remote.title || defaultWaifuTitle(remote.size),
+            titleStyle: remote.titleStyle ?? "overlay",
+            shareId: edit,
+            verdict: remote.verdict,
+            verdictFeedback: remote.verdictFeedback,
+          };
+        } else if (!cancel && remote?.kind === "waifu") {
+          showNotification("This browser doesn't own that grid, so it stayed on your board.", "info");
+        }
+        if (!cancel) window.history.replaceState(null, "", "/");
+      }
+      if (cancel) return;
+      setGrid(next.grid);
+      setSize(next.size);
+      setCols(next.cols);
+      setCurrentTitle(next.title);
+      setShareId(next.shareId);
+      setTitleStyle(next.titleStyle);
+      if (next.verdict) setVerdict(next.verdict);
+      if (next.verdictFeedback) setVerdictFeedback(next.verdictFeedback);
+      setHydrated(true);
+    })();
+    return () => { cancel = true; };
+  }, [showNotification]);
 
   // Track if we've already shown the storage warning this session
   const storageWarningShown = useRef(false);
 
   useEffect(() => {
+    if (!hydrated) return;
     try {
-      // Save grid + verdict + feedback
-      // We use a wrapper object if verdict exists, otherwise fallback to array for backward compat?
-      // Actually, let's just save the wrapper object. Load logic handles migration.
       const data = {
          grid,
          verdict,
-         verdictFeedback
+         verdictFeedback,
+         size,
+         cols,
+         title: currentTitle,
+         shareId,
+         titleStyle,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       storageWarningShown.current = false; // Reset if save succeeds
@@ -351,7 +400,27 @@ export default function Home() {
          console.warn("Storage Quota Exceeded - changes saved in memory only");
       }
     }
-  }, [grid, showNotification]);
+  }, [hydrated, grid, verdict, verdictFeedback, size, cols, currentTitle, shareId, titleStyle, showNotification]);
+
+  // Once a link exists, edits land on that same link without another Share click.
+  // Local pictures (data:/blob:) wait for Share, which uploads them first.
+  const lastSynced = useRef("");
+  useEffect(() => {
+    if (!hydrated || !shareId) return;
+    const body = waifuSyncBody({ grid, size, cols, title: currentTitle, verdict, verdictFeedback });
+    if (!body) return;
+    const sig = JSON.stringify(body);
+    if (sig === lastSynced.current) return;
+    setSyncNote("Saving…");
+    const t = window.setTimeout(async () => {
+      const res = await updateOwnShare(shareId, body);
+      if (res.ok) {
+        lastSynced.current = sig;
+        setSyncNote("Saved to your link");
+      } else setSyncNote(null);
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [hydrated, shareId, grid, size, cols, currentTitle, verdict, verdictFeedback]);
 
   // --- Community Feed Logic (Manual Refresh Only) ---
   const fetchCommunity = useCallback(async () => {
@@ -372,6 +441,7 @@ export default function Home() {
   // Auto-fetch community when tab is opened (first time or cached is empty)
   useEffect(() => {
       if (activeTab === 'community' && communityGrids.length === 0) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
           fetchCommunity();
       }
   }, [activeTab, communityGrids.length, fetchCommunity]);
@@ -380,6 +450,7 @@ export default function Home() {
   useEffect(() => {
     if (!debouncedQuery.trim()) {
       // Don't clear immediately to avoid flickering if user is typing
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
       if (searchQuery === "") setCharacterResults([]); 
       return;
     }
@@ -422,11 +493,13 @@ export default function Home() {
     // If GIF mode changes while a character is selected and we are in gallery mode, refresh the gallery
     if (activeTab === 'gallery' && selectedCharacter && !isGalleryLoading) {
         // Debounce slightly or just call it? calling directly is fine for a toggle click
+        // eslint-disable-next-line react-hooks/immutability -- callback is only invoked after mount, when the later declaration is initialized; reordering risks behavior change
         openGallery(selectedCharacter, gallerySearchQuery);
     }
   }, [isGifMode]);
 
   // --- Gallery Logic ---
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- manual memoization kept as-is; rewriting deps could change callback identity/behavior
   const openGallery = useCallback(async (char: Character, customQuery?: string) => {
     setShowRightPanel(true);
     setActiveTab('gallery');
@@ -460,6 +533,15 @@ export default function Home() {
         return;
     }
 
+    // T-0013: same title already loaded this session -> reuse, no request.
+    const galleryKey = { characterName: searchName, animeSource: sourceToSend, malId: char.jikan_id, isGif: isGifMode };
+    const cachedImages = getCachedGallery<ImageResult>(galleryKey);
+    if (cachedImages) {
+        setGalleryImages(cachedImages);
+        setIsGalleryLoading(false);
+        return;
+    }
+
     try {
       const res = await fetch("/api/gallery", {
         method: "POST",
@@ -477,6 +559,7 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setGalleryImages(data.images || []);
+        cacheGallery(galleryKey, data.images || []);
       }
     } catch (e) {
       console.error(e);
@@ -550,11 +633,7 @@ export default function Home() {
          openGallery(existingChar);
       } else {
          // Empty cell, just place
-         setGrid(prev => {
-           const next = [...prev];
-           next[index] = { character: selectedCharacter };
-           return next;
-         });
+         setGrid(prev => placeOnEmpty(prev, index, selectedCharacter) ?? prev);
          setLastDroppedIndex(index);
          setTimeout(() => setLastDroppedIndex(null), 300);
       }
@@ -596,52 +675,18 @@ export default function Home() {
     const sourceData = active.data.current;
     const targetData = over.data.current;
 
-    // 1. Drop on Trash
-    if (targetData?.type === 'trash') {
-        if (sourceData?.index !== undefined && sourceData.index !== null) {
-             setGrid(prev => {
-                const next = [...prev];
-                next[sourceData.index] = { character: null };
-                return next;
-             });
-        }
-        return;
-    }
+    // Drop rules live in src/lib/waifu-grid-ops.ts (unit-tested).
+    const result = applyGridDrop(grid, sourceData as DropSource | undefined, targetData as DropTarget | undefined);
+    if (result.pendingReplace) setPendingReplace(result.pendingReplace);
+    if (result.grid !== grid) setGrid(result.grid);
 
-    // 2. Drop on Grid Cell
     if (targetData?.type === 'cell') {
          const targetIndex = targetData.index;
          const sourceIndex = sourceData?.index;
          const char = sourceData?.character;
-
          if (!char) return;
+         if (sourceIndex !== undefined && sourceIndex !== null && sourceIndex === targetIndex) return;
 
-         // Move Logic (Swap)
-         if (sourceIndex !== undefined && sourceIndex !== null) {
-             // Don't do anything if dropped on same cell
-             if (sourceIndex === targetIndex) return;
-
-             setGrid(prev => {
-                const next = [...prev];
-                const targetChar = next[targetIndex].character;
-                next[targetIndex] = { character: char };
-                next[sourceIndex] = { character: targetChar }; // Swap
-                return next;
-             });
-         } else {
-             // New Item Logic (from Sidebar/Gallery)
-             const existingChar = grid[targetIndex].character;
-             if (existingChar) {
-                 setPendingReplace({ index: targetIndex, newChar: char, oldChar: existingChar });
-             } else {
-                 setGrid(prev => {
-                    const next = [...prev];
-                    next[targetIndex] = { character: char };
-                    return next;
-                 });
-             }
-         }
-         
          // Hint Logic: AI hint takes priority over Gallery hint
          // UPDATED: Trigger on first drag of session (removed currentCount check)
          const shouldShowAIHint = !hasShownAIHint;
@@ -811,8 +856,8 @@ export default function Home() {
     // failure rejects the WHOLE capture. Feeding the animated GIF through the
     // same-origin proxy instead makes the capture hang indefinitely. So each one
     // is loaded through the proxy, drawn to a canvas, and swapped for that single
-    // PNG frame - small, inline, and static. Everything else already goes through
-    // /_next/image and is left untouched.
+    // PNG frame - small, inline, and static. Since T-0009 every cell already
+    // loads through the moderated /api/img proxy, so this is a fallback only.
     //
     // Without this, any grid containing a GIF produced no thumbnail at all, hence
     // no showcase preview and no link embed.
@@ -822,7 +867,7 @@ export default function Home() {
         new Promise<string | null>((resolve) => {
             const probe = new Image();
             // Same-origin, so drawing it leaves the canvas untainted.
-            const proxied = `/_next/image?url=${encodeURIComponent(remoteSrc)}&w=384&q=75`;
+            const proxiedSrc = proxied(remoteSrc, 384);
             const timer = setTimeout(() => resolve(null), 5000);
             const finish = (value: string | null) => { clearTimeout(timer); resolve(value); };
 
@@ -848,7 +893,7 @@ export default function Home() {
                     finish(null);
                 }
             };
-            probe.src = proxied;
+            probe.src = proxiedSrc;
         });
 
     await Promise.all(
@@ -963,8 +1008,7 @@ export default function Home() {
 
     } catch(e: unknown) { 
        console.error("Export Error:", e);
-       const errMsg = e instanceof Error ? e.message : String(e);
-       showNotification(`Export failed: ${errMsg}`, 'error');
+       showNotification("Export failed. Please try again.", 'error');
     }
     finally { setIsExporting(false); }
   };
@@ -991,7 +1035,9 @@ export default function Home() {
         grid: data,
         verdict,
         verdictFeedback,
-        title: currentTitle
+        title: currentTitle,
+        size,
+        ...(cols ? { cols } : {}),
     };
 
     setJsonInput(JSON.stringify(exportData)); 
@@ -1144,7 +1190,10 @@ export default function Home() {
          } catch (e) { /* Ignore title extraction errors */ }
 
          // Create new grid
-         const newGrid = Array(100).fill(null).map(() => ({ character: null as Character | null }));
+         const rawObjForSize = (() => { try { return JSON.parse(input); } catch { return null; } })();
+         const loadedCols = rawObjForSize && !Array.isArray(rawObjForSize) && isStoryLayout(rawObjForSize.size, rawObjForSize.cols) && rawObjForSize.cols != null ? rawObjForSize.cols as number : null;
+         const loadedSize = loadedCols !== null || (rawObjForSize && !Array.isArray(rawObjForSize) && isStoryLayout(rawObjForSize.size, null)) ? rawObjForSize.size as number : 100;
+         const newGrid = Array(loadedSize).fill(null).map(() => ({ character: null as Character | null }));
          let loadedCount = 0;
 
          // Universal Loader (Handles Mixed Formats)
@@ -1175,7 +1224,7 @@ export default function Home() {
              }
 
              // Validate and Fill
-             if (gridIndex >= 0 && gridIndex < 100 && charObj) {
+             if (gridIndex >= 0 && gridIndex < loadedSize && charObj) {
                  newGrid[gridIndex] = {
                      character: {
                          mal_id: charObj.mal_id || Date.now() + index,
@@ -1197,6 +1246,9 @@ export default function Home() {
          if (loadedCount === 0) throw new Error("Data found but no valid characters detected");
 
          setGrid(newGrid);
+         setSize(loadedSize);
+         setCols(loadedCols);
+         setShareId(null);
          setShowSaveLoadModal(false);
          showNotification(`Successfully loaded ${loadedCount} characters!`, 'success');
       } catch(e) {
@@ -1333,7 +1385,7 @@ export default function Home() {
         const img = new Image();
         img.onload = () => resolve();
         img.onerror = () => reject();
-        img.src = url;
+        img.src = proxied(url, 128); // T-0009 M4: even the hidden probe goes through moderation
       });
       
       // Success - create character
@@ -1359,6 +1411,21 @@ export default function Home() {
   };
 
   const filledCount = grid.filter(c => c.character).length;
+  const columns = storyColumns(size, cols);
+
+  const applyLayout = (nextSize: number, nextCols: number | null) => {
+    setCurrentTitle((t) => (t === defaultWaifuTitle(size) ? defaultWaifuTitle(nextSize) : t));
+    setGrid((g) => resizeWaifuGrid(g, nextSize));
+    setSize(nextSize);
+    setCols(nextCols);
+  };
+  const requestLayout = (nextSize: number, nextCols: number | null = null) => {
+    if (!isStoryLayout(nextSize, nextCols)) return;
+    if (nextSize === size && nextCols === cols) return;
+    const lost = grid.slice(nextSize).filter((c) => c.character).length;
+    if (lost > 0) setPendingLayout({ size: nextSize, cols: nextCols, lost });
+    else applyLayout(nextSize, nextCols);
+  };
 
   if (!mounted) return null;
 
@@ -1444,7 +1511,7 @@ export default function Home() {
                        "group flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-all w-full",
                        selectedCharacter?.mal_id === char.mal_id ? "bg-purple-900/20 border-purple-500" : "bg-zinc-900/50 border-transparent hover:bg-zinc-800"
                      )}>
-                       <img src={char.images.jpg.image_url} alt={char.name} referrerPolicy="no-referrer" className="w-16 h-20 rounded-lg object-cover bg-zinc-800 shrink-0 pointer-events-none select-none"/>
+                       <img src={proxied(char.images.jpg.image_url, 128)} alt={char.name} referrerPolicy="no-referrer" className="w-16 h-20 rounded-lg object-contain bg-zinc-800 shrink-0 pointer-events-none select-none"/>
                        <div className="flex-1 min-w-0">
                          <p className="font-medium truncate text-sm">{char.name}</p>
                          <p className="text-xs text-zinc-500 truncate">{char.source}</p>
@@ -1467,10 +1534,10 @@ export default function Home() {
         <div className="p-4 border-t border-zinc-800 bg-zinc-950/50 backdrop-blur">
            <div className="flex justify-between text-sm mb-2">
              <span className="text-zinc-400">Progress</span>
-             <span className="font-bold text-purple-400">{filledCount}/100</span>
+             <span className="font-bold text-purple-400">{filledCount}/{size}</span>
            </div>
            <div className="h-1 bg-zinc-900 rounded-full overflow-hidden mb-4">
-             <div className="h-full bg-purple-500 transition-all duration-500" style={{width: `${filledCount}%`}}/>
+             <div className="h-full bg-purple-500 transition-all duration-500" style={{width: `${size ? (filledCount / size) * 100 : 0}%`}}/>
            </div>
            
            {/* Hidden file input */}
@@ -1492,6 +1559,22 @@ export default function Home() {
               <Users className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform"/>
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-300">Community Showcase</span>
            </NextLink>
+
+           {/* Story100: the anime & manga grid mode (T-0009). */}
+           <NextLink
+              href="/story"
+              className="w-full py-2 mb-2 bg-zinc-900/60 hover:bg-zinc-800 border border-sky-500/30 rounded-lg font-bold flex justify-center items-center gap-2 text-sm transition-all"
+           >
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-300 to-purple-300">Story100: Anime &amp; Manga grid</span>
+           </NextLink>
+
+           <button
+              type="button"
+              onClick={() => setTogetherOpen(true)}
+              className={WAIFU_BTN.together}
+           >
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 to-pink-300">Build Grid Together</span>
+           </button>
 
            {/* Own the grids you shared: rename-by-resharing was the only tool
                people had, and there was no way to take one down at all. */}
@@ -1601,14 +1684,14 @@ export default function Home() {
                    char={selectedCharacter}
                    onClick={() => {}}
                 >
-                   <div className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-zinc-900 mb-4 border border-zinc-800 cursor-grab active:cursor-grabbing hover:border-purple-500 transition-colors">
+                   <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-zinc-900 mb-4 border border-zinc-800 cursor-grab active:cursor-grabbing hover:border-purple-500 transition-colors">
                       
                   {selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url ? (
-                      <img 
-                         src={selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url} 
+                      <FittedImage
+                         src={selectedCharacter.customImageUrl || selectedCharacter.images.jpg.image_url}
                          alt={selectedCharacter.name}
-                         referrerPolicy="no-referrer"
-                         className="w-full h-full object-cover pointer-events-none"
+                         width={384}
+                         className="pointer-events-none"
                       />
                   ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-zinc-700 bg-zinc-900">
@@ -1822,10 +1905,32 @@ export default function Home() {
                 <p className="text-[10px] text-zinc-500">Search characters on the left, then drag them here. Drag to reorder or drop on red zones to delete.</p>
              </div>
              
-             <div className="grid grid-cols-10 gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full"
-                  onMouseLeave={() => { isSelectionDragging.current = false; }}
-             >
-                {grid.map((cell, idx) => (
+             <div className="export-exclude mb-2 flex flex-wrap items-center gap-2">
+                <div className="flex rounded-lg overflow-hidden border border-zinc-800" role="group" aria-label="Grid size">
+                  {STORY_SIZES.map((s) => (
+                    <button key={s} type="button" onClick={() => requestLayout(s)} aria-pressed={size === s && !cols} className={cn("px-2.5 py-1 text-xs sm:text-sm", size === s && !cols ? "bg-purple-600 text-white font-semibold" : "bg-zinc-900 text-zinc-400 hover:text-white")}>
+                      {STORY_SIZE_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+                <CustomSizeControl rows={Math.ceil(size / columns)} cols={columns} active={!!cols} onApply={(r, c) => requestLayout(r * c, c)} />
+                <div className="flex rounded-lg overflow-hidden border border-zinc-800 text-xs" role="group" aria-label="Title position">
+                  <span className="px-2 py-1.5 bg-zinc-950 text-zinc-500">Titles</span>
+                  {TITLE_STYLES.map((t) => (
+                    <button key={t} type="button" onClick={() => setTitleStyle(t)} aria-pressed={titleStyle === t} className={cn("px-2.5 py-1.5", titleStyle === t ? "bg-zinc-700 text-white font-semibold" : "bg-zinc-900 text-zinc-400 hover:text-white")}>
+                      {TITLE_STYLE_LABELS[t]}
+                    </button>
+                  ))}
+                </div>
+                {syncNote && <span className="text-[11px] text-zinc-500 ml-auto">{syncNote}</span>}
+             </div>
+             <MediaGrid
+                items={grid}
+                columns={columns}
+                className="grid gap-1 bg-zinc-900/50 p-1.5 rounded-sm border border-zinc-700 w-full"
+                dataAttribute="data-waifu-grid"
+                onMouseLeave={() => { isSelectionDragging.current = false; }}
+                renderCell={(cell, idx) => (
                    <GridComponent
                      key={idx}
                      idx={idx}
@@ -1860,22 +1965,23 @@ export default function Home() {
 
                      {cell.character ? (
                         <>
-                            <img
-                              src={(() => {
-                                  const url = cell.character.customImageUrl || cell.character.images.jpg.image_url;
-                                  if (url.startsWith('data:') || url.startsWith('blob:') || url.toLowerCase().includes('.gif') || url.includes('vercel-storage.com')) return url;
-                                  return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`;
-                              })()} 
+                            <FittedImage
+                              src={cell.character.customImageUrl || cell.character.images.jpg.image_url}
                               alt={cell.character.name}
-                              referrerPolicy="no-referrer"
-                              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                              width={384}
                               loading="eager"
+                              className="pointer-events-none select-none"
                             />
-                           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-1 pointer-events-none">
-                              <p className="text-[10px] text-white font-bold text-center px-1 truncate w-full shadow-black drop-shadow-md">
+                           {titleStyle !== "hidden" && (
+                           <div className={cn(
+                              "absolute inset-x-0 z-20 flex items-end justify-center pb-1 pointer-events-none",
+                              titleStyle === "below" ? "bottom-0 bg-black/80 py-1" : "inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"
+                           )}>
+                              <p className="text-[10px] text-white font-bold text-center px-1 truncate w-full drop-shadow-md">
                                  {cell.character.name}
                               </p>
                            </div>
+                           )}
                         </>
                      ) : ( 
                         <div className="w-full h-full flex items-center justify-center text-zinc-900 font-bold text-xs select-none">
@@ -1883,8 +1989,8 @@ export default function Home() {
                         </div>
                      )}
                    </GridComponent>
-                 ))}
-             </div>
+                )}
+             />
              <p className="text-center text-zinc-600 text-[10px] mt-2 uppercase tracking-wider export-exclude">Drag to Move • Drag Out to Delete</p>
              
              {/* Credit Footer */}
@@ -1913,26 +2019,38 @@ export default function Home() {
         onTitleUpdate={setCurrentTitle}
         verdict={verdict}
         verdictFeedback={verdictFeedback}
+        shareId={shareId}
+        size={size}
+        cols={cols}
+        onShared={setShareId}
+        titleStyle={titleStyle}
         onVerdictGenerate={(v) => {
             setVerdict(v);
             // Also save to localStorage immediately to persist the auto-generated verdict
             const data = {
                 grid,
                 verdict: v,
-                verdictFeedback
+                verdictFeedback,
+                size,
+                cols,
+                title: currentTitle,
+                shareId,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }}
       />
 
+      <TogetherStartConfirm open={togetherOpen} kind="waifu" onClose={() => setTogetherOpen(false)} onError={() => showNotification("Couldn't open a together room.", "error")} />
       <ConfirmModal 
         isOpen={showClearConfirm}
         onClose={() => setShowClearConfirm(false)}
         onConfirm={() => {
             // Reset Grid
-            setGrid(Array(100).fill(null).map(() => ({ character: null })));
+            setGrid(resizeWaifuGrid([], size));
+            setShareId(null);
+            setSyncNote(null);
             // Reset Meta
-            setCurrentTitle("My 100 Favorite Characters");
+            setCurrentTitle(defaultWaifuTitle(size));
             setSelectedCharacter(null);
             // Reset AI
             setVerdict(null);
@@ -1945,9 +2063,21 @@ export default function Home() {
             showNotification("Grid cleared successfully!", 'success');
         }}
         title="Clear Entire Grid?"
-        message="Are you sure you want to delete all characters? This action cannot be undone unless you have a save file."
+        message="Are you sure you want to delete all characters? This starts a fresh board on this device. A link you already shared stays as it was."
         confirmText="Clear Everything"
         variant="danger"
+      />
+      <ConfirmModal
+        isOpen={!!pendingLayout}
+        onClose={() => setPendingLayout(null)}
+        onConfirm={() => {
+          if (pendingLayout) applyLayout(pendingLayout.size, pendingLayout.cols);
+          setPendingLayout(null);
+        }}
+        title="Shrink the grid?"
+        message={pendingLayout ? `This removes ${pendingLayout.lost} character(s) from the end of your board.` : ""}
+        confirmText="Shrink"
+        variant="warning"
       />
       <AnalysisModal 
         isOpen={showAnalysisModal}
@@ -2152,7 +2282,7 @@ export default function Home() {
                                              src really does retry - before hiding a tile whose
                                              image is genuinely gone. */}
                                          <img
-                                            src={char.customImageUrl}
+                                            src={proxied(char.customImageUrl, 256)}
                                             referrerPolicy="no-referrer"
                                             loading="lazy"
                                             onError={(e) => {
@@ -2160,10 +2290,10 @@ export default function Home() {
                                                const tries = Number(el.dataset.tries ?? 0);
                                                if (tries >= 2) { el.style.display = "none"; return; }
                                                el.dataset.tries = String(tries + 1);
-                                               const next = tries === 0 ? el.src : img.url;
+                                               const next = tries === 0 ? el.src : proxied(img.url, 256);
                                                setTimeout(() => { el.src = next; }, 700 + Math.random() * 800);
                                             }}
-                                            className="w-full h-full object-cover pointer-events-none select-none"
+                                            className="w-full h-full object-contain pointer-events-none select-none"
                                          />
                                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                                             <span className="text-[9px] text-white bg-black/50 px-1 rounded">{img.source}</span>
@@ -2219,7 +2349,7 @@ export default function Home() {
                             >
                                <div className="aspect-square bg-zinc-950 relative">
                                    {grid.imageUrl ? (
-                                       <img src={grid.imageUrl} alt={grid.title} className="w-full h-full object-cover"/>
+                                       <FittedImage src={grid.imageUrl} alt={grid.title} width={384} loading="lazy" />
                                    ) : (
                                        <div className="w-full h-full flex items-center justify-center text-zinc-700">
                                            <span className="text-xs">No Preview</span>
@@ -2314,18 +2444,18 @@ export default function Home() {
              
              <div className="flex items-center justify-center gap-4 mb-6">
                 <div className="text-center">
-                   <img src={pendingReplace.oldChar.customImageUrl || pendingReplace.oldChar.images.jpg.image_url} referrerPolicy="no-referrer" 
+                   <img src={proxied(pendingReplace.oldChar.customImageUrl || pendingReplace.oldChar.images.jpg.image_url, 256)} referrerPolicy="no-referrer" 
                       alt={pendingReplace.oldChar.name}
-                      className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-red-500/50"
+                      className="w-20 h-24 rounded-lg object-contain bg-zinc-950 mx-auto mb-2 border border-red-500/50"
                    />
                    <p className="text-xs text-zinc-400 truncate w-20">{pendingReplace.oldChar.name}</p>
                 </div>
                 <span className="text-2xl text-zinc-500">→</span>
                 <div className="text-center">
-                   <img src={pendingReplace.newChar.customImageUrl || pendingReplace.newChar.images.jpg.image_url}
+                   <img src={proxied(pendingReplace.newChar.customImageUrl || pendingReplace.newChar.images.jpg.image_url, 256)}
                       alt={pendingReplace.newChar.name}
                       referrerPolicy="no-referrer"
-                      className="w-20 h-24 rounded-lg object-cover mx-auto mb-2 border border-green-500/50"
+                      className="w-20 h-24 rounded-lg object-contain bg-zinc-950 mx-auto mb-2 border border-green-500/50"
                    />
                    <p className="text-xs text-zinc-400 truncate w-20">{pendingReplace.newChar.name}</p>
                 </div>

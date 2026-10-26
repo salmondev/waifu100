@@ -1,4 +1,5 @@
 import React from 'react';
+import { FittedImage } from "@/components/media/FittedImage";
 import { DragOverlay } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { Character } from '@/types';
@@ -11,12 +12,11 @@ export function DragOverlayWrapper({ activeDragData }: DragOverlayWrapperProps) 
     return (
         <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
             {activeDragData?.character && (
-            <div className="w-24 h-32 rounded-lg overflow-hidden border-2 border-purple-500 shadow-2xl bg-zinc-900 pointer-events-none cursor-grabbing opacity-70 scale-110 rotate-3">
-                <img 
-                    src={activeDragData.character.customImageUrl || activeDragData.character.images.jpg.image_url} 
+            <div className="relative w-24 h-32 rounded-lg overflow-hidden border-2 border-purple-500 shadow-2xl bg-zinc-900 pointer-events-none cursor-grabbing opacity-70 scale-110 rotate-3">
+                <FittedImage
+                    src={activeDragData.character.customImageUrl || activeDragData.character.images.jpg.image_url}
                     alt={activeDragData.character.name || "Dragged character"}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
+                    width={256}
                 />
             </div>
             )}

@@ -1,9 +1,11 @@
 import { Metadata } from "next";
+import { proxiedAbsolute } from '@/lib/img-proxy';
 import { ViewGrid } from "@/components/view/ViewGrid";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { readShare } from '@/lib/share-store';
 import { shareCardPath } from '@/lib/share-card';
+import { storyViewPath } from '@/lib/story/config';
 
 interface ServerPageProps {
   params: Promise<{ id: string }>;
@@ -34,6 +36,10 @@ export async function generateMetadata({ params }: ServerPageProps): Promise<Met
       };
   }
 
+  if (data.kind === "story") {
+      return { title: `${data.title} | Story100` };
+  }
+
   const { grid, title, imageUrl } = data;
   const count = grid.filter(c => c.character).length;
 
@@ -43,7 +49,7 @@ export async function generateMetadata({ params }: ServerPageProps): Promise<Met
   const h = await headers();
   const host = h.get("host") || "waifu100.vercel.app";
   const origin = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
-  const images = [imageUrl || `${origin}${shareCardPath(id)}`];
+  const images = [imageUrl ? proxiedAbsolute(origin, imageUrl, 512) : `${origin}${shareCardPath(id)}`];
 
   return {
       title: `${title} | Waifu100`,
@@ -70,11 +76,20 @@ export default async function ViewSharePage({ params }: ServerPageProps) {
      redirect("/");
   }
 
+  // Story shares have their own page, title and card.
+  if (data.kind === "story") {
+     redirect(storyViewPath(id));
+  }
+
   return <ViewGrid 
     grid={data.grid} 
     title={data.title} 
     verdict={data.verdict || null}
     verdictFeedback={data.verdictFeedback || null}
     shareId={id}
+    size={data.size}
+    cols={data.cols}
+    titleStyle={data.titleStyle}
+    together={data.together}
   />;
 }

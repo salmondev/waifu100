@@ -1,3 +1,5 @@
+"use client";
+import { useEffect, useId } from "react";
 import { X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +12,8 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
+  /** Story100 opt-in: Escape closes + dialog semantics. Off by default so waifu100 behaves exactly as before. */
+  accessible?: boolean;
 }
 
 export function ConfirmModal({ 
@@ -20,12 +24,20 @@ export function ConfirmModal({
   message, 
   confirmText = "Confirm", 
   cancelText = "Cancel",
-  variant = 'danger'
+  variant = 'danger',
+  accessible = false
 }: ConfirmModalProps) {
+  const titleId = useId();
+  useEffect(() => {
+    if (!isOpen || !accessible) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose, accessible]);
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div {...(accessible ? { role: "dialog", "aria-modal": true, "aria-labelledby": titleId } : {})} className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
         
         <div className={cn("absolute top-0 left-0 right-0 h-1", 
@@ -34,6 +46,7 @@ export function ConfirmModal({
         )} />
 
         <button 
+          {...(accessible ? { type: "button" as const, "aria-label": "Close" } : {})}
           onClick={onClose}
           className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors p-1 rounded-full hover:bg-zinc-800"
         >
@@ -48,7 +61,7 @@ export function ConfirmModal({
                 )}>
                     <AlertTriangle size={24} />
                 </div>
-                <h3 className="text-xl font-bold text-white">{title}</h3>
+                <h3 id={accessible ? titleId : undefined} className="text-xl font-bold text-white">{title}</h3>
             </div>
             
             <p className="text-zinc-400 mb-8 leading-relaxed">

@@ -50,6 +50,7 @@ export function AnalysisModal({ isOpen, onClose, grid, result, onResult, feedbac
 
   useEffect(() => {
     if (isOpen && !result && !loading) {
+      // eslint-disable-next-line react-hooks/immutability -- callback is only invoked after mount, when the later declaration is initialized; reordering risks behavior change
       handleAnalyze();
     }
   }, [isOpen]);

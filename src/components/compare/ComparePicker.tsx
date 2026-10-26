@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { proxied } from "@/lib/img-proxy";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, GitCompareArrows, Loader2, Search, X } from "lucide-react";
@@ -8,6 +9,7 @@ import type { ShareSummary } from "@/lib/share-summary";
 import { shareCardPath } from "@/lib/share-card";
 import { useMyGrids } from "@/lib/my-grids";
 import { cn } from "@/lib/utils";
+import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
 
 /**
  * Choosing the two grids to compare.
@@ -50,7 +52,7 @@ function GridTile({
             <div className="relative aspect-square bg-zinc-950">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                    src={grid.imageUrl || shareCardPath(grid.id)}
+                    src={proxied(grid.imageUrl, 256) || shareCardPath(grid.id)}
                     alt=""
                     loading="lazy"
                     className="h-full w-full object-cover"
@@ -96,7 +98,7 @@ function SlotBox({
                 {grid && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                        src={grid.imageUrl || shareCardPath(grid.id)}
+                        src={proxied(grid.imageUrl, 256) || shareCardPath(grid.id)}
                         alt=""
                         className="h-full w-full object-cover"
                     />
@@ -136,6 +138,9 @@ export function ComparePicker({
     initialB?: ShareSummary | null;
 }) {
     const router = useRouter();
+    // Same reason as the showcase bar: the route reads two grids before it can
+    // paint anything, and the press has to be acknowledged where it happened.
+    const [navigating, startNavigating] = useTransition();
     const mine = useMyGrids();
 
     const [a, setA] = useState<ShareSummary | null>(initialA);
@@ -154,7 +159,7 @@ export function ComparePicker({
         else setLoadingMore(true);
         setError(null);
         try {
-            const res = await fetch(`/api/community?offset=${offset}&limit=${PAGE_SIZE}`);
+            const res = await fetch(`/api/community?offset=${offset}&limit=${PAGE_SIZE}&kind=waifu`);
             if (!res.ok) throw new Error(`Request failed (${res.status})`);
             const data = await res.json();
             const page: ShareSummary[] = data.grids ?? [];
@@ -174,6 +179,7 @@ export function ComparePicker({
     }, []);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
         loadPage(0);
     }, [loadPage]);
 
@@ -184,7 +190,7 @@ export function ComparePicker({
      */
     const listed = useMemo(() => {
         const seen = new Set<string>();
-        const all = [...mine, ...grids].filter((g) => {
+        const all = [...mine.filter((g) => g.kind !== "story"), ...grids].filter((g) => {
             if (seen.has(g.id)) return false;
             seen.add(g.id);
             return true;
@@ -224,7 +230,8 @@ export function ComparePicker({
                 <div className="mb-6 flex items-center gap-3">
                     <Link
                         href="/community"
-                        className="rounded-full border border-zinc-800 bg-zinc-900/50 p-2 text-zinc-400 transition-colors hover:text-white"
+                        aria-label="Back to the Community Showcase"
+                        className={cn("rounded-full p-2", SHOWCASE_LINK_CLASS)}
                     >
                         <ArrowLeft size={18} />
                     </Link>
@@ -267,17 +274,30 @@ export function ComparePicker({
 
                 <button
                     type="button"
-                    disabled={!ready}
-                    onClick={() => ready && router.push(`/compare?a=${a.id}&b=${b.id}`)}
+                    disabled={!ready || navigating}
+                    aria-busy={navigating}
+                    onClick={() =>
+                        ready &&
+                        startNavigating(() => router.push(`/compare?a=${a.id}&b=${b.id}`))
+                    }
                     className={cn(
                         "mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-medium transition-all",
                         ready
                             ? "bg-purple-600 text-white hover:bg-purple-500"
-                            : "cursor-not-allowed bg-zinc-900 text-zinc-600"
+                            : "cursor-not-allowed bg-zinc-900 text-zinc-600",
+                        navigating && "cursor-wait"
                     )}
                 >
-                    <GitCompareArrows size={18} />
-                    {ready ? "Compare these two" : "Pick two grids to compare"}
+                    {navigating ? (
+                        <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                        <GitCompareArrows size={18} />
+                    )}
+                    {navigating
+                        ? "Comparing…"
+                        : ready
+                          ? "Compare these two"
+                          : "Pick two grids to compare"}
                 </button>
 
                 {/* Search over what is loaded, same as the showcase does. */}

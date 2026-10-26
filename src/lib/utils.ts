@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import { proxied } from "@/lib/img-proxy";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -15,15 +16,9 @@ export function cn(...inputs: ClassValue[]) {
  * the size we uploaded.
  */
 export function optimizedImageSrc(url: string, width = 384): string {
-    if (
-        url.startsWith("data:") ||
-        url.startsWith("blob:") ||
-        isGifUrl(url) ||
-        url.includes("vercel-storage.com")
-    ) {
-        return url;
-    }
-    return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=75`;
+    // T-0009 A: every remote image goes through the moderated proxy (which
+    // also resizes). GIFs come back as their checked first frame.
+    return proxied(url, width);
 }
 
 /** True when a URL points at a .gif file, query strings ignored. */

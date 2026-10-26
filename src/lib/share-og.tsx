@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { ImageResponse } from 'next/og';
-import sharp from 'sharp';
+import { getModeratedImage } from '@/server/moderation/moderator';
+import { storyColumns, STORY_BRAND, isAllowedCoverUrl } from '@/lib/story/config';
 
 /**
  * Renders the social-card image for a shared grid.
@@ -37,6 +38,33 @@ export interface ShareOgInput {
     /** Cell image URLs, index 0-99. Missing entries render as empty cells. */
     images: (string | null | undefined)[];
     count: number;
+    /** Absent = waifu (10x10). */
+    kind?: 'waifu' | 'story';
+    size?: number;
+    /** Story custom layout columns (null/absent = preset layout of `size`). */
+    cols?: number | null;
+}
+
+/** Story covers are portrait (AniList / MAL are ~2:3), so story cells are 2:3 too. */
+export const STORY_CELL_RATIO = 1.5;
+
+/**
+ * Card geometry for a grid of `size` slots. Exported for tests. Waifu cells are
+ * square (cellH === cell); story cells are 2:3 portrait so a cover fits whole
+ * instead of losing its top and bottom to a square crop.
+ */
+export function ogLayout(kind: 'waifu' | 'story' = 'waifu', size = 100, cols?: number | null) {
+    if (kind === 'story') {
+        const columns = storyColumns(size, cols);
+        const rows = Math.ceil(size / columns);
+        const cell = Math.floor(Math.min(GRID_SIZE / columns, GRID_SIZE / (rows * STORY_CELL_RATIO)));
+        const cellH = Math.floor(cell * STORY_CELL_RATIO);
+        return { columns, rows, total: size, cell, cellH, width: columns * cell, height: rows * cellH };
+    }
+    const columns = storyColumns(size, cols);
+    const rows = Math.ceil(size / columns);
+    const cell = Math.floor(GRID_SIZE / Math.max(columns, rows));
+    return { columns, rows, total: size, cell, cellH: cell, width: columns * cell, height: rows * cell };
 }
 
 // --- Font -------------------------------------------------------------------
@@ -74,16 +102,8 @@ export async function loadOgFont(): Promise<ArrayBuffer | null> {
 
 // --- Images -----------------------------------------------------------------
 
-const IMAGE_TIMEOUT_MS = 8000;
 const CONCURRENCY = 6;
-// People paste links to full-resolution art and long GIFs; the largest cell in
-// one real grid is 10.6MB. Anything past this is skipped rather than risk the
-// memory that once killed the function outright.
-const MAX_IMAGE_BYTES = 16 * 1024 * 1024;
 const SOURCE_PX = CELL * 2; // 2x the cell, so the card stays crisp
-// Some CDNs (Reddit's preview host among them) refuse unknown clients outright.
-const UA =
-    'Mozilla/5.0 (compatible; waifu100-og/1.0; +https://waifu100.vercel.app)';
 
 /**
  * Fetches one image and shrinks it to cell size.
@@ -94,38 +114,22 @@ const UA =
  * carry 83MB of source images, and every one of those gets base64'd and then
  * decoded in full for an 80px tile. A few KB per cell instead.
  */
-async function fetchCell(url: string, px: number): Promise<{ data?: string; reason?: string }> {
-    const res = await fetch(url, {
-        signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
-        headers: {
-            'User-Agent': UA,
-            Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            // Hotlink checks are usually happy with the image's own origin.
-            Referer: new URL(url).origin + '/',
-        },
-        redirect: 'follow',
-    });
-    if (!res.ok) return { reason: `http-${res.status}` };
-
-    const type = res.headers.get('content-type') || '';
-    if (!type.startsWith('image/')) return { reason: `type-${type.split(';')[0] || 'none'}` };
-
-    const buffer = await res.arrayBuffer();
-    if (buffer.byteLength > MAX_IMAGE_BYTES) {
-        return { reason: `too-big-${Math.round(buffer.byteLength / 1048576)}mb` };
-    }
-
-    // sharp arrives with Next (it powers the image optimizer), so this needs no
-    // extra dependency. `animated` stays off on purpose: one frame is all a
-    // static card can show, and decoding every frame of a long GIF is exactly
-    // the memory the crash was made of.
-    const jpeg = await sharp(Buffer.from(buffer), { limitInputPixels: 50_000_000 })
-        .resize(px, px, { fit: 'cover' })
-        .jpeg({ quality: 72 })
-        .toBuffer();
-
-    return { data: `data:image/jpeg;base64,${jpeg.toString('base64')}` };
+async function fetchCell(
+    url: string,
+    px: number,
+    allow?: (u: string) => boolean,
+    whole = false
+): Promise<{ data?: string; reason?: string }> {
+    // T-0009 A: server-rendered cards use the same moderated, hash-checked
+    // pipeline as the browser proxy; a blocked or unverified cell stays empty.
+    // `whole` (story only): keep the image's own shape (fit inside, no crop).
+    // Square cells are letterboxed, not cropped: a 225x350 character portrait
+    // used to lose about a third of its height to a square crop.
+    const result = await getModeratedImage(url, px, whole ? { allow } : { square: true, letterbox: true, allow });
+    if (!result.ok) return { reason: result.reason };
+    // Cards are CDN-cached for a long time: an unchecked cell (Gemini gave no answer) stays empty.
+    if (!result.checked) return { reason: 'unchecked' };
+    return { data: `data:image/jpeg;base64,${result.jpeg.toString('base64')}` };
 }
 
 /** Resolves one cell. A dead link costs that cell, never the whole card. */
@@ -133,7 +137,9 @@ async function toDataUrl(
     index: number,
     url: string | null | undefined,
     stats: CellStats,
-    px: number
+    px: number,
+    allow?: (u: string) => boolean,
+    whole = false
 ): Promise<string | null> {
     if (!url) return null;
     if (!/^https?:\/\//.test(url)) {
@@ -144,7 +150,7 @@ async function toDataUrl(
 
     let reason = 'unknown';
     try {
-        const result = await fetchCell(url, px);
+        const result = await fetchCell(url, px, allow, whole);
         if (result.data) {
             stats.loaded++;
             return result.data;
@@ -175,7 +181,9 @@ export interface CellStats {
  */
 export async function resolveImages(
     images: (string | null | undefined)[],
-    px: number
+    px: number,
+    allow?: (u: string) => boolean,
+    whole = false
 ): Promise<{ cells: (string | null)[]; stats: CellStats }> {
     const started = Date.now();
     const stats: CellStats = { loaded: 0, failed: 0, ms: 0, failures: [] };
@@ -187,7 +195,7 @@ export async function resolveImages(
     const worker = async () => {
         while (next < total) {
             const i = next++;
-            cells[i] = await toDataUrl(i, images[i], stats, px);
+            cells[i] = await toDataUrl(i, images[i], stats, px, allow, whole);
         }
     };
 
@@ -199,20 +207,35 @@ export async function resolveImages(
 
 /** The 100 cells of a share grid, at the size this card draws them. */
 export async function resolveCells(
-    images: (string | null | undefined)[]
+    images: (string | null | undefined)[],
+    total: number = COLUMNS * COLUMNS,
+    px: number = SOURCE_PX,
+    allow?: (url: string) => boolean,
+    whole = false
 ): Promise<{ cells: (string | null)[]; stats: CellStats }> {
-    const total = COLUMNS * COLUMNS;
     return resolveImages(
         Array.from({ length: total }, (_, i) => images[i]),
-        SOURCE_PX
+        px,
+        allow,
+        whole
     );
 }
 
 // --- Card -------------------------------------------------------------------
 
-export async function renderShareOg({ title, images, count }: ShareOgInput) {
-    const [font, resolved] = await Promise.all([loadOgFont(), resolveCells(images)]);
+export async function renderShareOg({ title, images, count, kind = 'waifu', size = 100, cols = null }: ShareOgInput) {
+    const layout = ogLayout(kind, size, cols);
+    const story = kind === 'story';
+    const [font, resolved] = await Promise.all([
+        loadOgFont(),
+        story
+            ? resolveCells(images, layout.total, Math.min(layout.cell * 2, 400), isAllowedCoverUrl, true)
+            : resolveCells(images),
+    ]);
     const cells = resolved.cells;
+    const cellW = layout.cell;
+    // Story: 2:3 slots, and the whole cover is shown (contain), never cropped.
+    const cellH = layout.cellH;
 
     return new ImageResponse(
         (
@@ -252,9 +275,10 @@ export async function renderShareOg({ title, images, count }: ShareOgInput) {
                     style={{
                         display: 'flex',
                         flexWrap: 'wrap',
-                        width: GRID_SIZE,
-                        height: GRID_SIZE,
+                        width: layout.width,
+                        height: layout.height,
                         background: '#000000',
+                        marginTop: story ? Math.max(0, Math.floor((GRID_SIZE - layout.height) / 2) - 20) : 0,
                     }}
                 >
                     {cells.map((src, i) => (
@@ -263,19 +287,29 @@ export async function renderShareOg({ title, images, count }: ShareOgInput) {
                             style={{
                                 display: 'flex',
                                 flexShrink: 0,
-                                width: CELL,
-                                height: CELL,
+                                width: cellW,
+                                height: story ? cellH : cellW,
                                 background: '#09090b',
                             }}
                         >
                             {src ? (
-                                <img
-                                    src={src}
-                                    width={CELL}
-                                    height={CELL}
-                                    alt=""
-                                    style={{ width: CELL, height: CELL, objectFit: 'cover' }}
-                                />
+                                story ? (
+                                    <img
+                                        src={src}
+                                        width={cellW}
+                                        height={cellH}
+                                        alt=""
+                                        style={{ width: cellW, height: cellH, objectFit: 'contain' }}
+                                    />
+                                ) : (
+                                    <img
+                                        src={src}
+                                        width={cellW}
+                                        height={cellW}
+                                        alt=""
+                                        style={{ width: cellW, height: cellW, objectFit: 'cover' }}
+                                    />
+                                )
                             ) : null}
                         </div>
                     ))}
@@ -289,7 +323,9 @@ export async function renderShareOg({ title, images, count }: ShareOgInput) {
                         color: '#a1a1aa',
                     }}
                 >
-                    {count}/100 characters · waifu100
+                    {story
+                        ? `${count}/${layout.total} titles · ${STORY_BRAND}`
+                        : `${count}/100 characters · waifu100`}
                 </div>
             </div>
         ),

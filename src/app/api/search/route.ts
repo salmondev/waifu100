@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFlashModel } from "@/lib/gemini";
+import { serperFetch } from "@/server/serper-budget";
+import { clientIp } from "@/lib/rate-limit";
 
 // Simple in-memory cache (resets on server restart)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const searchCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+/** The whole search, including a dead upstream, has to answer inside this. */
+const SEARCH_BUDGET_MS = 1800;
 
 // Simple rate limiting
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -26,21 +29,22 @@ interface CharacterResult {
  * 
  * No hardcoded patterns - dynamically searches:
  * 1. AniList (anime database)
- * 2. Jikan/MAL (anime database)
- * 3. Serper (Google) for anything not found in anime DBs
+ * 2. Serper (Google) for anything the anime database did not already name
  */
 export async function POST(request: NextRequest) {
   // const _startTime = Date.now();
   
   try {
-    const { characterName } = await request.json();
+    const { characterName, more } = await request.json();
+    // Serper only on an explicit "more images" request (T-0009 budget).
+    const wantMore = more === true;
 
     if (!characterName) {
       return NextResponse.json({ error: "Name required" }, { status: 400 });
     }
 
     const cleanQuery = characterName.trim();
-    const cacheKey = cleanQuery.toLowerCase();
+    const cacheKey = cleanQuery.toLowerCase() + (wantMore ? "|more" : "");
     
     // Check cache first
     const cached = searchCache.get(cacheKey);
@@ -50,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limiting
-    const clientIP = request.headers.get("x-forwarded-for") || "unknown";
+    const clientIP = clientIp(request); // first hop only; the raw header list made every proxy chain its own bucket
     const now = Date.now();
     const rateData = rateLimitMap.get(clientIP);
     
@@ -71,7 +75,7 @@ export async function POST(request: NextRequest) {
     const headers = { "Content-Type": "application/json" };
 
     // RUN ALL SOURCES IN PARALLEL
-    const [animeResult, anilistResult, jikanResult, serperResult] = await Promise.allSettled([
+    const [animeResult, anilistResult, serperResult] = await Promise.allSettled([
       
       // Source 1: Check if query is an anime title
       (async (): Promise<CharacterResult[]> => {
@@ -91,6 +95,7 @@ export async function POST(request: NextRequest) {
             method: "POST",
             headers,
             body: JSON.stringify({ query, variables: { search: cleanQuery } }),
+            signal: AbortSignal.timeout(SEARCH_BUDGET_MS),
           });
           const data = await res.json();
           const media = data.data?.Media;
@@ -137,6 +142,7 @@ export async function POST(request: NextRequest) {
             method: "POST",
             headers,
             body: JSON.stringify({ query, variables: { search: searchName } }),
+            signal: AbortSignal.timeout(SEARCH_BUDGET_MS),
           });
           const data = await res.json();
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -155,115 +161,38 @@ export async function POST(request: NextRequest) {
         } catch { return []; }
       })(),
 
-      // Source 3: Jikan (MAL)
-      (async (): Promise<CharacterResult[]> => {
-        try {
-          const searchName = cleanQuery.split(/\s+/)[0] || cleanQuery;
-          const res = await fetch(`https://api.jikan.moe/v4/characters?q=${encodeURIComponent(searchName)}&limit=10`);
-          if (!res.ok) return [];
-          const data = await res.json();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (data.data || []).map((c: any) => ({
-            id: c.mal_id,
-            jikan_id: c.mal_id,
-            name: c.name,
-            images: { jpg: { image_url: c.images?.jpg?.image_url || "" } },
-            source: c.anime?.[0]?.anime?.title || "MyAnimeList",
-            _allTitles: [c.anime?.[0]?.anime?.title].filter(Boolean).map((t: string) => t.toLowerCase()),
-          }));
-        } catch { return []; }
-      })(),
-
-      // Source 4: Serper (Google) - ALWAYS runs for any query
-      // This is the "Google-like" fallback that handles games, VTubers, etc.
+      // Serper runs with the anime databases, not after them.
+      // Gemini used to name these pictures and blew the time budget, so the
+      // title is taken from the image caption and ranked below a real database hit.
       (async (): Promise<CharacterResult[]> => {
         if (!process.env.SERPER_API_KEY) return [];
-        
         try {
-          const searchQuery = `${cleanQuery} character`;
-          const res = await fetch("https://google.serper.dev/images", {
+          const searchQuery = wantMore ? `${cleanQuery} character` : `${cleanQuery} anime character`;
+          const res = await serperFetch("https://google.serper.dev/images", {
             method: "POST",
             headers: {
               "X-API-KEY": process.env.SERPER_API_KEY,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ q: searchQuery, num: 12, gl: "us", hl: "en" }),
+            body: JSON.stringify({ q: searchQuery, num: 10, gl: "us", hl: "en" }),
+            signal: AbortSignal.timeout(SEARCH_BUDGET_MS),
           });
-
           if (!res.ok) return [];
           const data = await res.json();
-          const images = data.images || [];
-          if (images.length === 0) return [];
-
-          // If Gemini is available, use it to extract character names
-          if (process.env.GEMINI_API_KEY) {
-            try {
-              const model = getFlashModel();
-              
-              // Generic prompt - works for ANY franchise
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const imageTitles = images.slice(0, 8).map((img: any, i: number) => `${i}. ${img.title}`).join("\n");
-              const prompt = `From these image search results for "${cleanQuery}", identify individual character names.
-
-Image titles:
-${imageTitles}
-
-Return JSON array of characters found:
-[{"name": "CharacterName", "source": "Franchise/Game/Series"}]
-
-Rules:
-- Only return INDIVIDUAL character names (not "All Characters", "Tier List", etc.)
-- Include the source franchise/game/series for each character
-- Return up to 6 characters
-- ONLY return JSON, no explanation`;
-
-              const result = await model.generateContent(prompt);
-              const text = result.response.text().trim();
-              const jsonMatch = text.match(/\[[\s\S]*?\]/);
-              
-              if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const validChars = parsed.filter((c: any) => {
-                  const name = (c.name || "").toLowerCase();
-                  return name.length > 1 
-                    && !name.includes("character") 
-                    && !name.includes("tier")
-                    && !name.includes("list")
-                    && !name.includes("all ");
-                });
-                
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return validChars.slice(0, 6).map((char: any, i: number) => {
-                  const charNameLower = char.name.toLowerCase();
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const matchingImg = images.find((img: any) => 
-                    img.title?.toLowerCase().includes(charNameLower)
-                  ) || images[i] || images[0];
-                  
-                  return {
-                    id: Date.now() + i,
-                    jikan_id: null,
-                    name: char.name,
-                    images: { jpg: { image_url: matchingImg.imageUrl } },
-                    source: char.source || cleanQuery,
-                    _score: 100 + (6 - i) * 10, // Lower than anime DB results
-                  };
-                });
-              }
-            } catch { /* Gemini failed, continue */ }
-          }
-          
-          // Fallback: Just return images with query as name
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return images.slice(0, 4).map((img: any, i: number) => ({
-            id: Date.now() + i,
-            jikan_id: null,
-            name: cleanQuery,
-            images: { jpg: { image_url: img.imageUrl } },
-            source: "Web Search",
-            _score: 50,
-          }));
+          const images = (data.images || []) as { title?: string; imageUrl?: string }[];
+          return images.slice(0, 8).flatMap((img, i) => {
+            if (!img.imageUrl) return [];
+            const caption = (img.title || "").split(/\s[-–|:(]/)[0]?.trim() ?? "";
+            const named = caption.length >= 2 && caption.length <= 40 && !/wallpaper|png|jpe?g|icon/i.test(caption);
+            return [{
+              id: Date.now() + i,
+              jikan_id: null,
+              name: named ? caption : cleanQuery,
+              images: { jpg: { image_url: img.imageUrl } },
+              source: "Web Search",
+              _score: named ? 40 : 20,
+            }];
+          });
         } catch { return []; }
       })(),
     ]);
@@ -282,7 +211,6 @@ Rules:
     // Add all results
     if (animeResult.status === "fulfilled") allResults.push(...animeResult.value);
     if (anilistResult.status === "fulfilled") allResults.push(...anilistResult.value);
-    if (jikanResult.status === "fulfilled") allResults.push(...jikanResult.value);
     if (serperResult.status === "fulfilled") allResults.push(...serperResult.value);
 
     // Score results based on query match

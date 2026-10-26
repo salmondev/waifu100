@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRedis } from '@/lib/redis';
 import { isAdminRequest } from '@/lib/admin-auth';
+import { isValidShareId } from '@/lib/share-keys';
+
+/** A real verdict (AnalysisResult) is a few KB; cap what a caller can store. */
+const VERDICT_MAX_CHARS = 32 * 1024;
 
 /**
  * PATCH: fill in a share's verdict.
@@ -20,6 +24,13 @@ export async function PATCH(req: NextRequest) {
                 { error: "shareId and verdict are required" },
                 { status: 400 }
             );
+        }
+        // Security: the id goes into a Redis key, and the verdict is stored verbatim.
+        if (!isValidShareId(shareId)) {
+            return NextResponse.json({ error: "Share not found" }, { status: 404 });
+        }
+        if (typeof verdict !== "object" || Array.isArray(verdict) || JSON.stringify(verdict).length > VERDICT_MAX_CHARS) {
+            return NextResponse.json({ error: "Invalid verdict" }, { status: 400 });
         }
 
         // Read existing share data
@@ -49,9 +60,8 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ success: true });
     } catch (e: unknown) {
         console.error("Share Verdict Update Error:", e);
-        const errMsg = e instanceof Error ? e.message : String(e);
         return NextResponse.json(
-            { error: "Failed to update verdict", details: errMsg },
+            { error: "Failed to update verdict" },
             { status: 500 }
         );
     }

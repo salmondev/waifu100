@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowLeft, Check, GitCompareArrows, Grid3x3, Link2, Users } from "lucide-react";
 import { cn, optimizedImageSrc } from "@/lib/utils";
+import { FittedImage } from "@/components/media/FittedImage";
 import type { CompareCharacter, ComparePair } from "@/lib/character-match";
 import { CompareVerdict } from "@/components/compare/CompareVerdict";
 import {
     CharacterProfileProvider,
     useOpenCharacter,
 } from "@/components/character/CharacterProfile";
+import { prefetchCharacter } from "@/lib/character-cache";
 import { SeriesBreakdown } from "@/components/compare/SeriesBreakdown";
+import { SHOWCASE_LINK_CLASS } from "@/components/community/showcase-link";
 import type { SeriesInput, SeriesResolution } from "@/lib/series-stats";
 import type { AnalysisResult } from "@/types";
 
@@ -110,24 +113,28 @@ function Face({
                     source: character.source,
                 })
             }
+            // Start the lookup while the pointer is still on the way down, so
+            // the card opens with its text instead of a skeleton.
+            onPointerEnter={() => prefetchCharacter({ name: character.name, source: character.source })}
+            onFocus={() => prefetchCharacter({ name: character.name, source: character.source })}
             title={`Who is ${character.name}?`}
             className={cn("group flex flex-col gap-1.5 text-left", className)}
         >
             <div className="relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
                 {character.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={optimizedImageSrc(character.image, 256)}
+                    <FittedImage
+                        src={character.image}
                         alt={character.name}
+                        width={256}
                         loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        className="transition-transform duration-300 group-hover:scale-110"
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center">
                         <div className="h-2 w-2 rounded-full bg-zinc-700" />
                     </div>
                 )}
-                <span className="absolute right-1 top-1 rounded bg-black/60 px-1 font-mono text-[9px] text-zinc-400">
+                <span className="absolute right-1 top-1 z-20 rounded bg-black/60 px-1 font-mono text-[9px] text-zinc-400">
                     {cellLabel(character.index)}
                 </span>
             </div>
@@ -233,7 +240,10 @@ export function CompareView({
                 <div className="mb-6 flex flex-wrap items-center gap-2">
                     <Link
                         href="/community"
-                        className="flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+                        className={cn(
+                            "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
+                            SHOWCASE_LINK_CLASS
+                        )}
                     >
                         <ArrowLeft size={18} className="shrink-0" />
                         <span>Community Showcase</span>

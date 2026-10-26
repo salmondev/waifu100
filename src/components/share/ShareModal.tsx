@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { X, Copy, Check, Twitter, Link as LinkIcon, AlertCircle, Loader2, Share2 } from "lucide-react";
 import { GridCell, AnalysisResult, VerdictFeedback } from "@/types";
 import { cn, isGifUrl } from "@/lib/utils";
-import { ensureUserId } from "@/lib/user-id";
+import { USER_ID_HEADER, ensureUserId } from "@/lib/user-id";
 import { rememberOwnGrid } from "@/lib/my-grids";
-import { upload } from '@vercel/blob/client';
+import { uploadModeratedImage } from '@/lib/upload-client';
+import { friendlyError } from '@/lib/public-errors';
+import { TEXT_REJECTED } from '@/lib/text-policy';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -18,9 +20,15 @@ interface ShareModalProps {
   verdict: AnalysisResult | null;
   verdictFeedback: VerdictFeedback;
   onVerdictGenerate: (verdict: AnalysisResult) => void;
+  /** When set, Generate Link updates this share instead of creating another. */
+  shareId?: string | null;
+  size?: number;
+  cols?: number | null;
+  onShared?: (id: string) => void;
+  titleStyle?: string;
 }
 
-export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate, verdict, verdictFeedback, onVerdictGenerate }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onTitleUpdate, verdict, verdictFeedback, onVerdictGenerate, shareId, size, cols, onShared, titleStyle }: ShareModalProps) {
   const [step, setStep] = useState<'customize' | 'result'>('customize');
   const [customTitle, setCustomTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -30,9 +38,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
   const [loadingState, setLoadingState] = useState<string>("");
 
   // Seed the form when the modal OPENS, not on every initialTitle change.
-  // Typing pushes the value up through onTitleUpdate, which comes straight back
-  // down as initialTitle - so clearing the field used to re-run this effect with
-  // an empty string and slam the default title back in mid-edit.
+  // The field stays local until the link is created, so typing does not write
+  // the board title or start a save on each character.
   const wasOpen = useRef(false);
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
@@ -69,11 +76,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
              if (blob) {
                  setLoadingState("Uploading thumbnail...");
                  try {
-                    const { url } = await upload(`shares/thumbnails/thumb-${Date.now()}.png`, blob, {
-                        access: 'public',
-                        handleUploadUrl: '/api/upload',
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    } as any);
+                    const url = await uploadModeratedImage(blob);
                     imageUrl = url;
                  } catch (e) {
                     console.error("Thumbnail upload failed", e);
@@ -126,10 +129,8 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                       // Convert base64 to Blob
                       const res = await fetch(base64OrUrl);
                       const blob = await res.blob();
-                      const { url } = await upload(`shares/assets/${name}.png`, blob, {
-                          access: 'public',
-                          handleUploadUrl: '/api/upload',
-                      });
+                      void name; // stored by content hash server-side
+                      const url = await uploadModeratedImage(blob);
                       return url;
                   }
                   return base64OrUrl;
@@ -171,22 +172,29 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
          // title versioning and any chance of the author managing it later.
          const userId = ensureUserId();
 
-         const res = await fetch("/api/share", {
-             method: "POST",
-             headers: { "Content-Type": "application/json" },
+         const res = await fetch(shareId ? `/api/share/${shareId}` : "/api/share", {
+             method: shareId ? "PUT" : "POST",
+             headers: { "Content-Type": "application/json", ...(userId ? { [USER_ID_HEADER]: userId } : {}) },
              body: JSON.stringify({ 
+                kind: "waifu",
+                size,
+                ...(cols ? { cols } : {}),
                 grid: cleanGridData, 
-                customTitle: customTitle.trim(), 
+                customTitle: customTitle.trim(),
+                screen: true, 
                 imageUrl: imageUrl, // Single thumbnail URL
                 userId, // Owner of record: drives versioning and delete rights
                 verdict: finalVerdict,
-                verdictFeedback
+                verdictFeedback,
+                titleStyle,
              })
          });
 
-         if (!res.ok) throw new Error("Failed to save");
-         
-         const data = await res.json();
+         const data = await res.json().catch(() => ({}));
+         if (!res.ok) {
+             const msg = friendlyError((data as { error?: unknown }).error, "");
+             throw new Error(msg === TEXT_REJECTED ? msg : "Failed to save");
+         }
 
          // Record it locally straight away, so "Compare with my grid" is already
          // there the first time this browser opens someone else's grid - before
@@ -202,14 +210,18 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                      isGifUrl(cell.character?.images?.jpg?.image_url)
              ),
              count: cleanGridData.length,
+             size,
+             ...(cols ? { cols } : {}),
          });
+         onTitleUpdate?.(customTitle.trim());
+         onShared?.(data.id);
 
          const fullUrl = `${window.location.origin}/view/${data.id}`;
          setUrl(fullUrl);
          setStep('result');
      } catch (e) {
          console.error(e);
-         setError("Failed to create share link. Try again.");
+         setError(e instanceof Error && e.message === TEXT_REJECTED ? e.message : "Failed to create share link. Try again.");
      } finally {
          setIsLoading(false);
          setLoadingState("");
@@ -273,10 +285,7 @@ export function ShareModal({ isOpen, onClose, grid, onCapture, initialTitle, onT
                             <input 
                                 type="text"
                                 value={customTitle}
-                                onChange={(e) => {
-                                    setCustomTitle(e.target.value);
-                                    onTitleUpdate?.(e.target.value);
-                                }}
+                                onChange={(e) => setCustomTitle(e.target.value)}
                                 maxLength={50}
                                 className="w-full mt-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-pink-500 placeholder-zinc-600 transition-all"
                                 placeholder="e.g. My Anime Harem"

@@ -1,26 +1,43 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Search, SlidersHorizontal, LayoutGrid, X } from "lucide-react";
 import { GridCard } from "@/components/community/GridCard";
 import { CompareBar, type CompareSlot } from "@/components/compare/CompareBar";
 import type { ShareSummary } from "@/lib/share-summary";
+import { DEFAULT_FEED_KIND, FEED_PAGE_SIZE, parseFeedKind, type FeedKind, type FeedPage } from "@/lib/feed-page";
 import { cn } from "@/lib/utils";
 
 type SortOrder = "new" | "old";
 type Filter = "all" | "gif" | "complete";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = FEED_PAGE_SIZE;
 
-export default function CommunityFeed() {
-  const [grids, setGrids] = useState<ShareSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+interface CommunityFeedProps {
+  /** The newest page, rendered on the server. See app/community/page.tsx. */
+  initialPage: FeedPage;
+  /** The server could not reach Redis, so the browser has to fetch after all. */
+  initialFailed: boolean;
+}
+
+export default function CommunityFeed({ initialPage, initialFailed }: CommunityFeedProps) {
+  const [grids, setGrids] = useState<ShareSummary[]>(initialPage.grids);
+  const [loading, setLoading] = useState(initialFailed);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [nextOffset, setNextOffset] = useState<number | null>(initialPage.nextOffset);
 
   const [order, setOrder] = useState<SortOrder>("new");
+  /** Waifu / Story tabs (T-0009). The server renders the default tab. */
+  const [kind, setKind] = useState<FeedKind>(DEFAULT_FEED_KIND);
+
+  // A `?kind=story` link opens on that tab.
+  useEffect(() => {
+    const wanted = parseFeedKind(new URLSearchParams(window.location.search).get("kind"));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- existing effect-driven state sync; refactoring would change render timing
+    if (wanted !== DEFAULT_FEED_KIND) setKind(wanted);
+  }, []);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
 
@@ -52,6 +69,13 @@ export default function CommunityFeed() {
       setActiveSlot("b");
       return;
     }
+    // Story-only branch: grids compare within their kind, so pairing a story grid with a waifu one
+    // (the "All" tab) clears the other slot. Never fires for two waifu grids.
+    const other = activeSlot === "a" ? slotB : slotA;
+    if (other && (grid.kind === "story" || other.kind === "story") && grid.kind !== other.kind) {
+      if (activeSlot === "a") setSlotB(null);
+      else setSlotA(null);
+    }
     if (activeSlot === "a") {
       setSlotA(grid);
       setActiveSlot("b");
@@ -66,7 +90,7 @@ export default function CommunityFeed() {
    * so changing it refetches from offset 0. Filter and search stay on the client
    * for now, which is why `loadPage` doesn't know about them.
    */
-  const loadPage = useCallback(async (offset: number, sortOrder: SortOrder) => {
+  const loadPage = useCallback(async (offset: number, sortOrder: SortOrder, feedKind: FeedKind) => {
     const first = offset === 0;
     if (first) setLoading(true);
     else setLoadingMore(true);
@@ -74,7 +98,7 @@ export default function CommunityFeed() {
 
     try {
       const res = await fetch(
-        `/api/community?offset=${offset}&limit=${PAGE_SIZE}&order=${sortOrder}`
+        `/api/community?offset=${offset}&limit=${PAGE_SIZE}&order=${sortOrder}&kind=${feedKind}`
       );
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
       const data = await res.json();
@@ -97,9 +121,40 @@ export default function CommunityFeed() {
     }
   }, []);
 
+  /**
+   * The first page is already in the HTML, so mounting must not fetch it again
+   * - that would undo the point of rendering it on the server. Only a later
+   * change of sort, or a server render that could not reach Redis, loads page 0.
+   */
+  const seeded = useRef(!initialFailed);
   useEffect(() => {
-    loadPage(0, order);
-  }, [order, loadPage]);
+    if (seeded.current) {
+      seeded.current = false;
+      return;
+    }
+    loadPage(0, order, kind);
+  }, [order, kind, loadPage]);
+
+  /**
+   * Load the next page when the sentinel below the grid comes within a screen
+   * of the viewport. The button stays: it is the fallback when there is no
+   * IntersectionObserver, and it is what a keyboard reaches.
+   */
+  const sentinel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || nextOffset === null || loadingMore || loading) return;
+    if (typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) loadPage(nextOffset, order, kind);
+      },
+      { rootMargin: "800px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nextOffset, loadingMore, loading, order, kind, loadPage]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -142,7 +197,7 @@ export default function CommunityFeed() {
                 Community Showcase
               </h1>
               <p className="text-zinc-500 mt-1">
-                Discover curated collections from the Waifu100 community.
+                Discover character (Waifu100) and anime & manga (Story100) grids from the community.
               </p>
             </div>
           </div>
@@ -154,6 +209,26 @@ export default function CommunityFeed() {
             <LayoutGrid className="w-4 h-4 text-purple-400" />
             My Grids
           </Link>
+        </div>
+
+        {/* Mode tabs: one shared showcase for both builders. */}
+        <div role="tablist" aria-label="Grid type" className="mb-4 inline-flex items-center gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
+          {(["all", "waifu", "story"] as FeedKind[]).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={kind === k}
+              onClick={() => setKind(k)}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                kind === k ? "bg-purple-600/30 text-purple-100 border border-purple-500/40" : "text-zinc-400 hover:text-white border border-transparent"
+              )}
+            >
+              {k === "all" ? "All" : k === "waifu" ? "Waifu" : "Story"}
+            </button>
+          ))}
+          <Link href="/story" className="ml-2 px-3 py-1.5 rounded-lg text-xs text-sky-300 hover:text-sky-200">+ Make a Story grid</Link>
         </div>
 
         {/* Controls. Search narrows what has been loaded; the filters and the
@@ -255,7 +330,7 @@ export default function CommunityFeed() {
               {hasMore && (
                 <button
                   type="button"
-                  onClick={() => loadPage(nextOffset, order)}
+                  onClick={() => loadPage(nextOffset, order, kind)}
                   disabled={loadingMore}
                   className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors disabled:opacity-60"
                 >
@@ -267,15 +342,20 @@ export default function CommunityFeed() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {visible.map((grid) => (
+              {visible.map((grid, index) => (
                 <GridCard
                   key={grid.id}
                   grid={grid}
                   selected={slotOf(grid.id)}
                   onSelect={toggleSelect}
+                  // The top row is on screen immediately; every card below it
+                  // waits until the visitor scrolls near it.
+                  priority={index < 4}
                 />
               ))}
             </div>
+
+            <div ref={sentinel} aria-hidden className="h-px w-full" />
 
             <div className="flex flex-col items-center gap-3 mt-10">
               {isFiltered && (
@@ -286,7 +366,7 @@ export default function CommunityFeed() {
               {hasMore ? (
                 <button
                   type="button"
-                  onClick={() => loadPage(nextOffset, order)}
+                  onClick={() => loadPage(nextOffset, order, kind)}
                   disabled={loadingMore}
                   className="inline-flex items-center gap-2 px-8 py-3 bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 hover:border-purple-500/40 rounded-xl font-medium transition-colors disabled:opacity-60 disabled:cursor-wait"
                 >

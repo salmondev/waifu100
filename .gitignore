@@ -49,3 +49,6 @@ test-*.js
 *.tsbuildinfo
 next-env.d.ts
 src/data/shares/
+
+# local data backups - other people's grids, never committed
+/backups

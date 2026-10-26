@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { featureUnavailable } from "@/lib/public-errors";
+import { serperFetch } from "@/server/serper-budget";
 import { getFlashModel } from "@/lib/gemini";
 import { isAdminRequest, adminOnlyResponse } from "@/lib/admin-auth";
 
@@ -54,10 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!process.env.SERPER_API_KEY) {
-      return NextResponse.json(
-        { error: "SERPER_API_KEY not configured" },
-        { status: 500 }
-      );
+      return featureUnavailable("imageSearch", "SERPER_API_KEY is not set");
     }
 
     let searchQuery = directQuery || characterName;
@@ -96,7 +95,7 @@ Return ONLY the search query, nothing else. No quotes, no explanation.`;
     // console.log(`[Serper] Searching images for: "${searchQuery}"`);
 
     // Call Serper API
-    const serperResponse = await fetch("https://google.serper.dev/images", {
+    const serperResponse = await serperFetch("https://google.serper.dev/images", {
       method: "POST",
       headers: {
         "X-API-KEY": process.env.SERPER_API_KEY,
@@ -104,7 +103,7 @@ Return ONLY the search query, nothing else. No quotes, no explanation.`;
       },
       body: JSON.stringify({
         q: searchQuery,
-        num: 20,
+        num: 10,
         gl: "us",
         hl: "en",
       }),
@@ -114,7 +113,7 @@ Return ONLY the search query, nothing else. No quotes, no explanation.`;
       const errorText = await serperResponse.text();
       console.error("[Serper] API error:", serperResponse.status, errorText);
       return NextResponse.json(
-        { error: `Serper API error: ${serperResponse.status}` },
+        { error: "Image search is unavailable right now." },
         { status: serperResponse.status }
       );
     }

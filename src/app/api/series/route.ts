@@ -41,17 +41,38 @@ export async function POST(req: NextRequest) {
             .map((n) => n.slice(0, 120))
             .slice(0, MAX_LOOKUPS * 2);
 
+        /**
+         * The series this grid is already known to contain. It is what decides
+         * between the several characters who share a name - "which Rin?" has an
+         * obvious answer in a grid that is thirty per cent Fate - and it is the
+         * only context available here, since a cell that knows its own series is
+         * never one of the names being asked about.
+         */
+        const context = Array.isArray(body?.context)
+            ? (body.context as unknown[])
+                  .filter((t): t is string => typeof t === "string" && t.trim().length > 1)
+                  .map((t) => t.slice(0, 120))
+                  .slice(0, 50)
+            : [];
+
         const cached = await readCachedSeries(wanted);
         const unknown = wanted.filter((name) => cached[matchKey(name)] == null);
-        const fresh = unknown.length > 0 ? await resolveSeries(unknown) : {};
+        const fresh =
+            unknown.length > 0
+                ? await resolveSeries(unknown, context)
+                : { series: {}, upstreamFailed: false };
 
         const series: Record<string, string> = {};
         for (const [key, value] of Object.entries(cached)) {
             if (value !== null) series[key] = value;
         }
-        Object.assign(series, fresh);
+        Object.assign(series, fresh.series);
 
-        return NextResponse.json({ series });
+        // Passed on so the chart can tell "nobody knows what these characters
+        // are from" apart from "we could not ask" - AniList disables its API
+        // outright for hours at a time, and an empty chart that blames the
+        // grids is a lie about the grids.
+        return NextResponse.json({ series, upstreamFailed: fresh.upstreamFailed });
     } catch (e) {
         console.error("Series resolve error:", e);
         return NextResponse.json({ series: {} });

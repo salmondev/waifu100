@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, ExternalLink, GitCompareArrows, Grid3x3, Loader2, Trash2 } from "lucide-react";
+import { proxied } from "@/lib/img-proxy";
+import { Calendar, ExternalLink, GitCompareArrows, Grid3x3, Loader2, Pencil, Trash2 } from "lucide-react";
 import { shareCardPath } from "@/lib/share-card";
 import { cn } from "@/lib/utils";
 import type { ShareSummary } from "@/lib/share-summary";
 import { CompareWithMine } from "@/components/compare/CompareWithMine";
+import { StoryCompareWithMine } from "@/components/story/StoryCompareWithMine";
+import { storyViewPath } from "@/lib/story/config";
+import { TogetherBadge } from "@/components/community/TogetherBadge";
 
 interface GridCardProps {
     grid: ShareSummary;
@@ -19,6 +23,13 @@ interface GridCardProps {
      */
     selected?: "a" | "b" | null;
     onSelect?: (grid: ShareSummary) => void;
+    /**
+     * Set on the handful of cards that are on screen before any scrolling.
+     * Everything else loads lazily - a page of these is a page of full-size
+     * grid renders, and fetching them all at once is what made the showcase
+     * crawl on a phone.
+     */
+    priority?: boolean;
 }
 
 /**
@@ -32,11 +43,15 @@ export function GridCard({
     deleting = false,
     selected = null,
     onSelect,
+    priority = false,
 }: GridCardProps) {
     // A share whose thumbnail upload failed has no imageUrl; the OG route draws
     // one from the grid data so the card is never blank.
-    const preview = grid.imageUrl || shareCardPath(grid.id);
-    const isComplete = grid.count >= 100;
+    const preview = proxied(grid.imageUrl, 512) || shareCardPath(grid.id);
+    const isStory = grid.kind === "story";
+    const slots = grid.size ?? 100;
+    const isComplete = grid.count >= slots;
+    const href = isStory ? storyViewPath(grid.id) : `/view/${grid.id}`;
 
     return (
         <div className={cn(
@@ -44,23 +59,30 @@ export function GridCard({
             selected && "border-purple-500 ring-2 ring-purple-500/40"
         )}>
             <Link
-                href={`/view/${grid.id}`}
+                href={href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block"
             >
                 {/* Image Container */}
                 <div className="aspect-square relative overflow-hidden bg-zinc-950">
-                    {/* Blur Backlayer */}
+                    {/* Blur Backlayer. Same src as the main image, so it is the
+                        same download - the browser paints it from cache. */}
                     <img
                         src={preview}
                         alt=""
+                        aria-hidden
+                        loading={priority ? "eager" : "lazy"}
+                        decoding="async"
                         className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110"
                     />
                     {/* Main Image */}
                     <img
                         src={preview}
                         alt={grid.title}
+                        loading={priority ? "eager" : "lazy"}
+                        decoding="async"
+                        fetchPriority={priority ? "high" : "low"}
                         className="relative w-full h-full object-contain z-10 transition-transform duration-500 group-hover:scale-105"
                     />
 
@@ -84,9 +106,11 @@ export function GridCard({
                         {grid.title || "Untitled Grid"}
                     </h3>
 
-                    <div className="flex items-center justify-between mt-3 text-xs text-zinc-500 gap-2">
-                        <div className="flex items-center gap-3 min-w-0">
-                            <span className="flex items-center gap-1.5 shrink-0">
+                    {/* Date and fill count on one line. Chips always sit on the
+                        next, so a wrapping Together or GIF pill can't climb into the count. */}
+                    <div className="mt-3 flex flex-col gap-4 text-xs text-zinc-500">
+                        <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5" />
                                 {grid.createdAt
                                     ? new Date(grid.createdAt).toLocaleDateString(undefined, {
@@ -100,33 +124,43 @@ export function GridCard({
                             {/* How full the grid is. A 20-character grid and a
                                 finished one used to look identical from here. */}
                             <span
-                                title={`${grid.count} of 100 slots filled`}
+                                title={`${grid.count} of ${slots} slots filled`}
                                 className={
-                                    "flex items-center gap-1 shrink-0 tabular-nums " +
+                                    "flex items-center gap-1 tabular-nums " +
                                     (isComplete ? "text-amber-400 font-semibold" : "")
                                 }
                             >
                                 <Grid3x3 className="w-3.5 h-3.5" />
                                 {grid.count}
-                                <span className="text-zinc-600">/100</span>
+                                <span className="text-zinc-600">/{slots}</span>
                             </span>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
+                            {grid.together && <TogetherBadge />}
+                            {/* Which mode made this grid; old shares have no kind and are waifu. */}
+                            <span
+                                data-testid="kind-badge"
+                                className={cn(
+                                    "inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest",
+                                    isStory ? "bg-sky-500/20 text-sky-300" : "bg-pink-500/15 text-pink-300"
+                                )}
+                            >
+                                {isStory ? "Story" : "Waifu"}
+                            </span>
                             {/* Animated grids get a chip beside the id, in the GIF MODE
                                 palette so the toggle and the badge teach each other. */}
                             {grid.hasGif && (
                                 <span
                                     title="This grid contains animated characters"
-                                    className="gif-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest text-white"
+                                    className="gif-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white"
                                 >
                                     <span className="h-1 w-1 rounded-full bg-white/90 animate-pulse" />
                                     GIF
                                 </span>
                             )}
 
-                            {/* ID Badge */}
-                            <span className="font-mono bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] text-zinc-600 uppercase tracking-widest">
+                            <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-zinc-600">
                                 {grid.id.slice(0, 5)}
                             </span>
                         </div>
@@ -161,12 +195,22 @@ export function GridCard({
                 </button>
             ) : (
                 <div className="absolute bottom-[4.75rem] right-3 z-40">
-                    <CompareWithMine shareId={grid.id} variant="card" />
+                    {isStory ? <StoryCompareWithMine shareId={grid.id} variant="card" /> : <CompareWithMine shareId={grid.id} variant="card" />}
                 </div>
             )}
 
             {/* Delete sits outside the Link so it is never a stray click on the
                 way to opening a grid. */}
+            {onDelete && (
+                <Link
+                    href={isStory ? `/story?edit=${grid.id}` : `/?edit=${grid.id}`}
+                    aria-label={`Edit "${grid.title}"`}
+                    title="Edit this grid"
+                    className="absolute top-3 right-14 z-40 p-2 rounded-full bg-black/70 backdrop-blur-sm border border-white/10 text-zinc-300 hover:text-white hover:bg-purple-600/80 hover:border-purple-400/40 transition-colors"
+                >
+                    <Pencil className="w-4 h-4" />
+                </Link>
+            )}
             {onDelete && (
                 <button
                     type="button"

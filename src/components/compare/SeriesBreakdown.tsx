@@ -2,15 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Library, Loader2, X } from "lucide-react";
+import { FittedImage } from "@/components/media/FittedImage";
 import {
     compareSeries,
+    seriesOf,
     unresolvedNames,
     type SeriesInput,
     type SeriesResolution,
     type SeriesRow,
 } from "@/lib/series-stats";
-import { cn, optimizedImageSrc } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useOpenCharacter } from "@/components/character/CharacterProfile";
+import { prefetchCharacter } from "@/lib/character-cache";
 
 /**
  * Where the two grids draw from.
@@ -214,19 +217,18 @@ function RowDetail({
                                             type="button"
                                             key={`${character.name}-${i}`}
                                             onClick={() => openCharacter(character)}
+                                            onPointerEnter={() => prefetchCharacter({ name: character.name, source: character.source })}
+                                            onFocus={() => prefetchCharacter({ name: character.name, source: character.source })}
                                             className="group flex flex-col gap-1.5 text-left"
                                         >
                                             <div className="relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
                                                 {character.image && (
-                                                    // eslint-disable-next-line @next/next/no-img-element
-                                                    <img
-                                                        src={optimizedImageSrc(
-                                                            character.image,
-                                                            256
-                                                        )}
+                                                    <FittedImage
+                                                        src={character.image}
                                                         alt={character.name}
+                                                        width={256}
                                                         loading="lazy"
-                                                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                                        className="transition-transform duration-300 group-hover:scale-110"
                                                     />
                                                 )}
                                             </div>
@@ -264,6 +266,13 @@ export function SeriesBreakdown({
     const [looking, setLooking] = useState(
         () => unresolvedNames([...charactersA, ...charactersB], initialResolved).length > 0
     );
+    /**
+     * The lookup could not be made - AniList disables its API outright for
+     * hours at a time. Worth its own state because the chart looks identical
+     * either way, and the two mean opposite things: one says these grids have
+     * nothing in common, the other says we do not know what half of them are.
+     */
+    const [upstreamDown, setUpstreamDown] = useState(false);
     const [tab, setTab] = useState<Tab>("shared");
     const [expanded, setExpanded] = useState(false);
     // Which bar was tapped, i.e. which characters to show behind it.
@@ -294,14 +303,29 @@ export function SeriesBreakdown({
                     const missing = unresolvedNames(everyone, known);
                     if (missing.length === 0) break;
 
+                    // What these grids are already known to contain. A name
+                    // shared by several characters is nearly always the one
+                    // from a series the grid is already full of, and this is
+                    // the only thing that can say so - it grows every round as
+                    // more names resolve.
+                    const context = [
+                        ...new Set(
+                            everyone
+                                .map((character) => seriesOf(character, known))
+                                .filter((s): s is string => !!s)
+                        ),
+                    ];
+
                     const res = await fetch("/api/series", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ names: missing }),
+                        body: JSON.stringify({ names: missing, context }),
                     });
                     if (!res.ok) break;
 
                     const data = await res.json();
+                    if (data?.upstreamFailed && alive) setUpstreamDown(true);
+
                     const series = data?.series;
                     if (!series || Object.keys(series).length === 0) break;
 
@@ -334,6 +358,14 @@ export function SeriesBreakdown({
     // empty box. While lookups are in flight it stays, so it does not pop in
     // and shove the page around a second later.
     if (empty && !looking) return null;
+
+    /**
+     * One grid's characters are nearly all unidentified. "Nothing in common"
+     * would be a statement about the two grids; the truth is a statement about
+     * what the app was able to find out, and the two read very differently to
+     * the person whose grid it is.
+     */
+    const missingSeries = stats.knownA === 0 || stats.knownB === 0;
 
     const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS);
     const hidden = rows.length - visible.length;
@@ -390,8 +422,14 @@ export function SeriesBreakdown({
                 </div>
 
                 {rows.length === 0 ? (
+                    /* An empty chart has two very different causes, and saying
+                       the wrong one is a claim about someone's grid. */
                     <p className="py-6 text-center text-sm text-zinc-600">
-                        No series in common here.
+                        {upstreamDown
+                            ? "ยังระบุเรื่องไม่ได้ ลองใหม่ภายหลัง"
+                            : missingSeries
+                              ? "กริดนี้ไม่ได้ติดชื่อเรื่องมา เลยยังเทียบไม่ได้"
+                              : "No series in common here."}
                     </p>
                 ) : (
                     <>

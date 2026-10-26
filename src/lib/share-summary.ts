@@ -1,4 +1,5 @@
 import { isGifUrl } from "@/lib/utils";
+import { decodeShareObject, type ShareKind } from "@/lib/share-schema";
 
 /**
  * The card-sized view of a share.
@@ -18,6 +19,19 @@ export interface ShareSummary {
     hasGif: boolean;
     /** How many of the 100 slots are filled. */
     count: number;
+    /** Absent on summaries cached before story100: read as "waifu". */
+    kind?: ShareKind;
+    /** Absent means 100. */
+    size?: number;
+    /** Story custom layout columns; absent = preset layout of `size`. */
+    cols?: number;
+    /** Present only when the grid was published from a together session. */
+    together?: boolean;
+    /**
+     * Story feed responses only: up to 4 cell image URLs for a card without an imageUrl.
+     * Filled in per request from the payload (read-only) and never written to the summary cache.
+     */
+    previews?: string[];
 }
 
 interface RawCell {
@@ -50,13 +64,33 @@ export function summarizeShare(id: string, rawJson: string): ShareSummary | null
                 isGifUrl(cell?.character?.images?.jpg?.image_url)
         );
 
+        const decoded = decodeShareObject(parsed);
+        if (decoded?.kind === "story") {
+            return {
+                id,
+                title,
+                imageUrl: decoded.imageUrl,
+                createdAt: parsed.meta?.createdAt,
+                hasGif: false,
+                count: decoded.count,
+                kind: "story",
+                size: decoded.size,
+                ...(decoded.cols ? { cols: decoded.cols } : {}),
+                ...(decoded.together ? { together: true } : {}),
+            };
+        }
+
         return {
             id,
             title,
             imageUrl: parsed.meta?.imageUrl || null,
             createdAt: parsed.meta?.createdAt,
             hasGif,
-            count: cells.filter((cell) => cell?.character).length,
+            count: decoded?.count ?? cells.filter((cell) => cell?.character).length,
+            // Absent size still means 100, so a classic waifu summary stays the old shape.
+            ...(decoded && decoded.size !== 100 ? { size: decoded.size } : {}),
+            ...(decoded?.cols ? { cols: decoded.cols } : {}),
+            ...(decoded?.together ? { together: true } : {}),
         };
     } catch {
         return null;

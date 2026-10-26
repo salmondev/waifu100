@@ -2,20 +2,13 @@ import { NextRequest } from "next/server";
 import { withRedis } from '@/lib/redis';
 import { renderShareOg, resolveCells } from '@/lib/share-og';
 import { isAdminRequest } from '@/lib/admin-auth';
+import { decodeShare } from '@/lib/share-schema';
 
 // ioredis speaks TCP, so this cannot run on the edge runtime.
 export const runtime = 'nodejs';
 // A cold render fetches and resizes 100 images; measured at ~8s in production.
 // Capped by the plan's own limit, whichever is lower.
 export const maxDuration = 30;
-
-interface StoredCell {
-    i?: number;
-    character?: {
-        images?: { jpg?: { image_url?: string } };
-        customImageUrl?: string;
-    };
-}
 
 /**
  * Social card for a shared grid, drawn server-side from the share's own data.
@@ -38,23 +31,11 @@ export async function GET(
         const raw = await withRedis((redis) => redis.get(`waifu100:share:${id}`));
         if (!raw) return new Response("Share not found", { status: 404 });
 
-        const parsed = JSON.parse(raw);
-        // Old shares stored a bare array; newer ones wrap it with metadata.
-        const cells: StoredCell[] = Array.isArray(parsed) ? parsed : parsed.grid || [];
-        const title: string = (!Array.isArray(parsed) && parsed.meta?.title) || "Waifu100 Grid";
-
-        const images: (string | null)[] = Array(100).fill(null);
-        let count = 0;
-
-        cells.forEach((item) => {
-            const index = item?.i ?? -1;
-            if (index < 0 || index > 99 || !item.character) return;
-            count++;
-            images[index] =
-                item.character.customImageUrl ||
-                item.character.images?.jpg?.image_url ||
-                null;
-        });
+        // One decoder for every stored shape (legacy array, v1, v2 waifu/story).
+        const decoded = decodeShare(raw);
+        if (!decoded) return new Response("Share not found", { status: 404 });
+        const { title, count, kind, size, cols } = decoded;
+        const images = decoded.images;
 
         // ?debug=1 reports how each cell resolved instead of drawing the card -
         // a blank cell otherwise gives no clue whether the link is dead, the
@@ -66,7 +47,7 @@ export async function GET(
             return Response.json({ id, title, count, stats });
         }
 
-        const rendered = await renderShareOg({ title, images, count });
+        const rendered = await renderShareOg({ title, images, count, kind, size, cols });
 
         // Draining the body here keeps render failures inside this try: a
         // streamed ImageResponse would otherwise blow up past the handler and
