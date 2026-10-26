@@ -4,6 +4,37 @@ export type HairKey =
     | "black" | "brown" | "blonde" | "red" | "orange" | "pink" | "purple"
     | "blue" | "green" | "white" | "silver" | "grey" | "multicolour";
 
+export type CharacterRole = "MAIN" | "SUPPORTING" | "BACKGROUND";
+
+/** Japanese voice actor (AniList staff), first by relevance for this anime. */
+export interface VoiceActor {
+    id: number;
+    name: string;
+    nameNative: string | null;
+}
+
+/**
+ * One guessable character of an anime (the Wordle "allowed guesses" list). The
+ * card characters are always in it; the rest are AniList's most-favourited
+ * characters of that anime and are guess-only (no card, no art stored).
+ * Sorted by favourites, highest first: that order is the popularity rank.
+ */
+export interface RosterCharacter {
+    id: number;
+    name: string;
+    nameNative: string | null;
+    alternative: string[];
+    gender: string | null;
+    /** AniList free text, parsed at use (see feedback.ts parseAge). */
+    age: string | null;
+    role: CharacterRole | null;
+    favourites: number;
+    birthMonth: number | null;
+    va: VoiceActor | null;
+    /** true = also a card character (a possible answer). */
+    card: boolean;
+}
+
 export interface CatalogCharacter {
     id: number;
     name: string;
@@ -23,6 +54,9 @@ export interface CatalogCharacter {
     occupation: string | null;
     quote: string | null;
     silhouette: string | null;
+    /** r2 feedback fields (absent in catalogs generated before T-0016 r2). */
+    birthMonth?: number | null;
+    va?: VoiceActor | null;
 }
 
 export interface CatalogAnime {
@@ -36,6 +70,8 @@ export interface CatalogAnime {
     setCode: string;
     siteUrl: string;
     characters: CatalogCharacter[];
+    /** Guess roster (absent in older catalogs: then the card characters are the roster). */
+    roster?: RosterCharacter[];
 }
 
 export interface Catalog {

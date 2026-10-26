@@ -3,9 +3,14 @@
 // Queries the public AniList GraphQL API and writes server-only data:
 //   src/server/gacha/catalog.json       (anime + characters, no descriptions)
 //   src/server/gacha/catalog-gaps.json  (coverage counts)
-// Usage: node scripts/gacha/build-catalog.mjs   (Node 20+, no deps, no env vars)
+// Usage: node scripts/gacha/build-catalog.mjs [--refresh-anime] [--cache <dir>]
+//   (Node 20+, no deps, no env vars). By default the anime list and card set of
+//   the committed catalog.json are kept (so players' albums keep their cards) and
+//   only the guess roster + feedback fields are (re)fetched; --refresh-anime
+//   rebuilds the anime list and card set from scratch first.
 // See scripts/gacha/README.md for rate limits, licence/credit and known gaps.
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,6 +23,12 @@ const MAX_PAGES = 12;
 const MIN_CHARS = 6;
 const MAX_CHARS = 10;
 const MAX_BYTES = 700 * 1024;
+// Guess roster (Wordle-style "allowed guesses", the answer pool stays the card set):
+// popular characters with favourites >= ROSTER_MIN_FAV, at most ROSTER_MAX, at least ROSTER_MIN.
+const ROSTER_MIN_FAV = 50;
+const ROSTER_MAX = 20;
+const ROSTER_MIN = 8;
+const ROSTER_FETCH_PAGES = 3; // pages of 25 searched for card characters missing from the top page
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OUT_DIR = path.join(ROOT, "src/server/gacha");
@@ -344,10 +355,139 @@ function selectCharacters(edges) {
   return picked.map(toCharacter);
 }
 
+// ---------------------------------------------------------------- guess roster
+
+const ROSTER_QUERY = `
+query ($id: Int, $page: Int, $sort: [CharacterSort]) {
+  Media(id: $id) {
+    characters(sort: $sort, page: $page, perPage: 25) {
+      pageInfo { hasNextPage }
+      edges {
+        role
+        voiceActors(language: JAPANESE, sort: [RELEVANCE, ID]) { id name { full native } }
+        node {
+          id gender age favourites
+          dateOfBirth { month }
+          name { full native alternative }
+          image { large }
+        }
+      }
+    }
+  }
+}`;
+
+const args = process.argv.slice(2);
+const flag = (name) => args.includes(name);
+const option = (name) => {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : undefined;
+};
+const CACHE_DIR = option("--cache");
+
+/** gql() with an optional on-disk cache, so a re-run does not hit AniList again. */
+async function cachedGql(key, query, variables) {
+  const file = CACHE_DIR ? path.join(CACHE_DIR, `${key}.json`) : null;
+  if (file && existsSync(file)) return JSON.parse(await readFile(file, "utf8"));
+  const data = await gql(query, variables);
+  if (file) {
+    await mkdir(CACHE_DIR, { recursive: true });
+    await writeFile(file, JSON.stringify(data));
+  }
+  return data;
+}
+
+const validMonth = (m) => (Number.isInteger(m) && m >= 1 && m <= 12 ? m : null);
+
+function voiceActor(edge) {
+  const va = (edge.voiceActors ?? []).find((v) => v?.id && v.name?.full);
+  return va ? { id: va.id, name: va.name.full, nameNative: va.name.native ?? null } : null;
+}
+
+/** Feedback fields for one character edge. Missing data stays null (shown as "?"). */
+function feedbackFields(edge) {
+  const n = edge.node;
+  return {
+    gender: normaliseGender(n.gender),
+    age: cleanAge(n.age),
+    role: edge.role ?? null,
+    favourites: n.favourites ?? 0,
+    birthMonth: validMonth(n.dateOfBirth?.month),
+    va: voiceActor(edge),
+  };
+}
+
+function rosterEntry(edge, card) {
+  const n = edge.node;
+  return {
+    id: n.id,
+    name: n.name.full,
+    nameNative: n.name?.native ?? null,
+    alternative: (n.name?.alternative ?? []).map((x) => (x ?? "").trim()).filter(Boolean),
+    ...feedbackFields(edge),
+    card,
+  };
+}
+
+/**
+ * The guess roster of one anime: the card characters (always, so every answer is
+ * guessable) plus AniList's most-favourited characters with art, favourites >= 50,
+ * capped at 20 (lowest non-card characters dropped first) and topped up to 8 from
+ * the most favourited when too few reach 50. Sorted by favourites (that order is
+ * the "popularity rank" feedback column).
+ */
+async function buildRoster(anime) {
+  const cardIds = new Set(anime.characters.map((c) => c.id));
+  const byId = new Map();
+  const top = await cachedGql(`fav-${anime.id}-1`, ROSTER_QUERY, { id: anime.id, page: 1, sort: ["FAVOURITES_DESC"] });
+  const topEdges = (top.Media?.characters?.edges ?? []).filter((e) => e?.node?.id && e.node.name?.full);
+  for (const e of topEdges) byId.set(e.node.id, e);
+  for (let page = 1; page <= ROSTER_FETCH_PAGES && [...cardIds].some((id) => !byId.has(id)); page++) {
+    const data = await cachedGql(`role-${anime.id}-${page}`, ROSTER_QUERY, { id: anime.id, page, sort: ["ROLE", "FAVOURITES_DESC"] });
+    for (const e of data.Media?.characters?.edges ?? []) if (e?.node?.id && e.node.name?.full && !byId.has(e.node.id)) byId.set(e.node.id, e);
+    if (!data.Media?.characters?.pageInfo?.hasNextPage) break;
+  }
+
+  const withArt = topEdges.filter((e) => !isPlaceholder(e.node.image?.large)).sort((a, b) => (b.node.favourites ?? 0) - (a.node.favourites ?? 0));
+  let extra = withArt.filter((e) => (e.node.favourites ?? 0) >= ROSTER_MIN_FAV && !cardIds.has(e.node.id));
+  const popularCount = withArt.filter((e) => (e.node.favourites ?? 0) >= ROSTER_MIN_FAV).length;
+  if (popularCount < ROSTER_MIN) extra = withArt.filter((e) => !cardIds.has(e.node.id)).slice(0, Math.max(0, ROSTER_MIN - cardIds.size));
+  extra = extra.slice(0, Math.max(0, ROSTER_MAX - cardIds.size));
+
+  const missingCards = [];
+  const roster = [];
+  for (const c of anime.characters) {
+    const e = byId.get(c.id);
+    if (e) roster.push(rosterEntry(e, true));
+    else {
+      missingCards.push(c.id);
+      // Not found on AniList's media page any more: keep the card guessable with what the catalog has.
+      roster.push({ id: c.id, name: c.name, nameNative: c.nameNative, alternative: c.alternative, gender: c.gender, age: c.age, role: c.role, favourites: c.favourites, birthMonth: null, va: null, card: true });
+    }
+  }
+  for (const e of extra) roster.push(rosterEntry(e, false));
+  roster.sort((a, b) => b.favourites - a.favourites || a.id - b.id);
+  return { roster, missingCards };
+}
+
+/** Copies the fresh feedback fields onto the card characters, so a card and its roster entry agree. */
+function enrichCards(anime, roster) {
+  const byId = new Map(roster.map((r) => [r.id, r]));
+  anime.characters = anime.characters.map((c) => {
+    const r = byId.get(c.id);
+    if (!r) return c;
+    return { ...c, gender: r.gender, age: r.age, role: r.role, favourites: r.favourites, birthMonth: r.birthMonth, va: r.va };
+  });
+}
+
 // ---------------------------------------------------------------- main
 
 async function main() {
   const started = Date.now();
+  if (!flag("--refresh-anime") && existsSync(CATALOG_FILE)) {
+    const existing = JSON.parse(await readFile(CATALOG_FILE, "utf8"));
+    console.log(`[gacha] keeping the committed anime list and card set (${existing.anime.length} anime); pass --refresh-anime to rebuild them`);
+    return finish(existing.anime, 0, started);
+  }
   const seenIds = new Set();
   const keptIds = new Set();
   const kept = [];
@@ -399,6 +539,24 @@ async function main() {
     }
   }
 
+  return finish(anime, failed, started);
+}
+
+async function finish(anime, failed, started) {
+  const missingCardIds = [];
+  for (const [i, a] of anime.entries()) {
+    try {
+      const { roster, missingCards } = await buildRoster(a);
+      a.roster = roster;
+      enrichCards(a, roster);
+      missingCardIds.push(...missingCards);
+    } catch {
+      console.log(`[gacha] roster ${i + 1}/${anime.length}: failed after ${MAX_TRIES} tries; this anime keeps card-only guessing`);
+      delete a.roster;
+    }
+    if ((i + 1) % 10 === 0 || i + 1 === anime.length) console.log(`[gacha] roster ${i + 1}/${anime.length}, ${requestCount} requests`);
+  }
+
   const catalog = { generatedAt: new Date().toISOString(), source: "AniList GraphQL", imageNote: IMAGE_NOTE, anime };
   let json = JSON.stringify(catalog, null, 1) + "\n";
   if (Buffer.byteLength(json) > MAX_BYTES) json = JSON.stringify(catalog) + "\n";
@@ -425,6 +583,7 @@ async function main() {
       quote: chars.filter((c) => !c.quote).length,
       silhouette: chars.filter((c) => !c.silhouette).length,
     },
+    roster: rosterGaps(anime, missingCardIds),
     animeUnderMinCharacters: anime
       .filter((a) => a.characters.length < MIN_CHARS)
       .map((a) => ({ title: a.titleEnglish || a.titleRomaji, characters: a.characters.length })),
@@ -435,6 +594,29 @@ async function main() {
   await writeFile(GAPS_FILE, JSON.stringify(gaps, null, 1) + "\n");
   console.log(`[gacha] done: ${anime.length} anime, ${chars.length} characters, ${requestCount} requests, ${Math.round((Date.now() - started) / 1000)}s`);
   console.log(`[gacha] catalog.json ${Buffer.byteLength(json)} bytes`);
+}
+
+function rosterGaps(anime, missingCardIds) {
+  const entries = anime.flatMap((a) => a.roster ?? []);
+  const sizes = anime.map((a) => (a.roster ?? []).length);
+  const have = (pred) => entries.filter(pred).length;
+  const sorted = [...sizes].sort((x, y) => x - y);
+  return {
+    animeWithRoster: anime.filter((a) => a.roster).length,
+    entries: entries.length,
+    cardEntries: have((r) => r.card),
+    guessOnlyEntries: have((r) => !r.card),
+    size: { min: sorted[0] ?? 0, median: sorted[Math.floor(sorted.length / 2)] ?? 0, max: sorted[sorted.length - 1] ?? 0 },
+    cardsNotFoundOnAniList: missingCardIds,
+    // counts of entries WITH the field (of `entries`)
+    has: {
+      gender: have((r) => r.gender),
+      role: have((r) => r.role),
+      age: have((r) => r.age),
+      birthMonth: have((r) => r.birthMonth),
+      voiceActorJP: have((r) => r.va),
+    },
+  };
 }
 
 main().catch((err) => {

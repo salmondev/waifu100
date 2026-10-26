@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-10-26T11:02:07.078Z",
+ "generatedAt": "2026-10-26T16:59:56.888Z",
  "anime": 150,
  "animeFailed": 0,
  "characters": 918,
@@ -17,6 +17,25 @@
   "age": 354,
   "quote": 918,
   "silhouette": 918
+ },
+ "roster": {
+  "animeWithRoster": 150,
+  "entries": 2069,
+  "cardEntries": 918,
+  "guessOnlyEntries": 1151,
+  "size": {
+   "min": 8,
+   "median": 13,
+   "max": 20
+  },
+  "cardsNotFoundOnAniList": [],
+  "has": {
+   "gender": 1796,
+   "role": 2069,
+   "age": 1031,
+   "birthMonth": 989,
+   "voiceActorJP": 2001
+  }
  },
  "animeUnderMinCharacters": []
 }
