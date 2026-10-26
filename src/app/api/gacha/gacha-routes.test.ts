@@ -142,12 +142,15 @@ describe("image hints never expose the art URL", () => {
     it("an all-hints-open round DTO carries only opaque hint-image URLs", async () => {
         await todayGET(req("today"));
         const answer = answerChar();
-        const wrong = FIXTURE_CATALOG.anime.find((a) => a.id === pick().animeId)!.characters.filter((c) => c.id !== answer.id);
+        // r2: hints open only by buying, so give the profile enough coins for all five
+        const p = (await store.load(ID))!;
+        p.coins = 1000;
+        await store.save(ID, p);
         let round: { hints: { open: { key: string; src?: string }[] } } | null = null;
-        for (const c of wrong.slice(0, 5)) round = await (await guessPOST(req("guess", "POST", { charId: c.id }))).json();
+        for (let slot = 1; slot <= 5; slot++) round = await (await hintPOST(req("hint", "POST", { slot }))).json();
         expect((round as unknown as RoundDto).hints.missing).toEqual([]); // fixture answer has every field
-        const images = round!.hints.open.filter((h) => h.key === "blur" || h.key === "silhouette");
-        expect(images.map((h) => h.key).sort()).toEqual(["blur", "silhouette"]);
+        const images = round!.hints.open.filter((h) => h.key === "blur" || h.key === "silhouette" || h.key === "eyes");
+        expect(images.map((h) => h.key).sort()).toEqual(["blur", "eyes", "silhouette"]);
         for (const h of images) expect(h.src).toMatch(/^\/api\/gacha\/hint-image\?t=[A-Za-z0-9_-]+$/);
         const body = JSON.stringify(round);
         expect(body).not.toContain(answer.image);
@@ -156,11 +159,11 @@ describe("image hints never expose the art URL", () => {
 
     it("serves the rendered hint with only type, cache and nosniff headers", async () => {
         vi.mocked(getModeratedImage).mockResolvedValue({ ok: true, hash: "h", jpeg, checked: true });
-        for (const kind of ["blur", "silhouette"] as const) {
+        for (const kind of ["blur", "silhouette", "eyes"] as const) {
             const res = await hintImageGET(imgReq(hintImageToken({ day, charId: 101, kind }, SALT)));
             expect(res.status).toBe(200);
             expect([...res.headers.keys()].map((k) => k.toLowerCase()).sort()).toEqual(["cache-control", "content-type", "x-content-type-options"]);
-            expect(res.headers.get("content-type")).toBe(kind === "blur" ? "image/webp" : "image/png");
+            expect(res.headers.get("content-type")).toBe(kind === "silhouette" ? "image/png" : "image/webp");
             // T0 is 12:00 in Bangkok: the token dies at midnight, so no cache may hold it longer
             expect(res.headers.get("cache-control")).toBe("public, max-age=43200, s-maxage=43200, immutable");
             expect(Buffer.from(await res.arrayBuffer()).equals(jpeg)).toBe(false);

@@ -8,7 +8,7 @@ vi.mock("@/lib/redis", () => ({
 }));
 
 import { setCatalog } from "./catalog";
-import { addDays, bangkokDayKey, dailyPick, hintLadder, type Tier } from "./rules";
+import { addDays, bangkokDayKey, dailyPick, guessRoster, hintLadder, type Tier } from "./rules";
 import { buyHint, configureGacha, GachaError, getAlbum, getToday, guess, markStorySeen, mintRecovery, restore, type RoundDto } from "./service";
 import { memoryGachaStore, type GachaProfile } from "./store";
 import { FIXTURE_CATALOG } from "./test-fixture";
@@ -63,7 +63,9 @@ describe("getToday", () => {
         expect(dto.dailyCoins).toBe(10);
         expect(dto.day).toEqual({ key: "2026-10-27", number: 2 });
         expect(dto.anime.id).toBe(pick().animeId);
-        expect(dto.candidates).toHaveLength(animeOf(pick().animeId).characters.length);
+        expect(dto.candidates).toHaveLength(guessRoster(animeOf(pick().animeId)).length);
+        expect(dto.steps).toEqual({ used: 0, hintsCostTier: true });
+        expect((await profile()).rounds[today()].rules).toBe(2);
         expect(dto.done).toBeNull();
         expect(dto.result).toBeNull();
         expect(dto.hints.open).toEqual([]);
@@ -106,8 +108,10 @@ describe("guess", () => {
         const miss = await guess(ID, wrongIds()[0]);
         expect(miss.done).toBeNull();
         expect(miss.guesses).toEqual([expect.objectContaining({ id: wrongIds()[0], correct: false })]);
-        expect(miss.hints.open).toHaveLength(1);
-        expect(miss.hints.open[0].key).toBe("role");
+        expect(miss.guesses[0].feedback.map((c) => c.col)).toEqual(["gender", "role", "age", "month", "rank", "va"]);
+        // r2: a wrong guess gives feedback, not a free hint
+        expect(miss.hints.open).toHaveLength(0);
+        expect(miss.steps.used).toBe(1);
 
         const won = await guess(ID, pick().answerId);
         expect(won.done).toBe("won");
@@ -207,15 +211,17 @@ describe("guess", () => {
 });
 
 describe("buyHint", () => {
-    it("opens the next hint at its ladder price", async () => {
+    it("opens the next hint at its ladder price; a wrong guess opens nothing (r2)", async () => {
         await getToday(ID);
         const dto = await buyHint(ID);
         expect(dto.coins).toBe(30);
-        expect(dto.hints.open.map((h) => h.key)).toEqual(["role"]);
+        expect(dto.hints.open.map((h) => h.key)).toEqual(["eyes"]);
         expect(dto.hints.next?.price).toBe(20);
+        expect(dto.steps.used).toBe(1);
         const after = await guess(ID, wrongIds()[0]);
-        expect(after.hints.open).toHaveLength(2);
-        expect(after.hints.next?.price).toBe(25);
+        expect(after.hints.open).toHaveLength(1);
+        expect(after.hints.next?.price).toBe(20);
+        expect(after.steps.used).toBe(2);
     });
 
     it("coins never go negative", async () => {
@@ -253,7 +259,7 @@ describe("fixed hint ladder (P3: no hint-count leak)", () => {
         await store.save(id, p);
     }
     const wrongFor = (answerId: number) => FRIEREN.characters.filter((c) => c.id !== answerId).map((c) => c.id);
-    const KIND = /"(hair|quote|silhouette|blur)"/;
+    const KIND = /"(eyes|va|silhouette|blur|initial)"/;
 
     it("before the end the round state has no total and no kinds, and is the same for 3 or 5 real hints", async () => {
         await pinAnswer(105);
@@ -289,69 +295,171 @@ describe("fixed hint ladder (P3: no hint-count leak)", () => {
         expect((await profile()).rounds[today()].bought).toBe(0);
 
         const first = await buyHint(ID, 1);
-        expect(first.hints.open.map((h) => h.key)).toEqual(["role"]);
+        expect(first.hints.open.map((h) => h.key)).toEqual(["eyes"]);
         expect(first.coins).toBe(985);
         // a retried request for the same slot does not buy slot 2
         expect(await code(buyHint(ID, 1))).toBe("hint_out_of_order");
         expect((await profile()).coins).toBe(985);
         expect((await profile()).rounds[today()].bought).toBe(1);
-        // a wrong guess opens slot 2, so slot 2 can no longer be bought
+        // r2: a wrong guess opens nothing, so slot 2 is still the next one
         await guess(ID, wrongFor(101)[0]);
-        expect(await code(buyHint(ID, 2))).toBe("hint_out_of_order");
-        expect((await buyHint(ID, 3)).hints.open.map((h) => h.key)).toEqual(["role", "hair", "quote"]);
+        expect(await code(buyHint(ID, 3))).toBe("hint_out_of_order");
+        expect((await buyHint(ID, 2)).hints.open.map((h) => h.key)).toEqual(["eyes", "va"]);
     });
 
     it("buying an empty slot refunds the full price; repeating it never adds coins", async () => {
-        await pinAnswer(105);
+        await pinAnswer(105); // Eisen: no JP voice actor -> 4 real hints
         let dto = await buyHint(ID, 1);
         dto = await buyHint(ID, 2);
         dto = await buyHint(ID, 3);
-        expect(dto.coins).toBe(1000 - 15 - 20 - 25);
-        expect(dto.hints.open.map((h) => h.key)).toEqual(["role", "silhouette", "blur"]);
-        expect(dto.hints.next).toEqual({ slot: 4, price: 30, affordable: true });
+        dto = await buyHint(ID, 4);
+        expect(dto.coins).toBe(1000 - 15 - 20 - 25 - 30);
+        expect(dto.hints.open.map((h) => h.key)).toEqual(["eyes", "silhouette", "blur", "initial"]);
+        expect(dto.hints.next).toEqual({ slot: 5, price: 35, affordable: true });
+        expect(dto.steps.used).toBe(4);
 
         const before = dto.coins;
-        dto = await buyHint(ID, 4); // empty: charged 30, refunded 30
+        dto = await buyHint(ID, 5); // empty: charged 35, refunded 35, and it costs no tier step
         expect(dto.coins).toBe(before);
         expect(dto.hints.empty).toBe(1);
-        expect(dto.hints.open).toHaveLength(3);
-        expect(dto.hints.locked).toBe(1);
-        expect(dto.hints.next).toEqual({ slot: 5, price: 35, affordable: true });
-        expect((await profile()).rounds[today()]).toMatchObject({ bought: 4, refunded: 30 });
+        expect(dto.hints.open).toHaveLength(4);
+        expect(dto.hints.locked).toBe(0);
+        expect(dto.hints.next).toBeNull();
+        expect(dto.hints.missing).toEqual(["va"]); // every slot open: structure may show now
+        expect(dto.steps.used).toBe(4);
+        expect((await profile()).rounds[today()]).toMatchObject({ bought: 5, refunded: 35 });
 
-        // farming attempts: same slot again, then every way of asking again
-        expect(await code(buyHint(ID, 4))).toBe("hint_out_of_order");
-        dto = await buyHint(ID, 5);
-        expect(dto.coins).toBe(before);
-        expect(dto.hints.empty).toBe(2);
-        expect(dto.hints.missing).toEqual(["hair", "quote"]); // every slot open: structure may show now
         for (const slot of [5, 4, undefined]) expect(await code(buyHint(ID, slot))).toBe("no_hint");
         const p = await profile();
         expect(p.coins).toBe(before);
-        expect(p.rounds[today()]).toMatchObject({ bought: 5, refunded: 65 });
+        expect(p.rounds[today()]).toMatchObject({ bought: 5, refunded: 35 });
         expect((await getToday(ID)).coins).toBe(before);
+        // 4 real hints + a first-try guess = 5 steps = Common
+        const won = await guess(ID, 105);
+        expect(won.result?.pull?.tier).toBe("common");
+        expect(won.result?.bonus).toBe(0);
     });
 
     it("an empty slot needs the same coins as a real one (affordability says nothing about the slot)", async () => {
-        await pinAnswer(105, 15 + 20 + 25 + 29);
+        await pinAnswer(105, 15 + 20 + 25 + 30 + 34);
         await buyHint(ID, 1);
         await buyHint(ID, 2);
-        const dto = await buyHint(ID, 3);
-        expect(dto.hints.next).toEqual({ slot: 4, price: 30, affordable: false });
-        expect(await code(buyHint(ID, 4))).toBe("not_enough_coins");
-        expect((await profile()).coins).toBe(29);
+        await buyHint(ID, 3);
+        const dto = await buyHint(ID, 4);
+        expect(dto.hints.next).toEqual({ slot: 5, price: 35, affordable: false });
+        expect(await code(buyHint(ID, 5))).toBe("not_enough_coins");
+        expect((await profile()).coins).toBe(34);
     });
 
-    it("wrong guesses walk the same ladder; empty slots come last and are named only after the end", async () => {
+    it("legacy round (stored before r2): wrong guesses still open hints free and tier counts guesses only", async () => {
         await pinAnswer(105);
+        const p = await profile();
+        delete p.rounds[today()].rules; // the shape rounds had before r2
+        await store.save(ID, p);
         let dto: RoundDto | undefined;
-        for (const w of wrongFor(105).slice(0, 4)) dto = await guess(ID, w);
-        expect(dto!.hints.open.map((h) => h.key)).toEqual(["role", "silhouette", "blur"]);
-        expect(dto!.hints.empty).toBe(1);
+        for (const w of wrongFor(105).slice(0, 3)) dto = await guess(ID, w);
+        expect(dto!.steps).toEqual({ used: 3, hintsCostTier: false });
+        expect(dto!.hints.open.map((h) => h.key)).toEqual(["eyes", "silhouette", "blur"]);
         expect(dto!.hints.missing).toEqual([]);
         expect(dto!.coins).toBe(1000);
+        dto = await buyHint(ID, 4); // bought on a legacy round: no tier step
+        expect(dto.steps.used).toBe(3);
         const won = await guess(ID, 105);
-        expect(won.hints).toMatchObject({ slots: 5, empty: 2, locked: 0, missing: ["hair", "quote"], next: null });
+        expect(won.hints).toMatchObject({ slots: 5, empty: 1, locked: 0, missing: ["va"], next: null });
+        expect(won.result?.pull?.tier).toBe("rare"); // 4 guesses
+        expect(won.result?.bonus).toBe(0);
+        expect((await profile()).rounds[today()].rules).toBeUndefined(); // never migrated in place
+    });
+});
+
+describe("r2 rules", () => {
+    const FRIEREN = FIXTURE_CATALOG.anime[0];
+    async function pin(answerId: number, coins = 1000) {
+        await getToday(ID);
+        const p = await profile();
+        p.coins = coins;
+        Object.assign(p.rounds[today()], { animeId: FRIEREN.id, answerId });
+        await store.save(ID, p);
+    }
+
+    it("each bought hint costs a tier step; first-try win with one hint is SR with the 2-step bonus", async () => {
+        await pin(101);
+        await buyHint(ID, 1);
+        const won = await guess(ID, 101);
+        expect(won.steps.used).toBe(2);
+        expect(won.result).toMatchObject({ pull: { tier: "sr" }, bonus: 20 });
+        expect((await profile()).collection["101"].tier).toBe("sr");
+    });
+
+    it("no hints, first guess right = SSR + 30", async () => {
+        await pin(102);
+        const won = await guess(ID, 102);
+        expect(won.result).toMatchObject({ pull: { tier: "ssr" }, bonus: 30 });
+    });
+
+    it("guess-only roster characters can be guessed and get feedback, but are never answers", async () => {
+        await pin(101);
+        const dto = await getToday(ID);
+        expect(dto.candidates.map((c) => c.id)).toEqual(expect.arrayContaining([151, 152]));
+        const miss = await guess(ID, 151);
+        expect(miss.guesses[0]).toMatchObject({ id: 151, name: "Sein", image: null, correct: false });
+        const fb = Object.fromEntries(miss.guesses[0].feedback.map((c) => [c.col, c]));
+        expect(fb.gender).toEqual({ col: "gender", state: "miss", value: "Male" });
+        expect(fb.age).toEqual({ col: "age", state: "up", value: "30" });
+        expect(fb.month).toEqual({ col: "month", state: "up", value: "6" });
+        expect(fb.rank.state).toBe("miss");
+        expect(await code(guess(ID, 999))).toBe("invalid_character");
+        expect(await code(guess(ID, 151))).toBe("already_guessed");
+    });
+
+    it("feedback never leaks the answer's values, only the guess's own", async () => {
+        await pin(101);
+        const miss = await guess(ID, 103);
+        const text = JSON.stringify(miss.guesses);
+        expect(text).not.toContain("Atsumi Tanezaki");
+        expect(text).not.toContain("1000+");
+        const { candidates: _c, ...rest } = miss;
+        void _c;
+        expect(JSON.stringify(rest)).not.toContain("Frieren");
+    });
+
+    it("candidates come sorted by name and carry no feedback data", async () => {
+        const dto = await getToday(ID);
+        const names = dto.candidates.map((c) => c.name);
+        expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "en")));
+        for (const c of dto.candidates) expect(Object.keys(c).sort()).toEqual(["alternative", "id", "name", "nameNative"]);
+    });
+
+    it("reads a legacy-shaped profile (pre-r2 round, no rules / refunded) without rewriting it", async () => {
+        const legacy = {
+            v: 1,
+            createdAt: new Date(now - 86_400_000).toISOString(),
+            recoveryHash: null,
+            coins: 70,
+            rounds: {
+                [today()]: { day: today(), animeId: FRIEREN.id, answerId: 104, guesses: [101], bought: 1, done: null, dailyCoins: 10, bonus: 0, pull: null, storyUnlockedNow: false },
+                [addDays(today(), -1)]: {
+                    day: addDays(today(), -1), animeId: FRIEREN.id, answerId: 102, guesses: [101, 102], bought: 0, done: "won", dailyCoins: 10, bonus: 20,
+                    pull: { result: "new", prevTier: null, tier: "sr" }, storyUnlockedNow: false,
+                },
+            },
+            finishedDays: [addDays(today(), -1)],
+            collection: { "102": { tier: "sr", day: addDays(today(), -1), animeId: FRIEREN.id } },
+            storySeen: [],
+        };
+        store.profiles.set(ID, JSON.stringify(legacy));
+        const dto = await getToday(ID);
+        expect(dto.coins).toBe(70);
+        expect(dto.steps).toEqual({ used: 1, hintsCostTier: false });
+        expect(dto.hints.open).toHaveLength(2); // 1 free from the wrong guess + 1 bought
+        expect(dto.guesses[0]).toMatchObject({ id: 101, correct: false });
+        expect(dto.guesses[0].feedback).toHaveLength(6);
+        expect(dto.streak).toBe(1);
+        const album = await getAlbum(ID);
+        expect(album.owned).toBe(1);
+        const won = await guess(ID, 104);
+        expect(won.result?.pull?.tier).toBe("sr"); // 2 guesses; the bought hint does not count on a legacy round
+        expect((await profile()).collection["102"].tier).toBe("sr");
     });
 });
 

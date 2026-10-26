@@ -3,7 +3,10 @@
  * no randomness that is not seeded by its arguments - the service passes in
  * "now", the catalog and the salt, so every rule can be unit-tested directly.
  */
-import type { Catalog, CatalogAnime, CatalogCharacter, HairKey } from "./catalog-types";
+import type { Catalog, CatalogAnime, CatalogCharacter, RosterCharacter } from "./catalog-types";
+import { compareAge, compareExact, compareGender, compareMonth, compareRank, parseAge, type CellState } from "./feedback";
+
+export type { CellState } from "./feedback";
 
 // ---- calendar ---------------------------------------------------------------
 
@@ -96,97 +99,165 @@ export function seededPermutation(n: number, seedText: string): number[] {
 export interface DailyPick {
     animeId: number;
     answerId: number;
-    /** Which pass through the whole character pool this day belongs to. */
+    /** Which pass through the anime list this day belongs to. */
     cycle: number;
 }
 
+/** The answer is drawn from the anime's this-many most-favourited card characters. */
+export const ANSWER_TOP = 10;
+
+/** Card characters that can be a day's answer: with art, most favourited first, at most ANSWER_TOP. */
+export function answerPool(anime: CatalogAnime): CatalogCharacter[] {
+    return anime.characters
+        .filter((c) => nonEmpty(c.image))
+        .sort((a, b) => (b.favourites ?? 0) - (a.favourites ?? 0) || a.id - b.id)
+        .slice(0, ANSWER_TOP);
+}
+
 /**
- * Every playable character in a stable order (anime id, then character id), so
- * reordering the catalog file does not reshuffle history.
+ * Anime that can host a day: at least one possible answer, in a stable order
+ * (anime id), so reordering the catalog file does not reshuffle history. A
+ * character listed under two anime is only an answer under the first (lowest id).
  */
-export function characterPool(catalog: Catalog): { animeId: number; charId: number }[] {
-    const pool: { animeId: number; charId: number }[] = [];
+export function playableAnime(catalog: Catalog): CatalogAnime[] {
     const seen = new Set<number>();
+    const out: CatalogAnime[] = [];
     for (const anime of [...catalog.anime].sort((a, b) => a.id - b.id)) {
-        for (const c of [...anime.characters].sort((a, b) => a.id - b.id)) {
-            // A character listed under two anime is played under the first only.
-            if (c.image && !seen.has(c.id)) pool.push({ animeId: anime.id, charId: c.id });
-            seen.add(c.id);
-        }
+        const own = { ...anime, characters: anime.characters.filter((c) => !seen.has(c.id)) };
+        for (const c of anime.characters) seen.add(c.id);
+        if (answerPool(own).length > 0) out.push(own);
     }
-    return pool;
+    return out;
+}
+
+/** sqrt(favourites) weights: popular characters come up more often, the rest still do. */
+export function answerWeight(c: Pick<CatalogCharacter, "favourites">): number {
+    return Math.sqrt(Math.max(0, c.favourites ?? 0) + 1);
 }
 
 /**
  * The day's anime + hidden character. Days are numbered from FIRST_DAY_KEY and
- * cut into cycles of pool-size days; each cycle walks its own seeded
- * permutation of the pool, so no character repeats until the cycle is spent.
- * (Regenerating the catalog mid-cycle changes the pool and can repeat a
- * character once - acceptable for a daily game.)
+ * cut into cycles of one day per anime; each cycle walks its own seeded
+ * permutation of the anime, so no anime repeats until the cycle is spent. The
+ * character is then drawn from that anime's top-ANSWER_TOP card characters,
+ * weighted by sqrt(favourites), seeded by salt + day (so it is the same for
+ * every player and every server). Stored rounds keep the answer they were
+ * created with, so changing this rule never changes a round in progress.
  */
 export function dailyPick(catalog: Catalog, dayKey: string, salt: string): DailyPick {
-    const pool = characterPool(catalog);
-    if (pool.length === 0) throw new Error("gacha catalog has no playable characters");
+    const list = playableAnime(catalog);
+    if (list.length === 0) throw new Error("gacha catalog has no playable characters");
     const index = epochDay(dayKey) - epochDay(FIRST_DAY_KEY);
-    const cycle = Math.floor(index / pool.length);
-    const pos = index - cycle * pool.length;
-    const perm = seededPermutation(pool.length, `${salt}:cycle:${cycle}`);
-    const { animeId, charId } = pool[perm[pos]];
-    return { animeId, answerId: charId, cycle };
+    const cycle = Math.floor(index / list.length);
+    const pos = index - cycle * list.length;
+    const anime = list[seededPermutation(list.length, `${salt}:anime-cycle:${cycle}`)[pos]];
+    const pool = answerPool(anime);
+    const total = pool.reduce((s, c) => s + answerWeight(c), 0);
+    let r = mulberry32(hashString(`${salt}:answer:${dayKey}`))() * total;
+    let answer = pool[pool.length - 1];
+    for (const c of pool) {
+        r -= answerWeight(c);
+        if (r < 0) {
+            answer = c;
+            break;
+        }
+    }
+    return { animeId: anime.id, answerId: answer.id, cycle };
+}
+
+// ---- guess roster + feedback --------------------------------------------------
+
+function fromCard(c: CatalogCharacter): RosterCharacter {
+    return {
+        id: c.id,
+        name: c.name,
+        nameNative: c.nameNative,
+        alternative: c.alternative,
+        gender: c.gender,
+        age: c.age,
+        role: c.role ?? null,
+        favourites: c.favourites ?? 0,
+        birthMonth: c.birthMonth ?? null,
+        va: c.va ?? null,
+        card: true,
+    };
+}
+
+/**
+ * Everyone the player may guess for this anime: the catalog roster when there
+ * is one (older catalogs have none: then the card characters), plus any card
+ * character missing from it, so every possible answer is always guessable.
+ * Most favourited first; that order is the popularity rank.
+ */
+export function guessRoster(anime: CatalogAnime): RosterCharacter[] {
+    const roster = anime.roster ? [...anime.roster] : [];
+    const ids = new Set(roster.map((r) => r.id));
+    for (const c of anime.characters) if (!ids.has(c.id)) roster.push(fromCard(c));
+    return roster.sort((a, b) => b.favourites - a.favourites || a.id - b.id);
+}
+
+export const FEEDBACK_COLUMNS = ["gender", "role", "age", "month", "rank", "va"] as const;
+export type FeedbackColumn = (typeof FEEDBACK_COLUMNS)[number];
+
+/** One feedback cell: how the guessed character compares, and the guess's own value (null = "?"). */
+export interface FeedbackCell {
+    col: FeedbackColumn;
+    state: CellState;
+    value: string | null;
+}
+
+function ageText(raw: string | null): string | null {
+    const a = parseAge(raw);
+    if (!a) return null;
+    if (a.hi === Infinity) return `${a.lo}+`;
+    return a.lo === a.hi ? String(a.lo) : `${a.lo}-${a.hi}`;
+}
+
+/**
+ * Loldle-style comparison of a guess with the answer. Up/down on age and birth
+ * month say which way the answer lies; rank (position in the roster by
+ * favourites) is only hit / within 2 / miss, never a direction. Anything
+ * AniList lacks is "unknown" ("?"), never guessed.
+ */
+export function guessFeedback(guess: RosterCharacter, answer: RosterCharacter, roster: readonly RosterCharacter[]): FeedbackCell[] {
+    const rank = (id: number) => roster.findIndex((r) => r.id === id) + 1;
+    const g = rank(guess.id);
+    const a = rank(answer.id);
+    return [
+        { col: "gender", state: compareGender(guess.gender, answer.gender), value: guess.gender },
+        { col: "role", state: compareExact(guess.role, answer.role), value: guess.role },
+        { col: "age", state: compareAge(parseAge(guess.age), parseAge(answer.age)), value: ageText(guess.age) },
+        { col: "month", state: compareMonth(guess.birthMonth, answer.birthMonth), value: guess.birthMonth ? String(guess.birthMonth) : null },
+        { col: "rank", state: g > 0 && a > 0 ? compareRank(g, a) : "unknown", value: g > 0 ? String(g) : null },
+        { col: "va", state: compareExact(guess.va?.id, answer.va?.id), value: guess.va?.name ?? null },
+    ];
 }
 
 // ---- hints ------------------------------------------------------------------
 
-export type HintKey = "role" | "hair" | "quote" | "silhouette" | "blur";
-export const HINT_ORDER: readonly HintKey[] = ["role", "hair", "quote", "silhouette", "blur"];
+/**
+ * r2 ladder: eye/face crop -> JP voice actor -> silhouette -> blur -> first
+ * letter + name length. The three image hints are rendered server-side from
+ * the art behind an opaque token, so the art URL never reaches the client.
+ */
+export type HintKey = "eyes" | "va" | "silhouette" | "blur" | "initial";
+export const HINT_ORDER: readonly HintKey[] = ["eyes", "va", "silhouette", "blur", "initial"];
 
 /** Price of buying ladder slot i (0-based): set by the slot index alone, never by its kind. */
 export const HINT_PRICES: readonly number[] = [15, 20, 25, 30, 35];
 
-export const HAIR_KEYS = [
-    "black", "brown", "blonde", "red", "orange", "pink", "purple",
-    "blue", "green", "white", "silver", "grey", "multicolour",
-] as const satisfies readonly HairKey[];
-
-/** Thai label + a PICO-8 palette swatch for each hair key. */
-export const HAIR_STYLE: Record<HairKey, { th: string; hex: string }> = {
-    black: { th: "ดำ", hex: "#000000" },
-    brown: { th: "น้ำตาล", hex: "#ab5236" },
-    blonde: { th: "บลอนด์", hex: "#ffec27" },
-    red: { th: "แดง", hex: "#ff004d" },
-    orange: { th: "ส้ม", hex: "#ffa300" },
-    pink: { th: "ชมพู", hex: "#ff77a8" },
-    purple: { th: "ม่วง", hex: "#7e2553" },
-    blue: { th: "ฟ้า", hex: "#29adff" },
-    green: { th: "เขียว", hex: "#008751" },
-    white: { th: "ขาว", hex: "#fff1e8" },
-    silver: { th: "เงิน", hex: "#c2c3c7" },
-    grey: { th: "เทา", hex: "#5f574f" },
-    multicolour: { th: "หลายสี", hex: "#83769c" },
-};
-
-/** Multicolour hair is drawn as hard stripes of these instead of one swatch. */
-export const HAIR_MULTI_STRIPES = ["#ff004d", "#ffec27", "#29adff"] as const;
+export type HintImageHintKind = "eyes" | "silhouette" | "blur";
 
 export type HintValue =
-    | { key: "role"; gender: string | null; occupation: string | null; role: "MAIN" | "SUPPORTING" | null; age: string | null }
-    | { key: "hair"; hair: HairKey; label: string; hex: string; stripes: string[] | null }
-    | { key: "quote"; quote: string }
     /** src: an opaque /api/gacha/hint-image URL, never the art's real URL. */
+    | { key: "eyes"; src: string }
+    | { key: "va"; name: string; nameNative: string | null }
     | { key: "silhouette"; src: string }
-    | { key: "blur"; src: string };
+    | { key: "blur"; src: string }
+    /** First letter of the name as shown in the guess list, and the letter count of each word. */
+    | { key: "initial"; first: string; words: number[] };
 
 const nonEmpty = (s: string | null | undefined): s is string => typeof s === "string" && s.trim().length > 0;
-
-/**
- * AniList age, only when it is a plain number or range ("17", "16-17",
- * "1000+"). Free-text ages ("15 (past), 27 (present)") are dropped rather
- * than paraphrased, so the hint never states something AniList did not.
- */
-export function plainAge(age: string | null | undefined): string | null {
-    const a = age?.trim() ?? "";
-    return /^\d{1,4}(?: ?- ?\d{1,4})?\+?$/.test(a) ? a.replace(/ /g, "") : null;
-}
 
 /** The hints a character cannot have, in HINT_ORDER: shown as an honest "no data" slot. */
 export function missingHints(ladder: readonly HintKey[]): HintKey[] {
@@ -195,37 +266,35 @@ export function missingHints(ladder: readonly HintKey[]): HintKey[] {
 
 /**
  * The answer's hint ladder: HINT_ORDER minus the fields this character does not
- * have, so later hints move up (prototype HINTS filtering). Role always exists;
- * silhouette and blur are rendered server-side from the character art, so they
- * exist whenever the art does (every pickable answer has art). Never invents a value.
+ * have, so later hints move up. Image hints exist whenever the art does (every
+ * pickable answer has art); the voice actor only when AniList lists a Japanese
+ * one. Never invents a value.
  */
 export function hintLadder(answer: CatalogCharacter): HintKey[] {
     return HINT_ORDER.filter((key) => {
-        if (key === "hair") return !!answer.hair && answer.hair.key in HAIR_STYLE;
-        if (key === "quote") return nonEmpty(answer.quote);
-        if (key === "silhouette" || key === "blur") return nonEmpty(answer.image);
-        return true;
+        if (key === "va") return !!answer.va && nonEmpty(answer.va.name);
+        if (key === "initial") return nonEmpty(answer.name);
+        return nonEmpty(answer.image);
     });
+}
+
+/** "Levi Ackerman" -> first "L", words [4, 8] (letters counted as code points). */
+export function nameShape(name: string): { first: string; words: number[] } {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    return { first: (Array.from(words[0] ?? "")[0] ?? "").toUpperCase(), words: words.map((w) => Array.from(w).length) };
 }
 
 /**
  * imageSrc builds the opaque hint-image URL for the image hints (see
  * src/server/gacha/hint-image.ts); the answer's image URL never goes in a hint.
  */
-export function hintValue(answer: CatalogCharacter, key: HintKey, imageSrc: (kind: "blur" | "silhouette") => string): HintValue {
+export function hintValue(answer: CatalogCharacter, key: HintKey, imageSrc: (kind: HintImageHintKind) => string): HintValue {
     switch (key) {
-        case "role":
-            // Occupation is the better clue; MAIN/SUPPORTING only stands in for it.
-            return nonEmpty(answer.occupation)
-                ? { key, gender: answer.gender ?? null, occupation: answer.occupation, role: null, age: plainAge(answer.age) }
-                : { key, gender: answer.gender ?? null, occupation: null, role: answer.role ?? null, age: plainAge(answer.age) };
-        case "hair": {
-            const hair = answer.hair!.key;
-            const style = HAIR_STYLE[hair];
-            return { key, hair, label: style.th, hex: style.hex, stripes: hair === "multicolour" ? [...HAIR_MULTI_STRIPES] : null };
-        }
-        case "quote":
-            return { key, quote: answer.quote! };
+        case "va":
+            return { key, name: answer.va!.name, nameNative: answer.va!.nameNative ?? null };
+        case "initial":
+            return { key, ...nameShape(answer.name) };
+        case "eyes":
         case "silhouette":
         case "blur":
             return { key, src: imageSrc(key) };
@@ -241,10 +310,14 @@ export function hintValue(answer: CatalogCharacter, key: HintKey, imageSrc: (kin
  */
 export const HINT_SLOTS = HINT_ORDER.length;
 
-/** How many ladder slots are open: one per wrong guess plus one per purchase, all when done. */
-export function openHintCount(wrongGuesses: number, bought: number, done: boolean): number {
+/**
+ * How many ladder slots are open, all when done. r2 rounds open hints only by
+ * buying them (pass freeFromWrong = 0: the feedback grid is the free clue);
+ * rounds created before r2 also opened one per wrong guess and keep that.
+ */
+export function openHintCount(freeFromWrong: number, bought: number, done: boolean): number {
     if (done) return HINT_SLOTS;
-    return Math.min(HINT_SLOTS, Math.max(0, wrongGuesses) + Math.max(0, bought));
+    return Math.min(HINT_SLOTS, Math.max(0, freeFromWrong) + Math.max(0, bought));
 }
 
 /**
@@ -272,7 +345,10 @@ export const TIERS: readonly Tier[] = ["common", "rare", "sr", "ssr"];
 
 export const tierRank = (t: Tier): number => TIERS.indexOf(t);
 
-/** 1 guess SSR, 2 SR, 3-4 Rare, 5-6 Common. */
+/**
+ * Tier from "steps" used: guesses, plus (r2 rounds) hints bought. 1 SSR, 2 SR,
+ * 3-4 Rare, 5+ Common. A lost round gets no card at all.
+ */
 export function tierForGuesses(guessCount: number): Tier {
     if (guessCount <= 1) return "ssr";
     if (guessCount === 2) return "sr";
@@ -299,7 +375,13 @@ export const START_COINS = 35;
 export const DAILY_COINS = 10;
 export const FAST_BONUS: Readonly<Record<number, number>> = { 1: 30, 2: 20, 3: 10 };
 
-export const fastBonus = (guessCount: number): number => FAST_BONUS[guessCount] ?? 0;
+/** Keyed by the same steps value as the tier (guesses + bought hints in r2 rounds). */
+export const fastBonus = (steps: number): number => FAST_BONUS[steps] ?? 0;
+
+/** The steps a round's tier and fast bonus are read from. Pre-r2 rounds count guesses only. */
+export function tierSteps(guesses: number, bought: number, r2: boolean): number {
+    return guesses + (r2 ? Math.max(0, bought) : 0);
+}
 
 // ---- streak -----------------------------------------------------------------
 

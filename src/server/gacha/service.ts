@@ -7,10 +7,11 @@ import { createHash, randomInt } from "node:crypto";
 import { GachaConfigError, resolveDailySalt } from "./config";
 import { hintImageUrl, readHintImageToken, type HintImageRef } from "./hint-image";
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
+import type { RosterCharacter } from "./catalog-types";
 import {
-    bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus,
+    bangkokDayKey, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus, guessFeedback, guessRoster,
     HINT_SLOTS, hintLadder, hintValue, isEmptySlot, MAX_GUESSES, missingHints, nextBuyableSlot, openHintCount, pullResult, START_COINS, storyUnlocked,
-    secondsUntilNextBangkokDay, streak, tierForGuesses, type HintKey, type HintValue, type PullResult, type Tier,
+    secondsUntilNextBangkokDay, streak, tierForGuesses, tierSteps, type FeedbackCell, type HintKey, type HintValue, type PullResult, type Tier,
 } from "./rules";
 import { defaultGachaStore, KEEP_ROUND_DAYS, withProfileLock, type GachaProfile, type GachaRound, type GachaStore } from "./store";
 
@@ -110,10 +111,24 @@ export interface RoundDto {
         setCode: string;
         characterCount: number;
     };
-    /** Autocomplete pool. Deliberately no images: that would make the guess a picture match. */
+    /**
+     * Autocomplete pool: the anime's guess roster (card characters plus its most
+     * favourited guess-only characters), in a neutral name order so the list
+     * says nothing about popularity or which ones have cards. No images: that
+     * would make the guess a picture match.
+     */
     candidates: { id: number; name: string; nameNative: string | null; alternative: string[] }[];
     maxGuesses: number;
-    guesses: { id: number; name: string; image: string; correct: boolean }[];
+    /**
+     * image: the card art for card characters, null for guess-only ones (no art is
+     * stored for them). feedback: the Loldle row comparing the guess with the answer.
+     */
+    guesses: { id: number; name: string; image: string | null; correct: boolean; feedback: FeedbackCell[] }[];
+    /**
+     * What the tier is counted from so far: guesses, plus hints bought on r2
+     * rounds. The next guess adds one. `hintsCostTier` says whether buying adds one too.
+     */
+    steps: { used: number; hintsCostTier: boolean };
     hints: {
         /** Always HINT_SLOTS (5): the ladder has the same length for every answer. */
         slots: number;
@@ -200,6 +215,7 @@ function ensureRound(profile: GachaProfile, today: string, idx: CatalogIndex, sa
         bonus: 0,
         pull: null,
         storyUnlockedNow: false,
+        rules: 2,
     };
     profile.coins += DAILY_COINS;
     const oldest = epochDay(today) - KEEP_ROUND_DAYS;
@@ -242,9 +258,30 @@ function markFinished(profile: GachaProfile, day: string): void {
     if (!profile.finishedDays.includes(day)) profile.finishedDays = [...profile.finishedDays, day].sort();
 }
 
+const isR2 = (round: GachaRound): boolean => round.rules === 2;
+
+/**
+ * Tier / fast-bonus steps of a round: guesses, plus bought hints on r2 rounds.
+ * Only real hints count: a bought slot with no data is refunded and costs no
+ * step either (empty slots always sit after the real ones).
+ */
+const roundSteps = (round: GachaRound, answer: CatalogCharacter): number =>
+    tierSteps(round.guesses.length, Math.min(round.bought, hintLadder(answer).length), isR2(round));
+
+/** Hint slots opened for free: one per wrong guess on pre-r2 rounds, none on r2 rounds. */
+function freeHints(round: GachaRound): number {
+    return isR2(round) ? 0 : round.guesses.filter((g) => g !== round.answerId).length;
+}
+
+/** The answer as a roster entry (the roster always holds every card character). */
+function rosterOf(anime: CatalogAnime): { roster: RosterCharacter[]; byId: Map<number, RosterCharacter> } {
+    const roster = guessRoster(anime);
+    return { roster, byId: new Map(roster.map((r) => [r.id, r])) };
+}
+
 /** Commit the win's pull. Runs once per round: the caller holds the lock and the round is not yet done. */
-function commitPull(profile: GachaProfile, round: GachaRound): void {
-    const tier = tierForGuesses(round.guesses.length);
+function commitPull(profile: GachaProfile, round: GachaRound, answer: CatalogCharacter): void {
+    const tier = tierForGuesses(roundSteps(round, answer));
     const prevTier = profile.collection[round.answerId]?.tier ?? null;
     const result = pullResult(prevTier, tier);
     const before = ownedIn(profile, round.animeId);
@@ -257,11 +294,12 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
     const { anime, answer } = roundParts(round, idx);
     const done = round.done;
     const ladder = hintLadder(answer);
-    const wrong = round.guesses.filter((g) => g !== round.answerId).length;
-    const open = openHintCount(wrong, round.bought, !!done);
+    const open = openHintCount(freeHints(round), round.bought, !!done);
     const openReal = Math.min(open, ladder.length);
     const next = nextBuyableSlot(open, !!done);
-    const byId = new Map(anime.characters.map((c) => [c.id, c]));
+    const cards = new Map(anime.characters.map((c) => [c.id, c]));
+    const { roster, byId } = rosterOf(anime);
+    const answerEntry = byId.get(answer.id)!;
 
     return {
         day: { key: round.day, number: dayNumber(round.day) },
@@ -275,12 +313,16 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
             setCode: anime.setCode,
             characterCount: anime.characters.length,
         },
-        candidates: anime.characters.map((c) => ({ id: c.id, name: c.name, nameNative: c.nameNative, alternative: c.alternative ?? [] })),
+        candidates: [...roster]
+            .sort((a, b) => a.name.localeCompare(b.name, "en") || a.id - b.id)
+            .map((c) => ({ id: c.id, name: c.name, nameNative: c.nameNative, alternative: c.alternative ?? [] })),
         maxGuesses: MAX_GUESSES,
         guesses: round.guesses.flatMap((g) => {
             const c = byId.get(g);
-            return c ? [{ id: c.id, name: c.name, image: c.image, correct: g === round.answerId }] : [];
+            if (!c) return [];
+            return [{ id: c.id, name: c.name, image: cards.get(c.id)?.image ?? null, correct: g === round.answerId, feedback: guessFeedback(c, answerEntry, roster) }];
         }),
+        steps: { used: roundSteps(round, answer), hintsCostTier: isR2(round) },
         hints: {
             slots: HINT_SLOTS,
             open: ladder.slice(0, openReal).map((key) =>
@@ -358,18 +400,18 @@ export async function guess(id: string, charId: number): Promise<RoundDto> {
     return withProfileLock(store, id, async () => {
         const { profile, round } = await loadForWrite(store, id, today, idx, salt());
         if (round.done) throw new GachaError("round_over");
-        const { anime } = roundParts(round, idx);
-        if (!anime.characters.some((c) => c.id === charId)) throw new GachaError("invalid_character");
+        const { anime, answer } = roundParts(round, idx);
+        if (!guessRoster(anime).some((c) => c.id === charId)) throw new GachaError("invalid_character");
         if (round.guesses.includes(charId)) throw new GachaError("already_guessed");
 
         round.guesses.push(charId);
         if (charId === round.answerId) {
             round.done = "won";
-            round.bonus = fastBonus(round.guesses.length);
+            round.bonus = fastBonus(roundSteps(round, answer));
             profile.coins += round.bonus;
             // The pull is committed here, with the win, in the same write - so a
             // reload or a second tab reads it back instead of pulling again.
-            commitPull(profile, round);
+            commitPull(profile, round, answer);
             markFinished(profile, today);
         } else if (round.guesses.length >= MAX_GUESSES) {
             round.done = "lost";
@@ -400,8 +442,7 @@ export async function buyHint(id: string, slot?: number): Promise<RoundDto> {
         const { profile, round } = await loadForWrite(store, id, today, idx, salt());
         if (round.done) throw new GachaError("round_over");
         const { answer } = roundParts(round, idx);
-        const wrong = round.guesses.filter((g) => g !== round.answerId).length;
-        const open = openHintCount(wrong, round.bought, false);
+        const open = openHintCount(freeHints(round), round.bought, false);
         const next = nextBuyableSlot(open, false);
         if (!next) throw new GachaError("no_hint");
         if (slot !== undefined && slot !== next.slot) throw new GachaError("hint_out_of_order");

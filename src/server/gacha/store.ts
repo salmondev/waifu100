@@ -45,6 +45,12 @@ export interface GachaRound {
      * write as the charge, so it never adds coins. Absent on older rounds (= 0).
      */
     refunded?: number;
+    /**
+     * 2 = created under the T-0016 r2 rules: hints open only when bought, and the
+     * tier / fast bonus count guesses + bought hints. Absent on older rounds,
+     * which keep their rules (a free hint per wrong guess, tier by guesses only).
+     */
+    rules?: 2;
     done: "won" | "lost" | null;
     /** Coins granted when this round was created (the daily +10). */
     dailyCoins: number;

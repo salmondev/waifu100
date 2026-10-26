@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { consume, LIMITS } from "@/lib/rate-limit";
 import { gachaErrorResponse, gachaRateLimit } from "@/server/gacha/http";
-import { renderBlurHint, renderSilhouetteHint } from "@/server/gacha/hint-image";
+import { renderBlurHint, renderEyesHint, renderSilhouetteHint } from "@/server/gacha/hint-image";
 import { resolveHintImage } from "@/server/gacha/service";
 import { getModeratedImage } from "@/server/moderation/moderator";
 
@@ -21,7 +21,7 @@ const cachePolicy = (maxAge: number, sMaxAge: number, ttl: number, immutable = f
 /**
  * GET /api/gacha/hint-image?t=<token>
  *
- * The blur and silhouette hints, rendered here so the client never sees the
+ * The eye-crop, blur and silhouette hints, rendered here so the client never sees the
  * art's URL or a sharp copy of it. The art goes through the same allow-listed,
  * moderated fetch as /api/img, then is reduced server-side. The response
  * carries only the image, its type and a cache policy: no source URL, hash,
@@ -51,11 +51,12 @@ export async function GET(req: NextRequest) {
                 },
             });
         }
-        const body = ref.kind === "blur" ? await renderBlurHint(art.jpeg) : await renderSilhouetteHint(art.jpeg);
+        const body =
+            ref.kind === "blur" ? await renderBlurHint(art.jpeg) : ref.kind === "eyes" ? await renderEyesHint(art.jpeg) : await renderSilhouetteHint(art.jpeg);
         return new Response(new Uint8Array(body), {
             headers: {
                 ...BASE_HEADERS,
-                "Content-Type": ref.kind === "blur" ? "image/webp" : "image/png",
+                "Content-Type": ref.kind === "silhouette" ? "image/png" : "image/webp",
                 // Unchecked (moderation gave no answer): shown, re-checked soon.
                 "Cache-Control": art.checked
                     ? cachePolicy(86400, 86400, ref.expiresInSec, true)

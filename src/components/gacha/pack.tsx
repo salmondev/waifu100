@@ -16,7 +16,6 @@ import { Chip, Coin, Icon, TIER_GUESSES, TIER_NAME, type TierName } from "./pixe
 import { proxied } from "@/lib/img-proxy";
 
 const LADDER: TierName[] = ["ssr", "sr", "rare", "common"];
-const FAST_BONUS: Record<number, number> = { 1: 30, 2: 20, 3: 10 };
 const UNLOCK = 3;
 const REVEAL_AT = 2.7;
 
@@ -137,8 +136,12 @@ export function PackView({ round, coins }: { round: RoundDto; coins: number }) {
                                 if (!g) return <li key={i}><em>{i + 1}</em></li>;
                                 return (
                                     <li key={i} className={g.correct ? "hit" : "miss"}>
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={proxied(g.image, 96)} alt="" draggable={false} style={{ objectPosition: FOCAL }} />
+                                        {g.image ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={proxied(g.image, 96)} alt="" draggable={false} style={{ objectPosition: FOCAL }} />
+                                        ) : (
+                                            <b className="g-noface" aria-hidden="true">{g.name.trim().charAt(0).toUpperCase()}</b>
+                                        )}
                                         <span><Icon name={g.correct ? "check" : "cross"} /></span>
                                     </li>
                                 );
@@ -151,10 +154,10 @@ export function PackView({ round, coins }: { round: RoundDto; coins: number }) {
                         </ul>
                         <div className="g-earn">
                             <span><Icon name="card" />ในซอง</span><b>การ์ด 1 ใบ</b>
-                            {FAST_BONUS[n] ? (
+                            {res?.bonus ? (
                                 <>
                                     <span className="g-sep" />
-                                    <span><Coin />โบนัสเดาไว</span><b className="g-plus">+{FAST_BONUS[n]}</b><small>รับแล้ว</small>
+                                    <span><Coin />โบนัสเดาไว</span><b className="g-plus">+{res.bonus}</b><small>รับแล้ว</small>
                                 </>
                             ) : null}
                         </div>

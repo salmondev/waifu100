@@ -2,14 +2,17 @@
 /**
  * /daily play view (ported from the v2 prototype play.js). The server owns the
  * round: this only renders the RoundDto and sends guesses / hint purchases.
- * Typed autocomplete only, 6 guesses, hints open on wrong guesses, the next
- * hint can be bought early with coins.
+ * Typed autocomplete only, 6 guesses. A wrong guess shows a feedback row
+ * (gender / role / age / birth month / popularity rank / JP voice actor);
+ * hints are bought with coins and each one costs a tier step (r2). Rounds
+ * stored before r2 keep their old rule: a free hint per wrong guess.
  */
 import Link from "next/link";
 import { m } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { HintKey, HintValue } from "@/server/gacha/rules";
+import type { CellState, FeedbackCell, HintKey, HintValue } from "@/server/gacha/rules";
 import { hintImageSrc } from "@/lib/gacha-hint-image";
+import { shareText } from "@/lib/gacha-share";
 import { proxied } from "@/lib/img-proxy";
 import { errorText, gachaApi, GachaClientError, type RoundDto } from "./api";
 import { cardBackHtml, CardHtml, FOCAL } from "./card";
@@ -18,31 +21,122 @@ import { storyColours } from "./palette";
 import { Chip, Coin, Icon, TIER_GUESSES, type IconName, type TierName } from "./pixel";
 
 const LADDER: TierName[] = ["ssr", "sr", "rare", "common"];
-const FAST_BONUS: Record<number, number> = { 1: 30, 2: 20, 3: 10 };
 const tierFor = (n: number): TierName => (n <= 1 ? "ssr" : n === 2 ? "sr" : n <= 4 ? "rare" : "common");
 const HINT_META: Record<HintKey, { label: string; icon: IconName }> = {
-    role: { label: "บทบาทและเพศ", icon: "role" },
-    hair: { label: "สีผม", icon: "hair" },
-    quote: { label: "คำพูด", icon: "quote" },
+    eyes: { label: "ดวงตา", icon: "eye" },
+    va: { label: "นักพากย์ญี่ปุ่น", icon: "mic" },
     silhouette: { label: "เงา", icon: "silhouette" },
     blur: { label: "ภาพเบลอ", icon: "blur" },
+    initial: { label: "ตัวอักษรแรก", icon: "letter" },
 };
-const GENDER_TH: Record<string, string> = { Female: "หญิง", Male: "ชาย" };
 /** Why a hint slot is empty. Copy states the gap; nothing is guessed in its place. */
 const MISSING_TEXT: Record<HintKey, string> = {
-    role: "AniList ไม่มีข้อมูลบทบาท",
-    hair: "AniList ไม่ระบุสีผมของตัวละครนี้",
-    quote: "ไม่มีคำพูดที่ยืนยันแหล่งได้ จึงไม่ใส่ให้",
+    eyes: "ไม่มีภาพตัวละครให้ครอปดวงตา",
+    va: "AniList ไม่มีข้อมูลนักพากย์ญี่ปุ่น",
     silhouette: "ไม่มีภาพตัวละครให้ทำเงา",
     blur: "ไม่มีภาพตัวละครให้เบลอ",
+    initial: "ไม่มีชื่อให้บอกตัวอักษรแรก",
 };
+
+// ---- feedback grid ------------------------------------------------------------
+
+const COL_LABEL: Record<FeedbackCell["col"], string> = { gender: "เพศ", role: "บทบาท", age: "อายุ", month: "เดือนเกิด", rank: "อันดับนิยม", va: "นักพากย์" };
+const GENDER_TH: Record<string, string> = { Female: "หญิง", Male: "ชาย", "Non-binary": "นอนไบนารี" };
+const ROLE_TH: Record<string, string> = { MAIN: "หลัก", SUPPORTING: "รอง", BACKGROUND: "ประกอบ" };
+const MONTH_TH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+/** Every state has its own symbol, so colour is never the only signal. */
+const STATE_ICON: Record<CellState, IconName> = { hit: "check", near: "near", miss: "cross", up: "up", down: "down", unknown: "unknown" };
+const STATE_TH: Record<CellState, string> = {
+    hit: "ตรง", near: "ใกล้", miss: "ไม่ตรง", up: "คำตอบมากกว่า", down: "คำตอบน้อยกว่า", unknown: "ไม่มีข้อมูล",
+};
+
+function cellText(c: FeedbackCell): string {
+    if (c.value == null) return "?";
+    if (c.col === "gender") return GENDER_TH[c.value] ?? c.value;
+    if (c.col === "role") return ROLE_TH[c.value] ?? c.value;
+    if (c.col === "month") return MONTH_TH[Number(c.value) - 1] ?? "?";
+    if (c.col === "rank") return `#${c.value}`;
+    return c.value;
+}
+
+function FeedbackGrid({ guesses }: { guesses: RoundDto["guesses"] }) {
+    if (!guesses.length) return null;
+    const cols = guesses[0].feedback.map((c) => c.col);
+    return (
+        <section className="g-fb win" aria-label="ผลการเดา">
+            <h3 className="g-h3">ผลการเดา <small>เทียบกับคำตอบ</small></h3>
+            <div className="g-fbt" role="table" aria-label="เทียบตัวที่เดากับคำตอบ">
+                <div className="g-fbr g-fbhead" role="row">
+                    {cols.map((col) => <span key={col} role="columnheader">{COL_LABEL[col]}</span>)}
+                </div>
+                {guesses.map((g) => (
+                    <div key={g.id} className={`g-fbrow${g.correct ? " hit" : ""}`}>
+                        <p className="g-fbname"><b>{g.name}</b>{g.correct ? <em>ถูก</em> : null}</p>
+                        <div className="g-fbr" role="row" aria-label={g.name}>
+                            {g.feedback.map((c) => {
+                                const text = cellText(c);
+                                return (
+                                    <span key={c.col} role="cell" className={`g-cell s-${c.state}`} aria-label={`${COL_LABEL[c.col]} ${text}: ${STATE_TH[c.state]}`}>
+                                        <Icon name={STATE_ICON[c.state]} />
+                                        <small>{text}</small>
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <ul className="g-legend" aria-label="ความหมายสัญลักษณ์">
+                <li><span className="g-cell s-hit"><Icon name="check" /></span>ตรง</li>
+                <li><span className="g-cell s-near"><Icon name="near" /></span>ใกล้ (อันดับห่างไม่เกิน 2 / ช่วงอายุทับกัน)</li>
+                <li><span className="g-cell s-up"><Icon name="up" /></span>คำตอบมากกว่า</li>
+                <li><span className="g-cell s-down"><Icon name="down" /></span>คำตอบน้อยกว่า</li>
+                <li><span className="g-cell s-miss"><Icon name="cross" /></span>ไม่ตรง</li>
+                <li><span className="g-cell s-unknown"><Icon name="unknown" /></span>ไม่มีข้อมูล</li>
+            </ul>
+        </section>
+    );
+}
+
+/** Copies the spoiler-free result. The button itself says whether it worked: no toast, no popup. */
+function ShareButton({ round }: { round: RoundDto }) {
+    const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
+    const text = shareText(round.day.number, round.maxGuesses, round.guesses, round.done === "won");
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setState("ok");
+        } catch {
+            setState("fail");
+        }
+    };
+    return (
+        <>
+            <button className="g-btn" type="button" onClick={copy} data-share={state}>
+                <Icon name={state === "ok" ? "check" : "card"} />
+                <span aria-live="polite">{state === "ok" ? "คัดลอกแล้ว" : "คัดลอกผลลัพธ์"}</span>
+            </button>
+            {state === "fail" && (
+                <label className="g-sharebox">
+                    <span>คัดลอกอัตโนมัติไม่ได้ เลือกข้อความนี้แล้วคัดลอกเอง</span>
+                    <textarea readOnly rows={round.guesses.length + 1} value={text} onFocus={(e) => e.currentTarget.select()} />
+                </label>
+            )}
+        </>
+    );
+}
+
 /** PICO-8 stepped ease: motion in 4 hard steps, no smooth tween. */
 export const steps4 = (t: number) => Math.min(1, Math.floor(t * 4 + 0.0001) / 4);
 
-const Face = ({ src, w = 128, className }: { src: string; w?: number; className?: string }) => (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img className={className} src={proxied(src, w)} alt="" draggable={false} style={{ objectPosition: FOCAL }} />
-);
+const Face = ({ src, w = 128, className, name }: { src: string | null; w?: number; className?: string; name?: string }) =>
+    src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className={className} src={proxied(src, w)} alt="" draggable={false} style={{ objectPosition: FOCAL }} />
+    ) : (
+        // Guess-only characters (no card) have no art here: show their initial instead.
+        <b className="g-noface" aria-hidden="true">{(name ?? "?").trim().charAt(0).toUpperCase()}</b>
+    );
 
 /** A server-rendered hint image (already blurred / stencilled), never the art itself. */
 const HintPic = ({ src }: { src: string }) => {
@@ -52,28 +146,33 @@ const HintPic = ({ src }: { src: string }) => {
 };
 
 function HintBody({ h }: { h: HintValue }) {
-    if (h.key === "role") {
-        const base = h.occupation?.trim() || (h.role === "MAIN" ? "ตัวละครหลัก" : h.role === "SUPPORTING" ? "ตัวละครรอง" : "ไม่มีข้อมูลบทบาท");
+    if (h.key === "va")
         return (
             <>
-                <b>{base}</b>
-                <span className="g-dim">
-                    {h.gender ? `เพศ${GENDER_TH[h.gender] ?? ` ${h.gender}`}` : "AniList ไม่ระบุเพศ"}
-                    {h.age ? ` · อายุ ${h.age}` : ""}
-                </span>
+                <b>{h.name}</b>
+                {h.nameNative ? <span className="g-dim">{h.nameNative}</span> : null}
             </>
         );
-    }
-    if (h.key === "hair") {
-        const bg = h.stripes ? `linear-gradient(90deg, ${h.stripes.map((c, i, a) => `${c} ${(i / a.length) * 100}% ${((i + 1) / a.length) * 100}%`).join(", ")})` : h.hex;
+    if (h.key === "initial")
         return (
-            <span className="g-hair">
-                <i style={{ background: bg }} />
-                <b>{h.label}</b>
-            </span>
+            <>
+                <span className="g-initial" aria-label={`ขึ้นต้นด้วย ${h.first} ยาว ${h.words.join(" + ")} ตัวอักษร`}>
+                    {h.words.map((n, w) => (
+                        <span key={w}>
+                            {Array.from({ length: n }, (_, k) => <i key={k}>{w === 0 && k === 0 ? h.first : ""}</i>)}
+                        </span>
+                    ))}
+                </span>
+                <span className="g-dim">ขึ้นต้นด้วย {h.first} · {h.words.join(" + ")} ตัวอักษร</span>
+            </>
         );
-    }
-    if (h.key === "quote") return <q>{h.quote}</q>;
+    if (h.key === "eyes")
+        return (
+            <>
+                <span className="g-pic eyes"><HintPic src={h.src} /></span>
+                <span className="g-dim">ครอปช่วงดวงตาจากภาพตัวละคร</span>
+            </>
+        );
     if (h.key === "silhouette")
         return (
             <>
@@ -96,11 +195,17 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     const colours = storyColours(round.anime.coverColor);
     const used = round.guesses.length;
     const wrongs = round.guesses.filter((g) => !g.correct).length;
+    // r2: hints are bought and each counts as a tier step. Legacy rounds: wrong guesses open hints free.
+    const r2 = round.steps.hintsCostTier;
+    const freeOpen = r2 ? 0 : wrongs;
+    const steps = round.steps.used;
     const done = round.done;
     const answer = round.result?.answer ?? null;
     const blur = round.hints.open.find((h) => h.key === "blur");
     const sil = round.hints.open.find((h) => h.key === "silhouette");
-    const now = done === "won" ? tierFor(used) : done ? null : tierFor(used + 1);
+    const eyes = round.hints.open.find((h) => h.key === "eyes");
+    const won = (round.result?.pull?.tier as TierName | undefined) ?? tierFor(steps);
+    const now = done === "won" ? won : done ? null : tierFor(steps + 1);
 
     const send = async (fn: () => Promise<RoundDto>, wrongShake = false) => {
         if (busy) return;
@@ -150,6 +255,13 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                 <figcaption className="win">เงา</figcaption>
             </>
         );
+    else if (eyes && eyes.key === "eyes")
+        mystery = (
+            <>
+                <div className="g-frame eyes"><HintPic src={eyes.src} /></div>
+                <figcaption className="win">ดวงตา</figcaption>
+            </>
+        );
     else
         mystery = (
             <>
@@ -190,7 +302,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                                 if (g)
                                     return (
                                         <li key={i} className={g.correct ? "hit" : "miss"} aria-label={`${g.name} ${g.correct ? "ถูก" : "ผิด"}`}>
-                                            <Face src={g.image} w={96} />
+                                            <Face src={g.image} w={96} name={g.name} />
                                             <span><Icon name={g.correct ? "check" : "cross"} /></span>
                                         </li>
                                     );
@@ -200,6 +312,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     </div>
                     <div>
                         <p className="g-stake-h">{done === "won" ? "ได้การ์ดระดับ" : done ? "ระดับตามครั้งที่เดาถูก" : "ถ้าเดาถูกตอนนี้"}</p>
+                        {r2 && !done && round.steps.used > used ? <p className="g-stake-n">นับคำใบ้ที่ซื้อ +{round.steps.used - used}</p> : null}
                         <ul className="g-ladder">
                             {LADDER.map((t) => (
                                 <li key={t} className={t === now ? "on" : ""}><Chip tier={t} /><small>{TIER_GUESSES[t]}</small></li>
@@ -213,12 +326,18 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     <div className="g-result win">
                         <p className="g-stamp">เดาถูก</p>
                         <p className="g-lead">{answer.name}</p>
-                        <p className="g-sub">เดาครั้งที่ <b>{used}</b> ได้การ์ด <Chip tier={tierFor(used)} /></p>
+                        <p className="g-sub">
+                            เดาครั้งที่ <b>{used}</b>
+                            {steps > used ? <> + คำใบ้ <b>{steps - used}</b></> : null} ได้การ์ด <Chip tier={won} />
+                        </p>
                         <ul className="g-rew">
-                            <li><span><Icon name="card" />การ์ด</span><Chip tier={tierFor(used)} /></li>
-                            {FAST_BONUS[used] ? <li><span><Coin />โบนัสเดาไว</span><b className="g-plus">+{FAST_BONUS[used]}</b></li> : null}
+                            <li><span><Icon name="card" />การ์ด</span><Chip tier={won} /></li>
+                            {round.result?.bonus ? <li><span><Coin />โบนัสเดาไว</span><b className="g-plus">+{round.result.bonus}</b></li> : null}
                         </ul>
-                        <button className="g-btn red" type="button" onClick={onOpenPack}>{opened ? "ดูการ์ดที่ได้" : "เปิดซอง"}</button>
+                        <div className="g-row">
+                            <button className="g-btn red" type="button" onClick={onOpenPack}>{opened ? "ดูการ์ดที่ได้" : "เปิดซอง"}</button>
+                            <ShareButton round={round} />
+                        </div>
                         <p className="g-note">ไม่มีการ์ดซ้ำ ได้ตัวที่มีแล้วในระดับสูงกว่าจะอัปเกรดใบเดิม ระดับเท่าเดิมหรือต่ำกว่าอัลบั้มไม่เปลี่ยน</p>
                     </div>
                 ) : done === "lost" ? (
@@ -229,6 +348,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         <p className="g-note">รอบนี้ไม่ได้การ์ด สตรีคยังนับต่อ เพราะเล่นจบรอบแล้ว พรุ่งนี้มีตัวละครใหม่</p>
                         <div className="g-row">
                             <Link className="g-btn" href={`/daily?view=album&anime=${round.anime.id}`} scroll={false}><Icon name="album" />ดูอัลบั้ม</Link>
+                            <ShareButton round={round} />
                         </div>
                     </div>
                 ) : (
@@ -236,8 +356,9 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                 )}
                 {err && <p className="g-err" role="alert">{err}</p>}
             </section>
+            <FeedbackGrid guesses={round.guesses} />
             <section className="g-hints win" aria-label="คำใบ้">
-                <h3 className="g-h3">คำใบ้ <small>เปิดทีละข้อเมื่อเดาผิด</small></h3>
+                <h3 className="g-h3">คำใบ้ <small>{r2 ? "ซื้อทีละข้อ แต่ละข้อนับเป็น 1 ครั้ง" : "เปิดทีละข้อเมื่อเดาผิด"}</small></h3>
                 {Array.from({ length: round.hints.slots }, (_, i) => {
                     // Fixed five-slot ladder. Locked slots are numbered only: the server does not say
                     // which kind sits behind them, nor how many real hints there are.
@@ -247,7 +368,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     if (!h && emptyAt >= 0 && emptyAt < round.hints.empty) {
                         // An opened slot with no data. Its kind is named only once the server sends `missing`.
                         const kind: HintKey | undefined = round.hints.missing[emptyAt];
-                        const refunded = i >= wrongs && !done;
+                        const refunded = i >= freeOpen && !done;
                         return (
                             <div key={`slot-${i}-empty`} className="g-hint missing" data-hint={kind ?? "empty"}>
                                 <span className="g-hi"><Icon name={kind ? HINT_META[kind].icon : "lock"} /></span>
@@ -258,7 +379,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                             </div>
                         );
                     }
-                    const bought = !!h && i >= wrongs && !done;
+                    const bought = !!h && i >= freeOpen && !done;
                     return (
                         <m.div
                             key={h ? `${h.key}-open` : `slot-${i}`}
@@ -271,7 +392,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                             <span className="g-hi"><Icon name={meta ? meta.icon : "lock"} /></span>
                             <div className="g-hb">
                                 <small><b>{i + 1}</b>{meta ? meta.label : "คำใบ้ลับ"}{bought ? <em>ซื้อแล้ว</em> : null}</small>
-                                {h ? <HintBody h={h} /> : <span className="g-lock"><Icon name="lock" />เปิดเมื่อเดาผิดครั้งที่ {i + 1}</span>}
+                                {h ? <HintBody h={h} /> : <span className="g-lock"><Icon name="lock" />{r2 ? "ยังไม่ได้ซื้อ" : `เปิดเมื่อเดาผิดครั้งที่ ${i + 1}`}</span>}
                             </div>
                         </m.div>
                     );
@@ -283,14 +404,16 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
             {!done && (
                 <section className="g-shop win">
                     <h3 className="g-h3">
-                        ซื้อคำใบ้ก่อน {round.dailyCoins ? <span className="g-free"><Coin />รับฟรีวันนี้ +{round.dailyCoins}</span> : null}
+                        {r2 ? "ซื้อคำใบ้" : "ซื้อคำใบ้ก่อน"} {round.dailyCoins ? <span className="g-free"><Coin />รับฟรีวันนี้ +{round.dailyCoins}</span> : null}
                     </h3>
                     {round.hints.next ? (
                         <div className="g-shoprow">
                             <span className="g-hi"><Icon name="lock" /></span>
                             <span className="g-nm">
                                 คำใบ้ข้อที่ {round.hints.next.slot}
-                                <small>ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ {round.hints.next.slot} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน</small>
+                                <small>
+                                    {r2 ? "นับเป็น 1 ครั้งตอนจัดระดับการ์ด" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
+                                </small>
                             </span>
                             <button
                                 className="g-btn sm coin"
@@ -412,7 +535,13 @@ function GuessBox({ round, busy, shakeKey, onGuess }: { round: RoundDto; busy: b
                 ))}
             </ul>
             {bad && <p className="g-err" id="gerr">ไม่มีชื่อนี้ในเรื่องนี้ เลือกจากรายการ</p>}
-            {round.guesses.length === 0 && <p className="g-rules">เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก</p>}
+            {round.guesses.length === 0 && (
+                <p className="g-rules">
+                    {round.steps.hintsCostTier
+                        ? "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน ยิ่งใช้ครั้งเดาและคำใบ้น้อย การ์ดยิ่งหายาก"
+                        : "เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"}
+                </p>
+            )}
         </div>
     );
 }

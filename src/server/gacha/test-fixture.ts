@@ -1,5 +1,5 @@
 /** Small hand-made catalog for the gacha tests (never imported by app code). */
-import type { Catalog, CatalogCharacter } from "./catalog-types";
+import type { Catalog, CatalogCharacter, RosterCharacter, VoiceActor } from "./catalog-types";
 
 function ch(id: number, name: string, extra: Partial<CatalogCharacter> = {}): CatalogCharacter {
     return {
@@ -17,9 +17,43 @@ function ch(id: number, name: string, extra: Partial<CatalogCharacter> = {}): Ca
         occupation: "Mage",
         quote: `Famous line no. ${id}`,
         silhouette: `https://img.example.test/sil/${id}.png`,
+        birthMonth: null,
+        va: null,
         ...extra,
     };
 }
+
+const va = (id: number, name: string): VoiceActor => ({ id, name, nameNative: `${name}-jp` });
+const TANESAKI = va(9501, "Atsumi Tanezaki");
+const ICHINOSE = va(9502, "Kana Ichinose");
+const KOBAYASHI = va(9503, "Chiaki Kobayashi");
+
+/** The roster entry of a card character (same data, `card: true`). */
+function cardEntry(c: CatalogCharacter): RosterCharacter {
+    return {
+        id: c.id, name: c.name, nameNative: c.nameNative, alternative: c.alternative, gender: c.gender, age: c.age,
+        role: c.role, favourites: c.favourites, birthMonth: c.birthMonth ?? null, va: c.va ?? null, card: true,
+    };
+}
+
+/** A guess-only roster entry: guessable, never an answer, no art. */
+function extra(id: number, name: string, more: Partial<RosterCharacter> = {}): RosterCharacter {
+    return {
+        id, name, nameNative: null, alternative: [], gender: "Male", age: null, role: "SUPPORTING", favourites: 60,
+        birthMonth: null, va: null, card: false, ...more,
+    };
+}
+
+const FRIEREN_CARDS: CatalogCharacter[] = [
+    ch(101, "Frieren", { role: "MAIN", age: "1000+", favourites: 5000, birthMonth: 12, va: TANESAKI }),
+    ch(102, "Fern", { age: "16-17", favourites: 3000, birthMonth: 4, va: ICHINOSE }),
+    ch(103, "Stark", { gender: "Male", hair: { key: "red", raw: "red" }, age: "17", favourites: 2500, birthMonth: 2, va: KOBAYASHI }),
+    ch(104, "Himmel", { gender: "Male", quote: null, age: "Unknown", favourites: 2000, va: va(9504, "Nobuhiko Okamoto") }),
+    ch(105, "Eisen", { gender: "Male", hair: null, quote: null, silhouette: null, occupation: null, favourites: 800 }),
+    ch(106, "Heiter", { gender: "Male", silhouette: null, favourites: 900, va: va(9505, "Hiroki Touchi") }),
+    ch(107, "Flamme", { hair: { key: "multicolour", raw: "multi" }, favourites: 700, va: TANESAKI }),
+    ch(108, "Ubel", { quote: null, silhouette: null, age: "~20", favourites: 1200, birthMonth: 9, va: va(9506, "Yuko Hara") }),
+];
 
 export const FIXTURE_CATALOG: Catalog = {
     generatedAt: "2026-10-01T00:00:00.000Z",
@@ -36,16 +70,13 @@ export const FIXTURE_CATALOG: Catalog = {
             popularity: 1000,
             setCode: "FRN",
             siteUrl: "https://anilist.co/anime/9001",
-            characters: [
-                ch(101, "Frieren", { role: "MAIN" }),
-                ch(102, "Fern"),
-                ch(103, "Stark", { gender: "Male", hair: { key: "red", raw: "red" } }),
-                ch(104, "Himmel", { gender: "Male", quote: null }),
-                ch(105, "Eisen", { gender: "Male", hair: null, quote: null, silhouette: null, occupation: null }),
-                ch(106, "Heiter", { gender: "Male", silhouette: null }),
-                ch(107, "Flamme", { hair: { key: "multicolour", raw: "multi" } }),
-                ch(108, "Ubel", { quote: null, silhouette: null }),
-            ],
+            characters: FRIEREN_CARDS,
+            // r2 roster: the cards plus two guess-only characters. 9002 has no roster (pre-r2 catalog shape).
+            roster: [
+                ...FRIEREN_CARDS.map(cardEntry),
+                extra(151, "Sein", { age: "30", favourites: 400, birthMonth: 6, va: va(9507, "Yoshitsugu Matsuoka") }),
+                extra(152, "Wirbel", { favourites: 300, va: KOBAYASHI }),
+            ].sort((a, b) => b.favourites - a.favourites || a.id - b.id),
         },
         {
             id: 9002,

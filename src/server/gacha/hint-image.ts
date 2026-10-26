@@ -16,7 +16,7 @@ import { hintImagePath, isHintImageToken, type HintImageKind } from "@/lib/gacha
  * and GCM rejects any edited token.
  */
 
-const KINDS: readonly HintImageKind[] = ["blur", "silhouette"];
+const KINDS: readonly HintImageKind[] = ["eyes", "blur", "silhouette"];
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -81,6 +81,25 @@ const PAPER = { r: 0xff, g: 0xf1, b: 0xe8 };
 export async function renderBlurHint(jpeg: Buffer): Promise<Buffer> {
     const tiny = await sharp(jpeg).resize(14, null, { fit: "inside" }).removeAlpha().png().toBuffer();
     return sharp(tiny).resize(224, null, { kernel: "cubic" }).blur(6).webp({ quality: 60 }).toBuffer();
+}
+
+/**
+ * Eye / face crop hint. There is no face detection here (no new deps, nothing
+ * guessed), so it is a fixed top-centre crop: AniList character art is a
+ * portrait, and its upper-middle band is where the eyes usually sit. The crop
+ * is cut from a 160 px-wide copy and enlarged, so the served bytes hold that
+ * band only, never the rest of the art.
+ */
+export const EYE_CROP = { left: 0.2, top: 0.16, width: 0.6, height: 0.2 } as const;
+
+export async function renderEyesHint(jpeg: Buffer): Promise<Buffer> {
+    const small = await sharp(jpeg).resize(160, null, { fit: "inside" }).removeAlpha().png().toBuffer({ resolveWithObject: true });
+    const { width, height } = small.info;
+    const left = Math.round(width * EYE_CROP.left);
+    const top = Math.round(height * EYE_CROP.top);
+    const w = Math.max(1, Math.min(width - left, Math.round(width * EYE_CROP.width)));
+    const h = Math.max(1, Math.min(height - top, Math.round(height * EYE_CROP.height)));
+    return sharp(small.data).extract({ left, top, width: w, height: h }).resize(w * 3, h * 3, { kernel: "nearest" }).webp({ quality: 70 }).toBuffer();
 }
 
 /** Otsu threshold over a 256-bin histogram. */

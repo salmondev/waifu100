@@ -477,3 +477,39 @@
 .g-act > .g-err { text-align: center; }
 
 @keyframes v2in { from { transform: scale(.25); } to { transform: none; } }
+
+/* ---- T-0016 r2: guess feedback grid, share, new hints ----------------------------------------------------------
+   Every cell pairs its colour with a pixel symbol (check / near / arrow / cross / ?), so colour is never the only
+   signal. Text in cells is 12px Mitr; contrasts: ink on green 8.6:1, ink on orange 7.0:1, paper on --red-act 4.8:1,
+   ink on grey 9.0:1. */
+.g-fb { padding: 12px 12px 10px; }
+.g-fbt { display: grid; gap: 8px; }
+.g-fbr { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.g-fbhead span { font: 400 12px/1.15 var(--th); text-align: center; overflow-wrap: anywhere; }
+.g-fbname { margin: 0 0 3px; display: flex; gap: 6px; align-items: baseline; font: 500 13px/1.25 var(--th); }
+.g-fbname b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-fbname em { font: 700 11px/1 var(--bit); font-style: normal; background: var(--green); padding: 2px 4px 1px; box-shadow: 0 0 0 2px var(--ink); }
+.g-cell { display: grid; justify-items: center; align-content: center; gap: 3px; min-height: 46px; padding: 4px 2px; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.g-cell .pxi { width: 14px; height: 14px; }
+.g-cell small { font: 400 12px/1.1 var(--th); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-cell.s-hit { background: var(--green); }
+.g-cell.s-near { background: var(--orange); }
+.g-cell.s-miss, .g-cell.s-up, .g-cell.s-down { background: var(--red-act, #d6003f); color: var(--paper); }
+.g-cell.s-unknown { background: var(--grey); }
+.g-legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; font: 300 12px/1.3 var(--th); }
+.g-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.g-legend .g-cell { min-height: 0; width: 20px; height: 20px; padding: 0; }
+.g-legend .g-cell .pxi { width: 10px; height: 10px; }
+.g-noface { position: absolute; inset: 0; display: grid; place-items: center; font: 700 16px/1 var(--bit); background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.g-track li.miss .g-noface { color: var(--slate); }
+.g-pic.eyes { width: 120px; height: 40px; }
+.g-pic.eyes img { image-rendering: pixelated; }
+.g-frame.eyes { display: grid; place-items: center; }
+.g-frame.eyes img { height: auto; aspect-ratio: 3 / 1; image-rendering: pixelated; }
+.g-initial { display: flex; flex-wrap: wrap; gap: 8px; }
+.g-initial > span { display: inline-flex; gap: 3px; }
+.g-initial i { width: 16px; height: 20px; display: grid; place-items: center; font: 700 13px/1 var(--bit); font-style: normal; box-shadow: inset 0 -2px 0 0 var(--ink); }
+.g-initial i:first-child:not(:empty) { background: var(--ink); color: var(--paper); box-shadow: none; }
+.g-stake-n { margin: -2px 0 6px; font: 400 12px/1.2 var(--th); }
+.g-sharebox { display: grid; gap: 4px; margin-top: 10px; font: 400 12px/1.3 var(--th); text-align: left; }
+.g-sharebox textarea { font: 400 14px/1.3 var(--th); color: var(--ink); background: var(--paper); border: 0; box-shadow: 0 0 0 2px var(--ink); padding: 6px; resize: none; }

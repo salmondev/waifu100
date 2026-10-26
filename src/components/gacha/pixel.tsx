@@ -73,6 +73,14 @@ export const ICONS = {
     card: ["ccccc..", "c...c..", "c.c.ccc", "c...c.c", "c.c.c.c", "ccccc.c", "..ccccc"],
     shop: [".......", "ccccccc", "c.c.c.c", "ccccccc", ".c...c.", ".ccccc.", ".c...c."],
     key: [".......", ".ccc...", "c...c..", "c...ccc", "c...c.c", ".ccc..c", "......."],
+    // r2 hint + feedback icons
+    eye: [".........", ".........", "..ccccc..", ".cc...cc.", "cc..c..cc", ".cc...cc.", "..ccccc..", ".........", "........."],
+    mic: ["...ccc...", "..ccccc..", "..ccccc..", "..ccccc..", "c.ccccc.c", "c..ccc..c", ".c.....c.", "..ccccc..", "....c...."],
+    letter: ["ccc......", "c.c......", "ccc......", "c.c......", "c.c......", ".........", "c.c.c.c.c", ".........", "........."],
+    up: ["...c...", "..ccc..", ".ccccc.", "ccccccc", "..ccc..", "..ccc..", "..ccc.."],
+    down: ["..ccc..", "..ccc..", "..ccc..", "ccccccc", ".ccccc.", "..ccc..", "...c..."],
+    near: [".......", ".cc...c", "c..c..c", "c...cc.", ".......", "ccccccc", "......."],
+    unknown: [".ccccc.", "cc...cc", ".....cc", "...ccc.", "...cc..", ".......", "...cc.."],
 } as const;
 
 export type IconName = keyof typeof ICONS;
@@ -83,7 +91,8 @@ export const Coin = () => <Px rows={COIN_ROWS} className="coin" />;
 export type TierName = "common" | "rare" | "sr" | "ssr";
 export const TIER_NAME: Record<TierName, string> = { common: "Common", rare: "Rare", sr: "SR", ssr: "SSR" };
 export const TIER_LABEL: Record<TierName, string> = { common: "C", rare: "R", sr: "SR", ssr: "SSR" };
-export const TIER_GUESSES: Record<TierName, string> = { ssr: "1", sr: "2", rare: "3-4", common: "5-6" };
+/** Steps per tier: guesses, plus hints bought (r2). */
+export const TIER_GUESSES: Record<TierName, string> = { ssr: "1", sr: "2", rare: "3-4", common: "5+" };
 
 export function TierMark({ tier }: { tier: TierName }) {
     if (tier === "ssr") return (<><Px rows={MARK.star} className="tm" /><Px rows={MARK.star} className="tm" /></>);

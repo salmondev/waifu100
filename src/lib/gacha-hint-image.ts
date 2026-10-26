@@ -1,12 +1,12 @@
 /**
- * Image hints (blur, silhouette) are served by /api/gacha/hint-image from an
+ * Image hints (eye crop, blur, silhouette) are served by /api/gacha/hint-image from an
  * opaque per-round token, never from the character's real image URL.
  * Shared by the server (builds the URL) and the client (checks it before it
  * reaches an <img>), so it must stay free of node-only imports.
  */
 export const HINT_IMAGE_PATH = "/api/gacha/hint-image";
 
-export type HintImageKind = "blur" | "silhouette";
+export type HintImageKind = "eyes" | "blur" | "silhouette";
 
 /** base64url token, see src/server/gacha/hint-image.ts for its shape. */
 const TOKEN = /^[A-Za-z0-9_-]{24,200}$/;

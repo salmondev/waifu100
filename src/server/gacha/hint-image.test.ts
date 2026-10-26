@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { hintImageToken, hintImageUrl, otsuThreshold, readHintImageToken, renderBlurHint, renderSilhouetteHint } from "./hint-image";
+import { hintImageToken, hintImageUrl, otsuThreshold, readHintImageToken, renderBlurHint, renderEyesHint, renderSilhouetteHint } from "./hint-image";
 
 const SALT = "test-salt";
 const REF = { day: "2026-10-27", charId: 101, kind: "blur" as const };
@@ -82,6 +82,20 @@ describe("hint image renderers", () => {
         let maxStep = 0;
         for (let x = 1; x < 180; x++) maxStep = Math.max(maxStep, Math.abs(data[x * info.channels] - data[(x - 1) * info.channels]));
         expect(maxStep).toBeLessThan(24);
+    });
+
+    it("eyes: only the top-centre band, enlarged, as a metadata-free webp", async () => {
+        const src = await portrait();
+        const srcMeta = await sharp(src).metadata();
+        const out = await renderEyesHint(src);
+        const meta = await sharp(out).metadata();
+        expect(meta.format).toBe("webp");
+        expect(meta.exif ?? meta.icc ?? meta.xmp).toBeUndefined();
+        // 160 px wide working copy: 60% of the width, 20% of the height, x3
+        const h160 = Math.round((srcMeta.height! * 160) / srcMeta.width!);
+        expect(meta.width).toBe(Math.round(160 * 0.6) * 3);
+        expect(meta.height).toBe(Math.round(h160 * 0.2) * 3);
+        expect(meta.height!).toBeLessThan(meta.width!);
     });
 
     it("silhouette: a two-colour png at 40 px resolution", async () => {
