@@ -23,7 +23,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ensureUserId } from "@/lib/user-id";
 import { isValidShareId } from "@/lib/share-keys";
 import { loadShareForEdit, updateOwnShare } from "@/lib/own-share";
-import { defaultWaifuTitle, parseWaifuStorage, resizeWaifuGrid, waifuSyncBody, type WaifuPersisted } from "@/lib/waifu-board";
+import { defaultWaifuTitle, parseWaifuStorage, resizeWaifuGrid, WAIFU_GRID_KEY, waifuSyncBody, type WaifuPersisted } from "@/lib/waifu-board";
 import { STORY_SIZES, STORY_SIZE_LABELS, TITLE_STYLES, TITLE_STYLE_LABELS, isStoryLayout, storyColumns, type TitleStyle } from "@/lib/story/config";
 import { CustomSizeControl } from "@/components/story/CustomSizeControl";
 import { TogetherStartConfirm } from "@/components/together/TogetherBoard";
@@ -53,7 +53,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-const STORAGE_KEY = "waifu100-grid";
+const STORAGE_KEY = WAIFU_GRID_KEY;
 
 // --- Helper: Search Validation ---
 const isInvalidSearchName = (name: string) => {

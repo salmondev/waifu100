@@ -8,11 +8,12 @@ vi.mock("@/lib/redis", () => ({
 }));
 
 import { setCatalog } from "./catalog";
-import { addDays, bangkokDayKey, dailyPick, guessRoster, hintLadder, type Tier } from "./rules";
+import { addDays, bangkokDayKey, dailyPick, guessRoster, hintLadder, SHIELD_PRICE, type Tier } from "./rules";
 import { hintImageToken } from "./hint-image";
 import { ARCHIVE_DAYS, FIRST_DAY_KEY } from "./rules";
 import {
     buyHint,
+    buyShield,
     configureGacha,
     GachaError,
     getAlbum,
@@ -20,6 +21,8 @@ import {
     getDay,
     getToday,
     guess,
+    guessPractice,
+    startPractice,
     markStorySeen,
     mintRecovery,
     resolveHintImage,
@@ -1133,5 +1136,40 @@ describe("archive (past days)", () => {
         store.profiles.set(ID, JSON.stringify(legacy.profile));
         expect(await code(getDay(ID, day))).toBe("day_unavailable");
         expect(await resolveHintImage(hintImageToken({ day, charId: 987654321, kind: "eyes", pid: ID }, SALT))).toBeNull();
+    });
+});
+
+describe("streak shield", () => {
+    it("spends 30 coins and bridges one missed day", async () => {
+        await getToday(ID);
+        await guess(ID, pick().answerId);
+        now = Date.parse("2026-10-29T05:00:00Z"); // two days later, Bangkok 29th; the 28th was missed
+        await getToday(ID);
+        const before = (await getToday(ID)).coins;
+        expect((await getToday(ID)).streak).toBe(0);
+        const bought = await buyShield(ID);
+        expect(bought.coins).toBe(before - SHIELD_PRICE);
+        expect(bought.shields).toBe(0);
+        expect(bought.streak).toBe(2);
+        expect((await profile()).shieldDays).toEqual(["2026-10-28"]);
+        expect(await code(buyShield(ID))).toBe("ok");
+    });
+});
+
+describe("practice", () => {
+    it("can be won without coins, the streak or the album changing", async () => {
+        await getToday(ID);
+        const started = await startPractice(ID);
+        expect(started.practice).toBe(true);
+        expect(started.maxGuesses).toBe(12);
+        const answerId = (await profile()).practice!.answerId;
+        const won = await guessPractice(ID, answerId);
+        expect(won.done).toBe("won");
+        expect(won.practice).toBe(true);
+        const saved = await profile();
+        expect(saved.coins).toBe(45);
+        expect(saved.finishedDays).toEqual([]);
+        expect(saved.collection).toEqual({});
+        expect(saved.rounds[today()].guesses).toEqual([]);
     });
 });

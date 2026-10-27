@@ -1,4 +1,7 @@
-import type { AnalysisResult, GridCell, VerdictFeedback } from "@/types";
+import type { AnalysisResult, Character, GridCell, VerdictFeedback } from "@/types";
+
+/** The home builder's localStorage key. /daily uses the same key to drop a card onto the grid. */
+export const WAIFU_GRID_KEY = "waifu100-grid";
 import { isValidShareId } from "@/lib/share-keys";
 import { WAIFU_GRID_SIZE } from "@/lib/share-schema";
 import { DEFAULT_TITLE_STYLE, isStoryLayout, isStorySize, isTitleStyle, type TitleStyle } from "@/lib/story/config";
@@ -63,6 +66,22 @@ export function parseWaifuStorage(raw: string | null): WaifuPersisted {
     } catch {
         return blank();
     }
+}
+
+/**
+ * Puts a character in the first empty cell of the saved grid.
+ * `placed` is false when that character is already on the board or the board is full.
+ */
+export function placeCharacterOnWaifuGrid(raw: string | null, character: Character): { stored: string; placed: boolean; full: boolean } {
+    const board = parseWaifuStorage(raw);
+    if (board.grid.some((cell) => cell.character?.mal_id === character.mal_id)) {
+        return { stored: JSON.stringify(board), placed: false, full: false };
+    }
+    const index = board.grid.findIndex((cell) => !cell.character);
+    if (index < 0) return { stored: JSON.stringify(board), placed: false, full: true };
+    const grid = board.grid.slice();
+    grid[index] = { character };
+    return { stored: JSON.stringify({ ...board, grid }), placed: true, full: false };
 }
 
 /** Cells for PUT. Null when nothing is placed, or a picture is still a local data/blob URL. */

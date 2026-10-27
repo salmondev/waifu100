@@ -8,7 +8,7 @@ import {
     LAUNCH_DAY_KEY,
     addDays, answerPool, answerWeight, bangkokDayKey, dailyPick, dayNumber, fastBonus, FEEDBACK_COLUMNS, gameAge, guessFeedback, guessRoster, hintLadder, hintValue,
     HINT_ORDER, HINT_SLOTS, isEmptySlot, missingHints, nameShape, nextBuyableSlot, openHintCount, playableAnime, secondsUntilNextBangkokDay, pullResult,
-    storyUnlocked, streak, tierForGuesses, tierSteps,
+    applyShields, storyUnlocked, streak, tierForGuesses, tierSteps,
 } from "./rules";
 import type { RosterCharacter } from "./catalog-types";
 import { KEEP_ROUND_DAYS } from "./store";
@@ -326,5 +326,27 @@ describe("streak", () => {
         expect(streak(["2026-10-26", "2026-10-28", "2026-10-30"], "2026-10-30")).toBe(1);
         expect(streak(["2026-10-27"], "2026-10-30")).toBe(0);
         expect(streak([], "2026-10-30")).toBe(0);
+    });
+    it("a shield day counts the same as a finished day", () => {
+        expect(streak(["2026-10-28"], "2026-10-30", ["2026-10-29"])).toBe(2);
+    });
+});
+
+describe("applyShields", () => {
+    it("fills the newest gap back to an older finished day, one shield per day", () => {
+        const one = applyShields({ finishedDays: ["2026-10-28"], shieldDays: [], shields: 1, todayKey: "2026-10-30" });
+        expect(one).toMatchObject({ shields: 0, changed: true, shieldDays: ["2026-10-29"] });
+        expect(streak(["2026-10-28"], "2026-10-30", one.shieldDays)).toBe(2);
+        const two = applyShields({ finishedDays: ["2026-10-26", "2026-10-28", "2026-10-30"], shieldDays: [], shields: 1, todayKey: "2026-10-30" });
+        expect(two.shieldDays).toEqual(["2026-10-29"]);
+        expect(streak(["2026-10-26", "2026-10-28", "2026-10-30"], "2026-10-30", two.shieldDays)).toBe(3);
+    });
+    it("does not invent a streak when the player has never finished a day", () => {
+        expect(applyShields({ finishedDays: [], shieldDays: [], shields: 3, todayKey: "2026-10-30" })).toMatchObject({ shields: 3, changed: false, shieldDays: [] });
+    });
+    it("leaves an already covered day alone", () => {
+        const again = applyShields({ finishedDays: ["2026-10-28"], shieldDays: ["2026-10-29"], shields: 1, todayKey: "2026-10-30" });
+        expect(again.changed).toBe(false);
+        expect(again.shields).toBe(1);
     });
 });

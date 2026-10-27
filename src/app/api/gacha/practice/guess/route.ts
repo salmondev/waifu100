@@ -1,0 +1,25 @@
+import { LIMITS } from "@/lib/rate-limit";
+import { gachaErrorResponse, gachaFail, gachaJson, gachaRateLimit, readJsonBody, requireGachaId } from "@/server/gacha/http";
+import { guessPractice } from "@/server/gacha/service";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** POST /api/gacha/practice/guess { charId } -> practice feedback. Does not touch the daily round. */
+export async function POST(req: Request) {
+    const auth = requireGachaId(req);
+    if ("response" in auth) return auth.response;
+    const limited = await gachaRateLimit(req, LIMITS.gachaWrite);
+    if (limited) return limited;
+    const parsed = await readJsonBody(req);
+    if ("response" in parsed) return parsed.response;
+    const charId = parsed.body.charId;
+    if (typeof charId !== "number" || !Number.isSafeInteger(charId) || charId <= 0) {
+        return gachaFail(400, "invalid_character", "charId must be a character id.");
+    }
+    try {
+        return gachaJson(await guessPractice(auth.id, charId));
+    } catch (e) {
+        return gachaErrorResponse(e, "practice-guess");
+    }
+}

@@ -33,6 +33,9 @@ import { POST as recoveryPOST } from "./recovery/route";
 import { POST as restorePOST } from "./restore/route";
 import { GET as hintImageGET } from "./hint-image/route";
 import { POST as storySeenPOST } from "./story-seen/route";
+import { GET as practiceGET, POST as practicePOST } from "./practice/route";
+import { POST as practiceGuessPOST } from "./practice/guess/route";
+import { POST as shieldPOST } from "./shield/route";
 import { GET as todayGET } from "./today/route";
 
 const ID = "3f1c2b7a-9d4e-4a6b-8c1d-2e3f4a5b6c7d";
@@ -79,6 +82,8 @@ describe("DAILY_SALT fails closed in production", () => {
         ["recovery", () => recoveryPOST(req("recovery", "POST", {}))],
         ["restore", () => restorePOST(req("restore", "POST", { code: "ABCD-EFGH-JKMN" }))],
         ["story-seen", () => storySeenPOST(req("story-seen", "POST", { animeId: 9001 }))],
+        ["shield", () => shieldPOST(req("shield", "POST", {}))],
+        ["practice", () => practicePOST(req("practice", "POST", {}))],
     ];
 
     it.each(calls)("%s -> 503 gacha_misconfigured without touching the store (NODE_ENV=production)", async (_n, call) => {
@@ -470,5 +475,27 @@ describe("archive (past days) routes", () => {
         const body = await (await archiveGET(req("archive"))).json();
         expect(body.today).toEqual({ key: day, number: expect.any(Number), state: "won", tier: won.result.pull.tier });
         expect(body.today.tier).not.toBeNull();
+    });
+});
+
+describe("shield and practice routes", () => {
+    it("a shield costs 30 and a practice win does not touch today's round", async () => {
+        const today = await todayGET(req("today"));
+        expect(today.status).toBe(200);
+        const before = await today.json();
+        const shield = await shieldPOST(req("shield", "POST", {}));
+        expect(shield.status).toBe(200);
+        expect(await shield.json()).toMatchObject({ coins: before.coins - 30, shields: 1 });
+        const started = await practicePOST(req("practice", "POST", {}));
+        expect(started.status).toBe(200);
+        const practice = await started.json();
+        expect(practice.practice).toBe(true);
+        const won = await practiceGuessPOST(req("practice/guess", "POST", { charId: (await store.load(ID))!.practice!.answerId }));
+        expect(won.status).toBe(200);
+        expect(await won.json()).toMatchObject({ done: "won", practice: true });
+        const saved = (await store.load(ID))!;
+        expect(saved.rounds[before.day.key].guesses).toEqual([]);
+        expect(saved.collection).toEqual({});
+        expect((await practiceGET(req("practice"))).status).toBe(200);
     });
 });
