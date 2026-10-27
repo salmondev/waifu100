@@ -152,14 +152,17 @@ function ShareFallback({ text }: { text: string }) {
 /** PICO-8 stepped ease: motion in 4 hard steps, no smooth tween. */
 export const steps4 = (t: number) => Math.min(1, Math.floor(t * 4 + 0.0001) / 4);
 
-const Face = ({ src, w = 128, className, name }: { src: string | null; w?: number; className?: string; name?: string }) =>
-    src ? (
+const Face = ({ src, w = 128, className, name }: { src: string | null; w?: number; className?: string; name?: string }) => {
+    // A failed load falls back to the initial too; a new src gets a fresh try.
+    const [failed, setFailed] = useState<string | null>(null);
+    return src && failed !== src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className={className} src={proxied(src, w)} alt="" draggable={false} style={{ objectPosition: FOCAL }} />
+        <img className={className} src={proxied(src, w)} alt="" draggable={false} style={{ objectPosition: FOCAL }} onError={() => setFailed(src)} />
     ) : (
         // Guess-only characters (no card) have no art here: show their initial instead.
         <b className="g-noface" aria-hidden="true">{(name ?? "?").trim().charAt(0).toUpperCase()}</b>
     );
+};
 
 /** A server-rendered hint image (already blurred / stencilled), never the art itself. */
 const HintPic = ({ src }: { src: string }) => {
