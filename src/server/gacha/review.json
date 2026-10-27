@@ -1,0 +1,3420 @@
+{
+ "version": 1,
+ "items": [
+  {
+   "key": "character:2:ageGame",
+   "kind": "character",
+   "id": 2,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "23",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/2",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "23 (Physical), 77 (Actual)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Faye Valentine",
+    "anime": "Cowboy Bebop",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:11:ageGame",
+   "kind": "character",
+   "id": 11,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "15-16",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/11",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "15-16 (series), 18 (movie, End of the se",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Edward Elric",
+    "anime": "Hagane no Renkinjutsushi: FULLMETAL ALCHEMIST",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:13:ageGame",
+   "kind": "character",
+   "id": 13,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "12-17",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/13",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "12-17 (Naruto) 27- (Boruto)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Sasuke Uchiha",
+    "anime": "NARUTO",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:17:ageGame",
+   "kind": "character",
+   "id": 17,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "12-17",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/17",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "12-17 (Naruto), 27- (Boruto)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Naruto Uzumaki",
+    "anime": "NARUTO",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:377:ageGame",
+   "kind": "character",
+   "id": 377,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "34+",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/377",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "34 or older",
+    "note": "open-ended"
+   },
+   "context": {
+    "name": "Kazuma Souma",
+    "anime": "Fruits Basket: 1st Season",
+    "card": false,
+    "reason": "open-ended"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:463:ageGame",
+   "kind": "character",
+   "id": 463,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "13-15",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/463",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "13-15 (Pre-timeskip); 19-20 (Post-timesk",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Mihael Keehl",
+    "anime": "DEATH NOTE",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:497:ageGame",
+   "kind": "character",
+   "id": 497,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "35",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/497",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "35 (chronologically), 15 (physically)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Artoria Pendragon",
+    "anime": "Fate/Zero",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:503:ageGame",
+   "kind": "character",
+   "id": 503,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "8",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/503",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "8 (Fate/Zero), 18 (Fate/stay night)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Illyasviel von Einzbern",
+    "anime": "Fate/Zero",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:506:ageGame",
+   "kind": "character",
+   "id": 506,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "28",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/506",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "28 (Fate/Zero), 38 (Fate/stay night)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Kirei Kotomine",
+    "anime": "Fate/Zero",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:719:ageGame",
+   "kind": "character",
+   "id": 719,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "19-23",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/719",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "19-23, (30's in Another Monster)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Johan Liebert",
+    "anime": "MONSTER",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:720:ageGame",
+   "kind": "character",
+   "id": 720,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "19-23",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/720",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "19-23, (30's in Another Monster)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Anna Liebert",
+    "anime": "MONSTER",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:2007:ageGame",
+   "kind": "character",
+   "id": 2007,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "13",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/2007",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "13 (I), 16 (II)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Shikamaru Nara",
+    "anime": "NARUTO",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:2767:ageGame",
+   "kind": "character",
+   "id": 2767,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "51",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/2767",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "51 (I), 54-55 (II), 70 (III)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Tsunade Senju",
+    "anime": "NARUTO",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:2945:ageGame",
+   "kind": "character",
+   "id": 2945,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "20-29",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/2945",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "20s",
+    "note": "decade"
+   },
+   "context": {
+    "name": "Tatsuma Sakamoto",
+    "anime": "Gintama",
+    "card": false,
+    "reason": "decade"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:38559:ageGame",
+   "kind": "character",
+   "id": 38559,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "11",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/38559",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "11 (Steins;Gate), 20-21 (Robotics;Notes)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Nae Tennouji",
+    "anime": "Steins;Gate",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:88348:ageGame",
+   "kind": "character",
+   "id": 88348,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "34",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/88348",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "34 (previous life), 23 (current)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Rudeus Greyrat",
+    "anime": "Mushoku Tensei: Isekai Ittara Honki Dasu",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:88838:ageGame",
+   "kind": "character",
+   "id": 88838,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "21",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/88838",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "21 (Tokyo Ghoul), 24 (Tokyo Ghoul:re)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Akira Mado",
+    "anime": "Tokyo Ghoul",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:88889:ageGame",
+   "kind": "character",
+   "id": 88889,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "10",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/88889",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "10 (mentally), 18 (biologically)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Raphtalia",
+    "anime": "Tate no Yuusha no Nariagari",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:89275:ageGame",
+   "kind": "character",
+   "id": 89275,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "10-11",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/89275",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "10-11 (Past), 29 (Present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Satoru Fujinuma",
+    "anime": "Boku dake ga Inai Machi",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:89326:ageGame",
+   "kind": "character",
+   "id": 89326,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "52",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/89326",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "52 (Past) 66 (Present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Sachiko Fujinuma",
+    "anime": "Boku dake ga Inai Machi",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:89365:ageGame",
+   "kind": "character",
+   "id": 89365,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "28-33",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/89365",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "28-33 (first appearance) 46-52 (2006)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Gaku Yashiro",
+    "anime": "Boku dake ga Inai Machi",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:90179:ageGame",
+   "kind": "character",
+   "id": 90179,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "62",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/90179",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "62 (Arc 5+), 61 (Arc 3-4), 15-20 (Ex 2)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Wilhelm van Astrea",
+    "anime": "Re:Zero kara Hajimeru Isekai Seikatsu",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:123962:ageGame",
+   "kind": "character",
+   "id": 123962,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "37",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/123962",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "37 (past life) → 3",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Rimuru Tempest",
+    "anime": "Tensei Shitara Slime Datta Ken",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:124142:ageGame",
+   "kind": "character",
+   "id": 124142,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "15-23",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/124142",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "15-23+ (physically), 3700+ (chronologica",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Senkuu Ishigami",
+    "anime": "Dr. STONE",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:124143:ageGame",
+   "kind": "character",
+   "id": 124143,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "16-23",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/124143",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "16-23 (physically), 27 (chronologically)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Kohaku",
+    "anime": "Dr. STONE",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:124147:ageGame",
+   "kind": "character",
+   "id": 124147,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "15-17",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/124147",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "15-17 (physically), 3700+ (chronological",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Yuzuriha Ogawa",
+    "anime": "Dr. STONE",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:126828:ageGame",
+   "kind": "character",
+   "id": 126828,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "1",
+    "source": "anilist-desc",
+    "confidence": "low",
+    "raw": "<1 (mentally), 10 (physically)",
+    "note": "multiple values",
+    "url": "https://anilist.co/character/126828",
+    "fetchedAt": "2026-10-27T07:53:15Z"
+   },
+   "context": {
+    "name": "Filo",
+    "anime": "Tate no Yuusha no Nariagari",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:136792:ageGame",
+   "kind": "character",
+   "id": 136792,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "10",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/136792",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "10 (initial), 15 (post-level)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Keel",
+    "anime": "Tate no Yuusha no Nariagari",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:138453:ageGame",
+   "kind": "character",
+   "id": 138453,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "14",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/138453",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "14 (past), 26 (present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Hinata Tachibana",
+    "anime": "Tokyo Revengers",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:145062:ageGame",
+   "kind": "character",
+   "id": 145062,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "20-29",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/145062",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "20s (physically), 3700+ (Chronologically",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Hyouga",
+    "anime": "Dr. STONE",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:145342:ageGame",
+   "kind": "character",
+   "id": 145342,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "14",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/145342",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "14 (past), 26 (present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Takemichi Hanagaki",
+    "anime": "Tokyo Revengers",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:145344:ageGame",
+   "kind": "character",
+   "id": 145344,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "14",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/145344",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "14 (past), 26 (future)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Chifuyu Matsuno",
+    "anime": "Tokyo Revengers",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:145345:ageGame",
+   "kind": "character",
+   "id": 145345,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "15",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/145345",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "15 (past), 27 (present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Ken Ryuuguji",
+    "anime": "Tokyo Revengers",
+    "card": true,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:167843:ageGame",
+   "kind": "character",
+   "id": 167843,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "13",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/167843",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "13 (Past), 25 (Present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Naoto Tachibana",
+    "anime": "Tokyo Revengers",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:167846:ageGame",
+   "kind": "character",
+   "id": 167846,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "15",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/167846",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "15 (2005) - 27 (2017)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Kazutora Hanemiya",
+    "anime": "Tokyo Revengers",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:168678:ageGame",
+   "kind": "character",
+   "id": 168678,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "16",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/168678",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "16 (past), 28 (present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Souya Kawata",
+    "anime": "Tokyo Revengers",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:168679:ageGame",
+   "kind": "character",
+   "id": 168679,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "16",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/168679",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "16 (past), 28 (present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Nahoya Kawata",
+    "anime": "Tokyo Revengers",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:170479:ageGame",
+   "kind": "character",
+   "id": 170479,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "16",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/170479",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "16 (past), 28 (present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Seishuu Inui",
+    "anime": "Tokyo Revengers",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:215868:ageGame",
+   "kind": "character",
+   "id": 215868,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "16",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/215868",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "16 (Past) - 28 (Present)",
+    "note": "multiple values"
+   },
+   "context": {
+    "name": "Shuuji Hanma",
+    "anime": "Tokyo Revengers",
+    "card": false,
+    "reason": "multiple values"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:229652:ageGame",
+   "kind": "character",
+   "id": 229652,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "15-20",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/229652",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "15-20s",
+    "note": "unrecognised wording"
+   },
+   "context": {
+    "name": "Akane Nishino",
+    "anime": "Kage no Jitsuryokusha ni Naritakute!",
+    "card": false,
+    "reason": "unrecognised wording"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:232926:ageGame",
+   "kind": "character",
+   "id": 232926,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "40-49",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/232926",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "40s",
+    "note": "decade"
+   },
+   "context": {
+    "name": "Lakan",
+    "anime": "Kusuriya no Hitorigoto",
+    "card": false,
+    "reason": "decade"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:274189:ageGame",
+   "kind": "character",
+   "id": 274189,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "30-39",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/274189",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "30s",
+    "note": "decade"
+   },
+   "context": {
+    "name": "Pairin",
+    "anime": "Kusuriya no Hitorigoto",
+    "card": false,
+    "reason": "decade"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:274193:ageGame",
+   "kind": "character",
+   "id": 274193,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "20-29",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/274193",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "20s",
+    "note": "decade"
+   },
+   "context": {
+    "name": "Joka",
+    "anime": "Kusuriya no Hitorigoto",
+    "card": false,
+    "reason": "decade"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:274195:ageGame",
+   "kind": "character",
+   "id": 274195,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "20-29",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/274195",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "20s",
+    "note": "decade"
+   },
+   "context": {
+    "name": "Lihaku",
+    "anime": "Kusuriya no Hitorigoto",
+    "card": false,
+    "reason": "decade"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:284159:ageGame",
+   "kind": "character",
+   "id": 284159,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "30-39",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/284159",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "30s",
+    "note": "decade"
+   },
+   "context": {
+    "name": "Maine",
+    "anime": "Cyberpunk: Edgerunners",
+    "card": true,
+    "reason": "decade"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:284160:ageGame",
+   "kind": "character",
+   "id": 284160,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "30-39",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/284160",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "30s",
+    "note": "decade"
+   },
+   "context": {
+    "name": "Dorio",
+    "anime": "Cyberpunk: Edgerunners",
+    "card": false,
+    "reason": "decade"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:284162:ageGame",
+   "kind": "character",
+   "id": 284162,
+   "field": "ageGame",
+   "status": "pending",
+   "reason": "low confidence",
+   "candidate": {
+    "value": "30-39",
+    "source": "anilist-normalised",
+    "url": "https://anilist.co/character/284162",
+    "confidence": "low",
+    "fetchedAt": "2026-10-27T07:52:44Z",
+    "raw": "30s",
+    "note": "decade"
+   },
+   "context": {
+    "name": "Pilar",
+    "anime": "Cyberpunk: Edgerunners",
+    "card": false,
+    "reason": "decade"
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:351:gender",
+   "kind": "character",
+   "id": 351,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=20 she=0",
+    "url": "https://anilist.co/character/351",
+    "fetchedAt": "2026-10-27T07:52:57Z"
+   },
+   "context": {
+    "name": "Greed",
+    "anime": "Hagane no Renkinjutsushi: FULLMETAL ALCHEMIST",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:368:gender",
+   "kind": "character",
+   "id": 368,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=8 she=0",
+    "url": "https://anilist.co/character/368",
+    "fetchedAt": "2026-10-27T07:53:43Z"
+   },
+   "context": {
+    "name": "Hatori Souma",
+    "anime": "Fruits Basket: 1st Season",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:370:gender",
+   "kind": "character",
+   "id": 370,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=16 she=0",
+    "url": "https://anilist.co/character/370",
+    "fetchedAt": "2026-10-27T07:53:43Z"
+   },
+   "context": {
+    "name": "Ayame Souma",
+    "anime": "Fruits Basket: 1st Season",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:374:gender",
+   "kind": "character",
+   "id": 374,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=10 she=1",
+    "url": "https://anilist.co/character/374",
+    "fetchedAt": "2026-10-27T07:53:43Z"
+   },
+   "context": {
+    "name": "Akito Souma",
+    "anime": "Fruits Basket: 1st Season",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:740:gender",
+   "kind": "character",
+   "id": 740,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=27",
+    "url": "https://anilist.co/character/740",
+    "fetchedAt": "2026-10-27T07:53:50Z"
+   },
+   "context": {
+    "name": "Nana",
+    "anime": "Elfen Lied",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:742:gender",
+   "kind": "character",
+   "id": 742,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=13",
+    "url": "https://anilist.co/character/742",
+    "fetchedAt": "2026-10-27T07:53:50Z"
+   },
+   "context": {
+    "name": "Mariko Kurama",
+    "anime": "Elfen Lied",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:743:gender",
+   "kind": "character",
+   "id": 743,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=11",
+    "url": "https://anilist.co/character/743",
+    "fetchedAt": "2026-10-27T07:53:50Z"
+   },
+   "context": {
+    "name": "Mayu",
+    "anime": "Elfen Lied",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:2078:gender",
+   "kind": "character",
+   "id": 2078,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=2 she=33",
+    "url": "https://anilist.co/character/2078",
+    "fetchedAt": "2026-10-27T07:53:58Z"
+   },
+   "context": {
+    "name": "Nagi Sanzenin",
+    "anime": "Tonikaku Kawaii",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:2325:gender",
+   "kind": "character",
+   "id": 2325,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=8 she=1",
+    "url": "https://anilist.co/character/2325",
+    "fetchedAt": "2026-10-27T07:53:50Z"
+   },
+   "context": {
+    "name": "Bando",
+    "anime": "Elfen Lied",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:2735:gender",
+   "kind": "character",
+   "id": 2735,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=2 she=7",
+    "url": "https://anilist.co/character/2735",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Julia",
+    "anime": "Cowboy Bebop",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:2736:gender",
+   "kind": "character",
+   "id": 2736,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=6 she=0",
+    "url": "https://anilist.co/character/2736",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Grencia Mars Elijah Guo Eckener",
+    "anime": "Cowboy Bebop",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:3404:gender",
+   "kind": "character",
+   "id": 3404,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=3 she=28",
+    "url": "https://anilist.co/character/3404",
+    "fetchedAt": "2026-10-27T07:53:30Z"
+   },
+   "context": {
+    "name": "Adiane",
+    "anime": "Tengen Toppa Gurren Lagann",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:3433:gender",
+   "kind": "character",
+   "id": 3433,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=8",
+    "url": "https://anilist.co/character/3433",
+    "fetchedAt": "2026-10-27T07:53:30Z"
+   },
+   "context": {
+    "name": "Darry Adai",
+    "anime": "Tengen Toppa Gurren Lagann",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:3434:gender",
+   "kind": "character",
+   "id": 3434,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=5 she=0",
+    "url": "https://anilist.co/character/3434",
+    "fetchedAt": "2026-10-27T07:53:30Z"
+   },
+   "context": {
+    "name": "Kittan Bachika",
+    "anime": "Tengen Toppa Gurren Lagann",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:3435:gender",
+   "kind": "character",
+   "id": 3435,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=5",
+    "url": "https://anilist.co/character/3435",
+    "fetchedAt": "2026-10-27T07:53:30Z"
+   },
+   "context": {
+    "name": "Kiyoh Bachika",
+    "anime": "Tengen Toppa Gurren Lagann",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:3437:gender",
+   "kind": "character",
+   "id": 3437,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=4",
+    "url": "https://anilist.co/character/3437",
+    "fetchedAt": "2026-10-27T07:53:30Z"
+   },
+   "context": {
+    "name": "Kiyal Bachika",
+    "anime": "Tengen Toppa Gurren Lagann",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:4609:gender",
+   "kind": "character",
+   "id": 4609,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=7",
+    "url": "https://anilist.co/character/4609",
+    "fetchedAt": "2026-10-27T07:53:45Z"
+   },
+   "context": {
+    "name": "Misae Sagara",
+    "anime": "CLANNAD",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:4957:gender",
+   "kind": "character",
+   "id": 4957,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=9 she=0",
+    "url": "https://anilist.co/character/4957",
+    "fetchedAt": "2026-10-27T07:53:43Z"
+   },
+   "context": {
+    "name": "Kakeru Manabe",
+    "anime": "Fruits Basket: 1st Season",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:4964:gender",
+   "kind": "character",
+   "id": 4964,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=5 she=0",
+    "url": "https://anilist.co/character/4964",
+    "fetchedAt": "2026-10-27T07:53:22Z"
+   },
+   "context": {
+    "name": "Deus Ex Machina",
+    "anime": "Mirai Nikki",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:4965:gender",
+   "kind": "character",
+   "id": 4965,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=7",
+    "url": "https://anilist.co/character/4965",
+    "fetchedAt": "2026-10-27T07:53:22Z"
+   },
+   "context": {
+    "name": "Mur Mur",
+    "anime": "Mirai Nikki",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:4966:gender",
+   "kind": "character",
+   "id": 4966,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=7",
+    "url": "https://anilist.co/character/4966",
+    "fetchedAt": "2026-10-27T07:53:20Z"
+   },
+   "context": {
+    "name": "Minene Uryuu",
+    "anime": "Mirai Nikki",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:5118:gender",
+   "kind": "character",
+   "id": 5118,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=14 she=0",
+    "url": "https://anilist.co/character/5118",
+    "fetchedAt": "2026-10-27T07:53:30Z"
+   },
+   "context": {
+    "name": "Lordgenome",
+    "anime": "Tengen Toppa Gurren Lagann",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:5465:gender",
+   "kind": "character",
+   "id": 5465,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=6",
+    "url": "https://anilist.co/character/5465",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Rin",
+    "anime": "Sen to Chihiro no Kamikakushi",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:6694:gender",
+   "kind": "character",
+   "id": 6694,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=3",
+    "url": "https://anilist.co/character/6694",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Judy",
+    "anime": "Cowboy Bebop",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:6816:gender",
+   "kind": "character",
+   "id": 6816,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=43 she=11",
+    "url": "https://anilist.co/character/6816",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Ritsu Kasanoda",
+    "anime": "Ouran Koukou Host Club",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:7096:gender",
+   "kind": "character",
+   "id": 7096,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=0",
+    "url": "https://anilist.co/character/7096",
+    "fetchedAt": "2026-10-27T07:53:45Z"
+   },
+   "context": {
+    "name": "Yusuke Yoshino",
+    "anime": "CLANNAD",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:8298:gender",
+   "kind": "character",
+   "id": 8298,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=13 she=1",
+    "url": "https://anilist.co/character/8298",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Kaonashi",
+    "anime": "Sen to Chihiro no Kamikakushi",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:8301:gender",
+   "kind": "character",
+   "id": 8301,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=0",
+    "url": "https://anilist.co/character/8301",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Kamajii",
+    "anime": "Sen to Chihiro no Kamikakushi",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:9315:gender",
+   "kind": "character",
+   "id": 9315,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=6",
+    "url": "https://anilist.co/character/9315",
+    "fetchedAt": "2026-10-27T07:53:58Z"
+   },
+   "context": {
+    "name": "Sakura Kasugano",
+    "anime": "Tonikaku Kawaii",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:11080:gender",
+   "kind": "character",
+   "id": 11080,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=5 she=0",
+    "url": "https://anilist.co/character/11080",
+    "fetchedAt": "2026-10-27T07:53:35Z"
+   },
+   "context": {
+    "name": "Julius Reichwein",
+    "anime": "MONSTER",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:12728:gender",
+   "kind": "character",
+   "id": 12728,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=3 she=0",
+    "url": "https://anilist.co/character/12728",
+    "fetchedAt": "2026-10-27T07:53:45Z"
+   },
+   "context": {
+    "name": "Shishigami",
+    "anime": "Mononoke-hime",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:12944:gender",
+   "kind": "character",
+   "id": 12944,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=27 she=2",
+    "url": "https://anilist.co/character/12944",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Kiyomasa Senji",
+    "anime": "Deadman Wonderland",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:13046:gender",
+   "kind": "character",
+   "id": 13046,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=12 she=0",
+    "url": "https://anilist.co/character/13046",
+    "fetchedAt": "2026-10-27T07:53:27Z"
+   },
+   "context": {
+    "name": "Excalibur",
+    "anime": "Soul Eater",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:13689:gender",
+   "kind": "character",
+   "id": 13689,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=9",
+    "url": "https://anilist.co/character/13689",
+    "fetchedAt": "2026-10-27T07:53:27Z"
+   },
+   "context": {
+    "name": "Eruka Frog",
+    "anime": "Soul Eater",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:13898:gender",
+   "kind": "character",
+   "id": 13898,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=9",
+    "url": "https://anilist.co/character/13898",
+    "fetchedAt": "2026-10-27T07:52:55Z"
+   },
+   "context": {
+    "name": "Biscuit Krueger",
+    "anime": "HUNTER×HUNTER (2011)",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:14954:gender",
+   "kind": "character",
+   "id": 14954,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=6 she=0",
+    "url": "https://anilist.co/character/14954",
+    "fetchedAt": "2026-10-27T07:53:52Z"
+   },
+   "context": {
+    "name": "Bardroy",
+    "anime": "Kuroshitsuji",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:14955:gender",
+   "kind": "character",
+   "id": 14955,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=6 she=0",
+    "url": "https://anilist.co/character/14955",
+    "fetchedAt": "2026-10-27T07:53:52Z"
+   },
+   "context": {
+    "name": "Tanaka",
+    "anime": "Kuroshitsuji",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:14958:gender",
+   "kind": "character",
+   "id": 14958,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=19 she=0",
+    "url": "https://anilist.co/character/14958",
+    "fetchedAt": "2026-10-27T07:53:52Z"
+   },
+   "context": {
+    "name": "Lau",
+    "anime": "Kuroshitsuji",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:15843:gender",
+   "kind": "character",
+   "id": 15843,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=2 she=9",
+    "url": "https://anilist.co/character/15843",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Minatsuki Takami",
+    "anime": "Deadman Wonderland",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:15844:gender",
+   "kind": "character",
+   "id": 15844,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=2 she=8",
+    "url": "https://anilist.co/character/15844",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Karako Koshio",
+    "anime": "Deadman Wonderland",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:15845:gender",
+   "kind": "character",
+   "id": 15845,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=5 she=0",
+    "url": "https://anilist.co/character/15845",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Nagi Kengamine",
+    "anime": "Deadman Wonderland",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:16402:gender",
+   "kind": "character",
+   "id": 16402,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=14",
+    "url": "https://anilist.co/character/16402",
+    "fetchedAt": "2026-10-27T07:53:07Z"
+   },
+   "context": {
+    "name": "Yuri Koigakubo",
+    "anime": "Toradora!",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:17059:gender",
+   "kind": "character",
+   "id": 17059,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=7",
+    "url": "https://anilist.co/character/17059",
+    "fetchedAt": "2026-10-27T07:53:07Z"
+   },
+   "context": {
+    "name": "Inko-chan",
+    "anime": "Toradora!",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:17192:gender",
+   "kind": "character",
+   "id": 17192,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=19 she=0",
+    "url": "https://anilist.co/character/17192",
+    "fetchedAt": "2026-10-27T07:53:52Z"
+   },
+   "context": {
+    "name": "William T. Spears",
+    "anime": "Kuroshitsuji",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:18228:gender",
+   "kind": "character",
+   "id": 18228,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=9 she=0",
+    "url": "https://anilist.co/character/18228",
+    "fetchedAt": "2026-10-27T07:53:52Z"
+   },
+   "context": {
+    "name": "Aleister Chamber",
+    "anime": "Kuroshitsuji",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:18590:gender",
+   "kind": "character",
+   "id": 18590,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=3",
+    "url": "https://anilist.co/character/18590",
+    "fetchedAt": "2026-10-27T07:53:33Z"
+   },
+   "context": {
+    "name": "Silene",
+    "anime": "DEVILMAN crybaby",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:20594:gender",
+   "kind": "character",
+   "id": 20594,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=7 she=0",
+    "url": "https://anilist.co/character/20594",
+    "fetchedAt": "2026-10-27T07:52:55Z"
+   },
+   "context": {
+    "name": "Kite",
+    "anime": "HUNTER×HUNTER (2011)",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:21400:gender",
+   "kind": "character",
+   "id": 21400,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=10",
+    "url": "https://anilist.co/character/21400",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Kiwako Flügel Makina",
+    "anime": "Deadman Wonderland",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:21957:gender",
+   "kind": "character",
+   "id": 21957,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=3 she=0",
+    "url": "https://anilist.co/character/21957",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Smokey Brown",
+    "anime": "JoJo no Kimyou na Bouken (TV)",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:21963:gender",
+   "kind": "character",
+   "id": 21963,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=12 she=0",
+    "url": "https://anilist.co/character/21963",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Santana",
+    "anime": "JoJo no Kimyou na Bouken (TV)",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:21964:gender",
+   "kind": "character",
+   "id": 21964,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=5 she=0",
+    "url": "https://anilist.co/character/21964",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "ACDC",
+    "anime": "JoJo no Kimyou na Bouken (TV)",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:21965:gender",
+   "kind": "character",
+   "id": 21965,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=12 she=0",
+    "url": "https://anilist.co/character/21965",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Wamuu",
+    "anime": "JoJo no Kimyou na Bouken (TV)",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:21978:gender",
+   "kind": "character",
+   "id": 21978,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=9 she=0",
+    "url": "https://anilist.co/character/21978",
+    "fetchedAt": "2026-10-27T07:53:52Z"
+   },
+   "context": {
+    "name": "Pluto",
+    "anime": "Kuroshitsuji",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:22145:gender",
+   "kind": "character",
+   "id": 22145,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=5 she=0",
+    "url": "https://anilist.co/character/22145",
+    "fetchedAt": "2026-10-27T07:53:10Z"
+   },
+   "context": {
+    "name": "Gotou",
+    "anime": "Kiseijuu: Sei no Kakuritsu",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:22146:gender",
+   "kind": "character",
+   "id": 22146,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=9 she=0",
+    "url": "https://anilist.co/character/22146",
+    "fetchedAt": "2026-10-27T07:53:10Z"
+   },
+   "context": {
+    "name": "Mamoru Uda",
+    "anime": "Kiseijuu: Sei no Kakuritsu",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:22255:gender",
+   "kind": "character",
+   "id": 22255,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=6 she=0",
+    "url": "https://anilist.co/character/22255",
+    "fetchedAt": "2026-10-27T07:53:47Z"
+   },
+   "context": {
+    "name": "Shinji Koganei",
+    "anime": "Kuroko no Basket",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:23740:gender",
+   "kind": "character",
+   "id": 23740,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=6 she=0",
+    "url": "https://anilist.co/character/23740",
+    "fetchedAt": "2026-10-27T07:53:12Z"
+   },
+   "context": {
+    "name": "Andy Von de Oniyate",
+    "anime": "Cowboy Bebop",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:24333:gender",
+   "kind": "character",
+   "id": 24333,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=11",
+    "url": "https://anilist.co/character/24333",
+    "fetchedAt": "2026-10-27T07:53:35Z"
+   },
+   "context": {
+    "name": "Leysritt",
+    "anime": "Fate/Zero",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:24843:gender",
+   "kind": "character",
+   "id": 24843,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=5 she=0",
+    "url": "https://anilist.co/character/24843",
+    "fetchedAt": "2026-10-27T07:53:30Z"
+   },
+   "context": {
+    "name": "Biwamaru",
+    "anime": "Dororo",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:26780:gender",
+   "kind": "character",
+   "id": 26780,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=9 she=0",
+    "url": "https://anilist.co/character/26780",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Toto Sakigami",
+    "anime": "Deadman Wonderland",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:28084:gender",
+   "kind": "character",
+   "id": 28084,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=5",
+    "url": "https://anilist.co/character/28084",
+    "fetchedAt": "2026-10-27T07:53:47Z"
+   },
+   "context": {
+    "name": "Satsuki Hyoudou",
+    "anime": "Kaichou wa Maid-sama!",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:28085:gender",
+   "kind": "character",
+   "id": 28085,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=5",
+    "url": "https://anilist.co/character/28085",
+    "fetchedAt": "2026-10-27T07:53:47Z"
+   },
+   "context": {
+    "name": "Honoka",
+    "anime": "Kaichou wa Maid-sama!",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:29575:gender",
+   "kind": "character",
+   "id": 29575,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=18 she=0",
+    "url": "https://anilist.co/character/29575",
+    "fetchedAt": "2026-10-27T07:53:43Z"
+   },
+   "context": {
+    "name": "Max Lobo",
+    "anime": "BANANA FISH",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:29739:gender",
+   "kind": "character",
+   "id": 29739,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=3 she=0",
+    "url": "https://anilist.co/character/29739",
+    "fetchedAt": "2026-10-27T07:53:47Z"
+   },
+   "context": {
+    "name": "Ikuto Sarashina",
+    "anime": "Kaichou wa Maid-sama!",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:36381:gender",
+   "kind": "character",
+   "id": 36381,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=1 she=8",
+    "url": "https://anilist.co/character/36381",
+    "fetchedAt": "2026-10-27T07:53:47Z"
+   },
+   "context": {
+    "name": "Yuriko Takagi",
+    "anime": "Gakuen Mokushiroku: HIGHSCHOOL OF THE DEAD",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:40595:gender",
+   "kind": "character",
+   "id": 40595,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=7",
+    "url": "https://anilist.co/character/40595",
+    "fetchedAt": "2026-10-27T07:53:27Z"
+   },
+   "context": {
+    "name": "Chiriko Tsurumi",
+    "anime": "Ano Hi Mita Hana no Namae wo Bokutachi wa Mada Shiranai.",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:40596:gender",
+   "kind": "character",
+   "id": 40596,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=8 she=0",
+    "url": "https://anilist.co/character/40596",
+    "fetchedAt": "2026-10-27T07:53:27Z"
+   },
+   "context": {
+    "name": "Tetsudo Hisakawa",
+    "anime": "Ano Hi Mita Hana no Namae wo Bokutachi wa Mada Shiranai.",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:48473:gender",
+   "kind": "character",
+   "id": 48473,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=1",
+    "url": "https://anilist.co/character/48473",
+    "fetchedAt": "2026-10-27T07:53:10Z"
+   },
+   "context": {
+    "name": "Arthur",
+    "anime": "Code Geass: Hangyaku no Lelouch",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:51587:gender",
+   "kind": "character",
+   "id": 51587,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=3 she=0",
+    "url": "https://anilist.co/character/51587",
+    "fetchedAt": "2026-10-27T07:53:27Z"
+   },
+   "context": {
+    "name": "Naoya Teshigawara",
+    "anime": "Another",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:58345:gender",
+   "kind": "character",
+   "id": 58345,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=3",
+    "url": "https://anilist.co/character/58345",
+    "fetchedAt": "2026-10-27T07:53:40Z"
+   },
+   "context": {
+    "name": "Grayfia Lucifuge",
+    "anime": "High School DxD",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:60625:gender",
+   "kind": "character",
+   "id": 60625,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=3 she=0",
+    "url": "https://anilist.co/character/60625",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Risa Mizuno",
+    "anime": "Byousoku 5 Centimeter",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:72283:gender",
+   "kind": "character",
+   "id": 72283,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=3",
+    "url": "https://anilist.co/character/72283",
+    "fetchedAt": "2026-10-27T07:53:58Z"
+   },
+   "context": {
+    "name": "Mana Takamiya",
+    "anime": "Date A Live",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:73811:gender",
+   "kind": "character",
+   "id": 73811,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=6",
+    "url": "https://anilist.co/character/73811",
+    "fetchedAt": "2026-10-27T07:52:57Z"
+   },
+   "context": {
+    "name": "Sakuya",
+    "anime": "Sword Art Online",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:79583:gender",
+   "kind": "character",
+   "id": 79583,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=3",
+    "url": "https://anilist.co/character/79583",
+    "fetchedAt": "2026-10-27T07:53:58Z"
+   },
+   "context": {
+    "name": "Reimi Akizuki",
+    "anime": "Kotonoha no Niwa",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:79585:gender",
+   "kind": "character",
+   "id": 79585,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=0",
+    "url": "https://anilist.co/character/79585",
+    "fetchedAt": "2026-10-27T07:53:58Z"
+   },
+   "context": {
+    "name": "Shouta Akizuki",
+    "anime": "Kotonoha no Niwa",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:84613:gender",
+   "kind": "character",
+   "id": 84613,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=6",
+    "url": "https://anilist.co/character/84613",
+    "fetchedAt": "2026-10-27T07:53:30Z"
+   },
+   "context": {
+    "name": "Rumi Tsurumi",
+    "anime": "Yahari Ore no Seishun Love Come wa Machigatteiru.",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:85779:gender",
+   "kind": "character",
+   "id": 85779,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=13",
+    "url": "https://anilist.co/character/85779",
+    "fetchedAt": "2026-10-27T07:53:25Z"
+   },
+   "context": {
+    "name": "Hinako Inui",
+    "anime": "Shokugeki no Souma",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:88756:gender",
+   "kind": "character",
+   "id": 88756,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=0",
+    "url": "https://anilist.co/character/88756",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Zack",
+    "anime": "Plastic Memories",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:88758:gender",
+   "kind": "character",
+   "id": 88758,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=6 she=0",
+    "url": "https://anilist.co/character/88758",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Constance",
+    "anime": "Plastic Memories",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:88897:gender",
+   "kind": "character",
+   "id": 88897,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=10 she=33",
+    "url": "https://anilist.co/character/88897",
+    "fetchedAt": "2026-10-27T07:53:25Z"
+   },
+   "context": {
+    "name": "Liliruca Arde",
+    "anime": "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:88912:gender",
+   "kind": "character",
+   "id": 88912,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=16 she=0",
+    "url": "https://anilist.co/character/88912",
+    "fetchedAt": "2026-10-27T07:53:38Z"
+   },
+   "context": {
+    "name": "Shihou Kimizuki",
+    "anime": "Owari no Seraph",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:88988:gender",
+   "kind": "character",
+   "id": 88988,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=23 she=0",
+    "url": "https://anilist.co/character/88988",
+    "fetchedAt": "2026-10-27T07:53:38Z"
+   },
+   "context": {
+    "name": "Yoichi Saotome",
+    "anime": "Owari no Seraph",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:90187:gender",
+   "kind": "character",
+   "id": 90187,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=10 she=2",
+    "url": "https://anilist.co/character/90187",
+    "fetchedAt": "2026-10-27T07:53:02Z"
+   },
+   "context": {
+    "name": "Puck",
+    "anime": "Re:Zero kara Hajimeru Isekai Seikatsu",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:121430:gender",
+   "kind": "character",
+   "id": 121430,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=7 she=1",
+    "url": "https://anilist.co/character/121430",
+    "fetchedAt": "2026-10-27T07:54:00Z"
+   },
+   "context": {
+    "name": "Elias Ainsworth",
+    "anime": "Mahoutsukai no Yome",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:122632:gender",
+   "kind": "character",
+   "id": 122632,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=22 she=0",
+    "url": "https://anilist.co/character/122632",
+    "fetchedAt": "2026-10-27T07:53:25Z"
+   },
+   "context": {
+    "name": "Bete Loga",
+    "anime": "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:122639:gender",
+   "kind": "character",
+   "id": 122639,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=4",
+    "url": "https://anilist.co/character/122639",
+    "fetchedAt": "2026-10-27T07:53:15Z"
+   },
+   "context": {
+    "name": "Mayu Arita",
+    "anime": "Death Parade",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:124036:gender",
+   "kind": "character",
+   "id": 124036,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=6",
+    "url": "https://anilist.co/character/124036",
+    "fetchedAt": "2026-10-27T07:53:00Z"
+   },
+   "context": {
+    "name": "Ito Nishimiya",
+    "anime": "Koe no Katachi",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:124037:gender",
+   "kind": "character",
+   "id": 124037,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=6",
+    "url": "https://anilist.co/character/124037",
+    "fetchedAt": "2026-10-27T07:53:00Z"
+   },
+   "context": {
+    "name": "Yaeko Nishimiya",
+    "anime": "Koe no Katachi",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:124788:gender",
+   "kind": "character",
+   "id": 124788,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=0",
+    "url": "https://anilist.co/character/124788",
+    "fetchedAt": "2026-10-27T07:53:05Z"
+   },
+   "context": {
+    "name": "Benedict Blue",
+    "anime": "Violet Evergarden",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:124792:gender",
+   "kind": "character",
+   "id": 124792,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=3",
+    "url": "https://anilist.co/character/124792",
+    "fetchedAt": "2026-10-27T07:53:05Z"
+   },
+   "context": {
+    "name": "Erica Brown",
+    "anime": "Violet Evergarden",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:125821:gender",
+   "kind": "character",
+   "id": 125821,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=19",
+    "url": "https://anilist.co/character/125821",
+    "fetchedAt": "2026-10-27T07:53:25Z"
+   },
+   "context": {
+    "name": "Lefiya Viridis",
+    "anime": "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:127209:gender",
+   "kind": "character",
+   "id": 127209,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=2 she=12",
+    "url": "https://anilist.co/character/127209",
+    "fetchedAt": "2026-10-27T07:53:25Z"
+   },
+   "context": {
+    "name": "Tione Hiryute",
+    "anime": "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:128263:gender",
+   "kind": "character",
+   "id": 128263,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=20 she=0",
+    "url": "https://anilist.co/character/128263",
+    "fetchedAt": "2026-10-27T07:53:22Z"
+   },
+   "context": {
+    "name": "Brain Unglaus",
+    "anime": "Overlord",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:129347:gender",
+   "kind": "character",
+   "id": 129347,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=6 she=0",
+    "url": "https://anilist.co/character/129347",
+    "fetchedAt": "2026-10-27T07:53:15Z"
+   },
+   "context": {
+    "name": "Daikenja",
+    "anime": "Tensei Shitara Slime Datta Ken",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:135541:gender",
+   "kind": "character",
+   "id": 135541,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=2 she=19",
+    "url": "https://anilist.co/character/135541",
+    "fetchedAt": "2026-10-27T07:53:25Z"
+   },
+   "context": {
+    "name": "Riveria Ljos Alf",
+    "anime": "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:142923:gender",
+   "kind": "character",
+   "id": 142923,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=9",
+    "url": "https://anilist.co/character/142923",
+    "fetchedAt": "2026-10-27T07:53:25Z"
+   },
+   "context": {
+    "name": "Mikoto Yamato",
+    "anime": "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:157974:gender",
+   "kind": "character",
+   "id": 157974,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=3 she=0",
+    "url": "https://anilist.co/character/157974",
+    "fetchedAt": "2026-10-27T07:53:47Z"
+   },
+   "context": {
+    "name": "Hamura",
+    "anime": "Zankyou no Terror",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:161730:gender",
+   "kind": "character",
+   "id": 161730,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=10 she=0",
+    "url": "https://anilist.co/character/161730",
+    "fetchedAt": "2026-10-27T07:53:10Z"
+   },
+   "context": {
+    "name": "9' Alpha",
+    "anime": "Darling in the Franxx",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:197846:gender",
+   "kind": "character",
+   "id": 197846,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=6 she=0",
+    "url": "https://anilist.co/character/197846",
+    "fetchedAt": "2026-10-27T07:53:55Z"
+   },
+   "context": {
+    "name": "Akari no Chichi",
+    "anime": "Byousoku 5 Centimeter",
+    "card": true
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:204118:gender",
+   "kind": "character",
+   "id": 204118,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=0",
+    "url": "https://anilist.co/character/204118",
+    "fetchedAt": "2026-10-27T07:53:47Z"
+   },
+   "context": {
+    "name": "Acca",
+    "anime": "Wonder Egg Priority",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:211165:gender",
+   "kind": "character",
+   "id": 211165,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=4 she=0",
+    "url": "https://anilist.co/character/211165",
+    "fetchedAt": "2026-10-27T07:53:15Z"
+   },
+   "context": {
+    "name": "Hitogami",
+    "anime": "Mushoku Tensei: Isekai Ittara Honki Dasu",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:212810:gender",
+   "kind": "character",
+   "id": 212810,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=0 she=3",
+    "url": "https://anilist.co/character/212810",
+    "fetchedAt": "2026-10-27T07:52:57Z"
+   },
+   "context": {
+    "name": "Pina",
+    "anime": "Sword Art Online",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:218071:gender",
+   "kind": "character",
+   "id": 218071,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Female",
+    "source": "anilist-pronouns",
+    "confidence": "medium",
+    "note": "pronouns he=0 she=9",
+    "url": "https://anilist.co/character/218071",
+    "fetchedAt": "2026-10-27T07:53:45Z"
+   },
+   "context": {
+    "name": "Botan",
+    "anime": "CLANNAD",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  },
+  {
+   "key": "character:237557:gender",
+   "kind": "character",
+   "id": 237557,
+   "field": "gender",
+   "status": "pending",
+   "reason": "review-only source (anilist-pronouns)",
+   "candidate": {
+    "value": "Male",
+    "source": "anilist-pronouns",
+    "confidence": "low",
+    "note": "pronouns he=3 she=0",
+    "url": "https://anilist.co/character/237557",
+    "fetchedAt": "2026-10-27T07:53:40Z"
+   },
+   "context": {
+    "name": "Fido",
+    "anime": "86: Eighty Six",
+    "card": false
+   },
+   "addedAt": "2026-10-27T07:54:50Z"
+  }
+ ]
+}

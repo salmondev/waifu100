@@ -9,8 +9,8 @@ import { hintImageUrl, readHintImageToken, type HintImageRef } from "./hint-imag
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
 import type { RosterCharacter } from "./catalog-types";
 import {
-    archiveDays, bangkokDayKey, isArchiveDay, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus, guessFeedback, guessRoster,
-    HINT_SLOTS, hintLadder, hintValue, isEmptySlot, MAX_GUESSES, missingHints, nextBuyableSlot, openHintCount, pullResult, START_COINS, storyUnlocked,
+    applyShields, archiveDays, bangkokDayKey, isArchiveDay, cardNumber, dailyPick, dayNumber, DAILY_COINS, epochDay, fastBonus, guessFeedback, guessRoster,
+    HINT_SLOTS, hintLadder, hintValue, isEmptySlot, MAX_GUESSES, missingHints, nextBuyableSlot, openHintCount, PRACTICE_GUESSES, pullResult, SHIELD_PRICE, START_COINS, storyUnlocked,
     secondsUntilNextBangkokDay, streak, tierForGuesses, tierSteps, type FeedbackCell, type HintKey, type HintValue, type PullResult, type Tier,
 } from "./rules";
 import { defaultGachaStore, KEEP_ROUND_DAYS, withProfileLock, type GachaProfile, type GachaRound, type GachaStore } from "./store";
@@ -29,7 +29,8 @@ export type GachaErrorCode =
     | "not_enough_coins"
     | "hint_out_of_order"
     | "day_unavailable"
-    | "story_locked";
+    | "story_locked"
+    | "no_practice";
 
 const STATUS: Record<GachaErrorCode, number> = {
     create_limited: 429,
@@ -42,6 +43,7 @@ const STATUS: Record<GachaErrorCode, number> = {
     hint_out_of_order: 409,
     day_unavailable: 404,
     story_locked: 409,
+    no_practice: 404,
 };
 
 export class GachaError extends Error {
@@ -139,8 +141,8 @@ export interface RoundDto {
      */
     freeGuess: { on: boolean; used: boolean };
     /**
-     * image: the card art for card characters, null for guess-only ones (no art is
-     * stored for them). feedback: the Loldle row comparing the guess with the answer.
+     * image: the card art for card characters; guess-only ones show their roster
+     * image when the catalog has one, else null. feedback: the Loldle row comparing the guess with the answer.
      */
     guesses: { id: number; name: string; image: string | null; correct: boolean; feedback: FeedbackCell[] }[];
     /**
@@ -173,6 +175,11 @@ export interface RoundDto {
     };
     coins: number;
     streak: number;
+    /** Shields still unused. */
+    shields: number;
+    shieldPrice: number;
+    /** Practice rounds never write the album, the streak or the coin balance. */
+    practice?: boolean;
     /**
      * Daily coins this day's round granted: on creation for today's round, on
      * finish (once) for an archive round, so 0 while an archive round is open.
@@ -201,6 +208,10 @@ export type ArchiveDayState = "new" | "playing" | "won" | "lost";
 export interface AlbumDto {
     coins: number;
     streak: number;
+    shields: number;
+    shieldPrice: number;
+    /** Anime whose story card is unlocked (3 characters). */
+    badges: number;
     owned: number;
     total: number;
     anime: {
@@ -394,7 +405,7 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
         guesses: round.guesses.flatMap((g) => {
             const c = byId.get(g);
             if (!c) return [];
-            return [{ id: c.id, name: c.name, image: cards.get(c.id)?.image ?? null, correct: g === round.answerId, feedback: guessFeedback(c, answerEntry, roster) }];
+            return [{ id: c.id, name: c.name, image: cards.get(c.id)?.image ?? c.image ?? null, correct: g === round.answerId, feedback: guessFeedback(c, answerEntry, roster) }];
         }),
         steps: { used: countedGuesses(round), hintsCostTier: isR2(round) },
         hints: {
@@ -408,7 +419,9 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
             next: next ? { slot: next.slot, price: next.price, affordable: profile.coins >= next.price } : null,
         },
         coins: profile.coins,
-        streak: streak(profile.finishedDays, today),
+        streak: streak(profile.finishedDays, today, profile.shieldDays ?? []),
+        shields: profile.shields ?? 0,
+        shieldPrice: SHIELD_PRICE,
         dailyCoins: round.dailyCoins,
         done,
         result: done
@@ -433,6 +446,29 @@ export interface GetTodayOptions {
     canCreate?: () => Promise<boolean>;
 }
 
+function shieldChange(profile: GachaProfile, today: string): boolean {
+    return applyShields({
+        finishedDays: profile.finishedDays,
+        shieldDays: profile.shieldDays ?? [],
+        shields: profile.shields ?? 0,
+        todayKey: today,
+    }).changed;
+}
+
+/** Writes spent shields onto the profile. Returns whether anything changed. */
+function syncShields(profile: GachaProfile, today: string): boolean {
+    const next = applyShields({
+        finishedDays: profile.finishedDays,
+        shieldDays: profile.shieldDays ?? [],
+        shields: profile.shields ?? 0,
+        todayKey: today,
+    });
+    if (!next.changed) return false;
+    profile.shields = next.shields;
+    profile.shieldDays = next.shieldDays;
+    return true;
+}
+
 /** Today's round for `id`, creating the profile and/or today's round as needed. */
 export async function getToday(id: string, opts: GetTodayOptions = {}): Promise<RoundDto & { created: boolean }> {
     const { store, now, salt } = deps();
@@ -442,7 +478,8 @@ export async function getToday(id: string, opts: GetTodayOptions = {}): Promise<
     // Fast path: the common reload needs no lock and no write.
     const existing = await store.load(id);
     const ready = existing?.rounds[today];
-    if (existing && ready) return { ...roundDto(existing, ready, idx, today, salt(), id), created: false };
+    const pendingShield = existing ? shieldChange(existing, today) : false;
+    if (existing && ready && !pendingShield) return { ...roundDto(existing, ready, idx, today, salt(), id), created: false };
 
     return withProfileLock(store, id, async () => {
         let profile = await store.load(id);
@@ -453,7 +490,8 @@ export async function getToday(id: string, opts: GetTodayOptions = {}): Promise<
             created = true;
         }
         const changed = ensureRound(profile, today, idx, salt());
-        if (changed || created) await store.save(id, profile);
+        const shielded = syncShields(profile, today);
+        if (changed || created || shielded) await store.save(id, profile);
         return { ...roundDto(profile, profile.rounds[today], idx, today, salt(), id), created };
     });
 }
@@ -509,6 +547,7 @@ async function loadForWrite(store: GachaStore, id: string, today: string, idx: C
     const profile = await store.load(id);
     if (!profile) throw new GachaError("no_profile");
     ensureRound(profile, today, idx, salt);
+    syncShields(profile, today);
     profile.rounds[day] ??= freshRound(day, idx, salt, true);
     return { profile, round: profile.rounds[day] };
 }
@@ -609,28 +648,133 @@ export async function buyHint(id: string, slot?: number, day?: string): Promise<
     });
 }
 
+/** Buys one streak shield. A shield already in hand fills a current gap immediately. */
+export async function buyShield(id: string): Promise<RoundDto> {
+    const { store, now, salt } = deps();
+    const idx = await getCatalog();
+    const today = bangkokDayKey(now());
+    return withProfileLock(store, id, async () => {
+        const { profile, round } = await loadForWrite(store, id, today, idx, salt());
+        if (profile.coins < SHIELD_PRICE) throw new GachaError("not_enough_coins");
+        profile.coins -= SHIELD_PRICE;
+        profile.shields = (profile.shields ?? 0) + 1;
+        syncShields(profile, today);
+        await store.save(id, profile);
+        return roundDto(profile, round, idx, today, salt(), id);
+    });
+}
+
+function practiceRound(today: string, idx: CatalogIndex, avoidAnimeId?: number): GachaRound {
+    const playable = idx.catalog.anime.filter((a) => a.characters.length > 0);
+    const others = playable.filter((a) => a.id !== avoidAnimeId);
+    const pool = others.length > 0 ? others : playable;
+    const anime = pool[randomInt(pool.length)];
+    const answer = anime.characters[randomInt(anime.characters.length)];
+    return {
+        day: today,
+        animeId: anime.id,
+        answerId: answer.id,
+        guesses: [],
+        bought: 0,
+        done: null,
+        dailyCoins: 0,
+        bonus: 0,
+        pull: null,
+        storyUnlockedNow: false,
+        rules: 2,
+    };
+}
+
+function asPractice(dto: RoundDto): RoundDto {
+    return {
+        ...dto,
+        practice: true,
+        archive: false,
+        maxGuesses: PRACTICE_GUESSES,
+        freeGuess: { on: false, used: false },
+        hints: { ...dto.hints, next: null },
+    };
+}
+
+/** The current practice round, or no_practice when the player has not started one. */
+export async function getPractice(id: string): Promise<RoundDto> {
+    const { store, now, salt } = deps();
+    const idx = await getCatalog();
+    const today = bangkokDayKey(now());
+    const profile = await store.load(id);
+    if (!profile) throw new GachaError("no_profile");
+    if (!profile.practice) throw new GachaError("no_practice");
+    return asPractice(roundDto(profile, profile.practice, idx, today, salt(), id));
+}
+
+/** Replaces any practice round with a new character. Does not touch today's round. */
+export async function startPractice(id: string): Promise<RoundDto> {
+    const { store, now, salt } = deps();
+    const idx = await getCatalog();
+    const today = bangkokDayKey(now());
+    return withProfileLock(store, id, async () => {
+        const { profile } = await loadForWrite(store, id, today, idx, salt());
+        profile.practice = practiceRound(today, idx, profile.rounds[today]?.animeId);
+        await store.save(id, profile);
+        return asPractice(roundDto(profile, profile.practice, idx, today, salt(), id));
+    });
+}
+
+/** A practice guess. Coins, the streak, finished days and the album stay as they were. */
+export async function guessPractice(id: string, charId: number): Promise<RoundDto> {
+    const { store, now, salt } = deps();
+    const idx = await getCatalog();
+    const today = bangkokDayKey(now());
+    return withProfileLock(store, id, async () => {
+        const profile = await store.load(id);
+        if (!profile) throw new GachaError("no_profile");
+        const round = profile.practice;
+        if (!round) throw new GachaError("no_practice");
+        if (round.done) throw new GachaError("round_over");
+        const { anime, answer } = roundParts(round, idx);
+        if (!guessRoster(anime).some((c) => c.id === charId)) throw new GachaError("invalid_character");
+        if (round.guesses.includes(charId)) throw new GachaError("already_guessed");
+        const before = { coins: profile.coins, finished: profile.finishedDays.slice(), collection: profile.collection };
+        round.guesses.push(charId);
+        if (charId === round.answerId) round.done = "won";
+        else if (round.guesses.length >= PRACTICE_GUESSES) round.done = "lost";
+        profile.coins = before.coins;
+        profile.finishedDays = before.finished;
+        profile.collection = before.collection;
+        await store.save(id, profile);
+        return asPractice(roundDto(profile, round, idx, today, salt(), id));
+    });
+}
+
 function storyFresh(profile: GachaProfile): number[] {
     const animeIds = new Set(Object.values(profile.collection).map((e) => e.animeId));
     return [...animeIds].filter((a) => storyUnlocked(ownedIn(profile, a)) && !profile.storySeen.includes(a));
 }
 
 /**
- * The album. Read-only: loading it never changes the profile, so a double
- * render (React StrictMode, a retry, a prefetch) cannot use up the "new story
- * card" mark. A story card stays `fresh` until the player taps it, which calls
- * markStorySeen.
+ * The album. Loading it never marks a story card seen, so a double render
+ * cannot use up the "new" mark. A story card stays `fresh` until the player
+ * taps it, which calls markStorySeen. A shield that is due may be spent here,
+ * the same way opening today spends it.
  */
 export async function getAlbum(id: string): Promise<AlbumDto> {
     const { store, now } = deps();
     const idx = await getCatalog();
     const today = bangkokDayKey(now());
 
-    const profile = await store.load(id);
+    let profile = await store.load(id);
+    if (profile && shieldChange(profile, today)) {
+        profile = await withProfileLock(store, id, async () => {
+            const locked = await store.load(id);
+            if (locked && syncShields(locked, today)) await store.save(id, locked);
+            return locked;
+        });
+    }
     const fresh = profile ? storyFresh(profile) : [];
 
     let total = 0;
     for (const a of idx.catalog.anime) total += a.characters.length;
-    if (!profile) return { coins: 0, streak: 0, owned: 0, total, anime: [] };
+    if (!profile) return { coins: 0, streak: 0, shields: 0, shieldPrice: SHIELD_PRICE, badges: 0, owned: 0, total, anime: [] };
 
     const groups = new Map<number, AlbumDto["anime"][number]>();
     for (const [charKey, entry] of Object.entries(profile.collection)) {
@@ -668,7 +812,10 @@ export async function getAlbum(id: string): Promise<AlbumDto> {
 
     return {
         coins: profile.coins,
-        streak: streak(profile.finishedDays, today),
+        streak: streak(profile.finishedDays, today, profile.shieldDays ?? []),
+        shields: profile.shields ?? 0,
+        shieldPrice: SHIELD_PRICE,
+        badges: anime.filter((g) => g.story.unlocked).length,
         owned: anime.reduce((n, g) => n + g.owned, 0),
         total,
         anime,

@@ -94,6 +94,12 @@ export interface GachaProfile {
     collection: Record<string, CollectionEntry>;
     storySeen: number[];
     recoveryHash: string | null;
+    /** Unused streak shields. Absent on profiles from before the shield existed (= 0). */
+    shields?: number;
+    /** Missed days a shield already filled. They count for the streak only. */
+    shieldDays?: string[];
+    /** The open practice round, if any. Never written into `rounds`. */
+    practice?: GachaRound | null;
 }
 
 export interface GachaStore {

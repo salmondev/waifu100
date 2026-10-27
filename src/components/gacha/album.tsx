@@ -13,9 +13,26 @@ import { errorText, gachaApi, setGachaId, type AlbumDto, type RoundDto } from ".
 import { cardBackHtml, cardMiniHtml, CardHtml, storyCardHtml } from "./card";
 import { animeSubtitle, animeTitle } from "./chrome";
 import { storyColours } from "./palette";
+import { placeCharacterOnWaifuGrid, WAIFU_GRID_KEY } from "@/lib/waifu-board";
 import { Icon, Px, SETSYM, type TierName } from "./pixel";
 
 const UNLOCK = 3;
+
+function placeOnGrid(name: string, id: number, image: string): string {
+    try {
+        const next = placeCharacterOnWaifuGrid(localStorage.getItem(WAIFU_GRID_KEY), {
+            mal_id: id,
+            name,
+            images: { jpg: { image_url: image } },
+            source: "Gacha Guess",
+        });
+        if (next.placed) localStorage.setItem(WAIFU_GRID_KEY, next.stored);
+        if (next.full) return "กริดเต็มแล้ว";
+        return next.placed ? `ใส่ ${name} ลงกริดแล้ว เปิดหน้าแรกเพื่อดู` : `${name} อยู่ในกริดแล้ว`;
+    } catch {
+        return "ใส่กริดไม่ได้";
+    }
+}
 type Group = AlbumDto["anime"][number];
 
 export function AlbumView({ album, round, animeParam, onRestored }: { album: AlbumDto; round: RoundDto | null; animeParam: number | null; onRestored: () => void }) {
@@ -82,7 +99,7 @@ export function AlbumView({ album, round, animeParam, onRestored }: { album: Alb
             <header className="g-ahead win">
                 <div>
                     <h1>อัลบั้ม</h1>
-                    <p>มีการ์ด <b>{album.owned}</b> ใบ ไม่มีใบซ้ำ</p>
+                    <p>มีการ์ด <b>{album.owned}</b> ใบ ไม่มีใบซ้ำ · เหรียญตรา <b>{album.badges ?? 0}</b> เรื่อง</p>
                 </div>
                 <Link className="g-btn sm" href="/daily" scroll={false}><Icon name="back" />กลับไปเล่น</Link>
             </header>
@@ -126,11 +143,12 @@ const PANEL_ID = "g-album-panel";
 
 function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.RefObject<HTMLElement | null>; fresh: boolean; onSeen: (animeId: number) => void }) {
     const colours = storyColours(g.coverColor);
+    const [gridNote, setGridNote] = useState<string | null>(null);
     const byNo = new Map(g.cards.map((c) => [c.number, c]));
     const title = animeTitle(g);
     return (
         <section className="g-binder win" ref={binderRef} style={{ ["--story" as string]: colours.frame }} aria-label={`อัลบั้ม ${title}`}>
-            <div className="g-blabel"><b>{title}</b><span>{g.setCode}</span><em>{g.owned}/{g.total}</em></div>
+            <div className="g-blabel"><b>{title}</b><span>{g.setCode}</span>{g.story.unlocked && <b className="g-tag">ครบชุด</b>}<em>{g.owned}/{g.total}</em></div>
             <div className="g-slot">
                 {g.story.unlocked ? (
                     <div
@@ -175,10 +193,14 @@ function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.Re
                     return (
                         <div className="g-pocket" key={no}>
                             <CardHtml html={c ? cardMiniHtml(c, (c.tier ?? "common") as TierName) : cardBackHtml({ no, mini: true })} />
+                            {c?.image && (
+                                <button className="g-btn sm" type="button" onClick={() => setGridNote(placeOnGrid(c.name, c.id, c.image!))}>ใส่กริด</button>
+                            )}
                         </div>
                     );
                 })}
             </div>
+            {gridNote && <p className="g-note" role="status">{gridNote}</p>}
         </section>
     );
 }

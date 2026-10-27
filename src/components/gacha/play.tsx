@@ -152,14 +152,17 @@ function ShareFallback({ text }: { text: string }) {
 /** PICO-8 stepped ease: motion in 4 hard steps, no smooth tween. */
 export const steps4 = (t: number) => Math.min(1, Math.floor(t * 4 + 0.0001) / 4);
 
-const Face = ({ src, w = 128, className, name }: { src: string | null; w?: number; className?: string; name?: string }) =>
-    src ? (
+const Face = ({ src, w = 128, className, name }: { src: string | null; w?: number; className?: string; name?: string }) => {
+    // A failed load falls back to the initial too; a new src gets a fresh try.
+    const [failed, setFailed] = useState<string | null>(null);
+    return src && failed !== src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className={className} src={proxied(src, w)} alt="" draggable={false} style={{ objectPosition: FOCAL }} />
+        <img className={className} src={proxied(src, w)} alt="" draggable={false} style={{ objectPosition: FOCAL }} onError={() => setFailed(src)} />
     ) : (
         // Guess-only characters (no card) have no art here: show their initial instead.
         <b className="g-noface" aria-hidden="true">{(name ?? "?").trim().charAt(0).toUpperCase()}</b>
     );
+};
 
 /** A server-rendered hint image (already blurred / stencilled), never the art itself. */
 const HintPic = ({ src }: { src: string }) => {
@@ -211,7 +214,7 @@ function HintBody({ h }: { h: HintValue }) {
     );
 }
 
-export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundDto; onRound: (r: RoundDto) => void; onOpenPack: () => void; opened: boolean }) {
+export function PlayView({ round, onRound, onOpenPack, opened, onRestart }: { round: RoundDto; onRound: (r: RoundDto) => void; onOpenPack: () => void; opened: boolean; onRestart?: () => void }) {
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState<string | null>(null);
     const [shakeKey, setShakeKey] = useState(0);
@@ -321,7 +324,9 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                     ) : (
                         <Link className="g-btn sm" href="/daily?view=archive" scroll={false}>เล่นย้อนหลัง 30 วัน</Link>
                     )}
+                    {!round.practice && <Link className="g-btn sm" href="/daily?view=practice" scroll={false}>โหมดฝึก</Link>}
                 </nav>
+                {round.practice ? <p className="g-archnote">โหมดฝึก: เดาได้เรื่อย ๆ ไม่เสียเหรียญ ไม่นับวันติดกัน และไม่ได้การ์ดเข้าอัลบั้ม</p> : null}
                 {archDay ? <p className="g-archnote">รอบย้อนหลัง: ได้การ์ดตามระดับและเหรียญรายวันตอนจบรอบเหมือนปกติ แต่ไม่มีโบนัสเดาไว และไม่นับวันติดกัน</p> : null}
                 <div className="g-story">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -372,7 +377,7 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         <p className="g-stamp">เดาถูก</p>
                         <p className="g-lead">{answer.name}</p>
                         <p className="g-sub">
-                            {free.used && steps === 0 ? <>เดาถูกตั้งแต่ครั้งฟรี ได้การ์ด <Chip tier={won} /></> : <>เดาครั้งที่ <b>{steps}</b> ได้การ์ด <Chip tier={won} /></>}
+                            {round.practice ? <>เดาถูกในโหมดฝึก ไม่ได้การ์ดเข้าอัลบั้ม</> : free.used && steps === 0 ? <>เดาถูกตั้งแต่ครั้งฟรี ได้การ์ด <Chip tier={won} /></> : <>เดาครั้งที่ <b>{steps}</b> ได้การ์ด <Chip tier={won} /></>}
                         </p>
                         {oldRule && <p className="g-note">รอบนี้คิดระดับการ์ดตามกฎเดิม (ตอนนั้นคำใบ้ที่ซื้อนับเป็นครั้งเดา)</p>}
                         <ul className="g-rew">
@@ -380,8 +385,14 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                             {round.result?.bonus ? <li><span><Coin />โบนัสเดาไว</span><b className="g-plus">+{round.result.bonus}</b></li> : null}
                         </ul>
                         <div className="g-row">
-                            <button className="g-btn red" type="button" onClick={onOpenPack}>{opened ? "ดูการ์ดที่ได้" : "เปิดซอง"}</button>
-                            <ShareButton round={round} />
+                            {round.practice ? (
+                                <button className="g-btn red" type="button" onClick={onRestart}>เล่นโจทย์ใหม่</button>
+                            ) : (
+                                <>
+                                    <button className="g-btn red" type="button" onClick={onOpenPack}>{opened ? "ดูการ์ดที่ได้" : "เปิดซอง"}</button>
+                                    <ShareButton round={round} />
+                                </>
+                            )}
                         </div>
                         <p className="g-note">ไม่มีการ์ดซ้ำ ได้ตัวที่มีแล้วในระดับสูงกว่าจะอัปเกรดใบเดิม ระดับเท่าเดิมหรือต่ำกว่าอัลบั้มไม่เปลี่ยน</p>
                     </div>
@@ -390,19 +401,19 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                         <p className="g-stamp ink">{free.used ? "ครบ 6 ครั้ง + เดาฟรี" : "ครบ 6 ครั้ง"}</p>
                         <p className="g-sub">คำตอบคือ</p>
                         <p className="g-lead">{answer?.name ?? ""}</p>
-                        <p className="g-note">{archDay ? "รอบนี้ไม่ได้การ์ด รอบย้อนหลังไม่นับวันติดกัน" : "รอบนี้ไม่ได้การ์ด สตรีคยังนับต่อ เพราะเล่นจบรอบแล้ว พรุ่งนี้มีตัวละครใหม่"}</p>
+                        <p className="g-note">{round.practice ? "โหมดฝึกไม่ได้การ์ด และไม่เกี่ยวกับสตรีค" : archDay ? "รอบนี้ไม่ได้การ์ด รอบย้อนหลังไม่นับวันติดกัน" : "รอบนี้ไม่ได้การ์ด สตรีคยังนับต่อ เพราะเล่นจบรอบแล้ว พรุ่งนี้มีตัวละครใหม่"}</p>
                         <div className="g-row">
                             <Link className="g-btn" href={`/daily?view=album&anime=${round.anime.id}`} scroll={false}><Icon name="album" />ดูอัลบั้ม</Link>
                             <ShareButton round={round} />
                         </div>
                     </div>
                 ) : (
-                    <GuessBox round={round} busy={busy} shakeKey={shakeKey} onGuess={(id) => send(() => gachaApi.guess(id, roundDay), true)} />
+                    <GuessBox round={round} busy={busy} shakeKey={shakeKey} onGuess={(id) => send(() => (round.practice ? gachaApi.practiceGuess(id) : gachaApi.guess(id, roundDay)), true)} />
                 )}
                 {err && <p className="g-err" role="alert">{err}</p>}
             </section>
             <FeedbackGrid guesses={round.guesses} />
-            <section className="g-hints win" aria-label="คำใบ้">
+            {!round.practice && <section className="g-hints win" aria-label="คำใบ้">
                 <h3 className="g-h3">คำใบ้ <small>{r2 ? "ซื้อทีละข้อ ไม่นับเป็นครั้งที่เดา" : "เปิดทีละข้อเมื่อเดาผิด"}</small></h3>
                 {Array.from({ length: round.hints.slots }, (_, i) => {
                     // Fixed five-slot ladder. Locked slots are numbered only: the server does not say
@@ -445,8 +456,8 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
                 {round.hints.empty > 0 && (
                     <p className="g-note">ช่องที่ไม่มีข้อมูลไม่นับเป็นคำใบ้และไม่เสียเหรียญ คำใบ้รอบนี้มี {round.hints.open.length} ข้อ</p>
                 )}
-            </section>
-            {!done && (
+            </section>}
+            {!round.practice && !done && (
                 <section className="g-shop win">
                     <h3 className="g-h3">
                         {r2 ? "ซื้อคำใบ้" : "ซื้อคำใบ้ก่อน"} {round.dailyCoins ? (

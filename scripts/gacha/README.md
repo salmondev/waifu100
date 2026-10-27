@@ -75,3 +75,11 @@ The app never calls AniList at runtime. Images are hot-linked through the existi
   - won on the free guess: `waifu100 Daily #N FREE/6`
   - free round lost: `waifu100 Daily #N X/6 +free`
   - the free guess row is prefixed with `🆓 `; old-rule rounds keep `S/6` / `X/6` unchanged.
+
+## Enrichment sidecar and roster images (T-0027, WIP)
+
+`build-catalog.mjs` now also stores `roster[].image` (the exact `https://s4.anilist.co/` URL, or
+`null` for placeholders; the build fails on anything else) and fills AniList gaps from
+`src/server/gacha/enrichment.json` on both `roster[]` and `characters[]` rows (`ageGame`, gender,
+birthMonth, va, card occupation) and anime `coverColor`, never over an AniList value.
+`--apply-only` re-applies the sidecar without network. See `enrich/README.md`.

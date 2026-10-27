@@ -106,6 +106,11 @@ blocked), **E** = `tests/e2e/*` (Playwright, all network mocked).
 | a11y | E `a11y-visual.spec.ts` (axe, fails on new critical; baseline: `/` button-name, `/community` aria-required-children) | partial | baseline violations need src fixes |
 | Visual smoke | E `a11y-visual.spec.ts` (non-blank screenshot) | partial | no pixel baselines |
 | Gacha Guess `/daily` (round, Loldle feedback, hint ladder + hint-image tokens, tiers, share text, 30-day archive, coins/streak) | U `src/server/gacha/{rules,feedback,service,config,hint-image}.test.ts`, `src/lib/gacha-{share,hint-image}.test.ts`, `src/components/gacha/{play,album,archive}.test.tsx`; API contract `src/app/api/gacha/gacha-routes.test.ts` (400/404/409, archive future/pre-epoch 404, player+day-bound tokens checked against the stored round's answer incl. legacy pre-r2 rounds, round-day on every write, coins once per day) | partial | no Playwright spec in `tests/e2e/` and no `tests/integration/` file; browser flow only checked by an off-repo isolated smoke (memory store, no network); needs `DAILY_SALT` in Vercel (else 503) |
+| Gacha tier stars (Common 0, Rare 1, SR 2, SSR 3) | U `src/components/gacha/pixel.test.tsx` | covered | — |
+| Gacha streak shield (30 coins, one missed day) | U `src/server/gacha/{rules,service}.test.ts`; API `gacha-routes.test.ts` shield | covered | no e2e |
+| Gacha practice mode | U `src/server/gacha/service.test.ts`; API `gacha-routes.test.ts` practice | covered | no e2e; practice does not write the album, streak, or today's guesses |
+| Gacha album badge and drop onto the waifu grid | U `src/lib/waifu-board.test.ts`, `src/components/gacha/album.test.tsx` | partial | placing a card is covered in the board helper; the album button is not in e2e |
+| Gacha catalog enrichment (roster image, ageGame, sidecar) | U `src/server/gacha/enrich-*.test.ts`, `rules.test.ts` `gameAge` | covered | Jikan is not used; low-confidence values stay in `review.json` |
 | Perf / bundle | `scripts/bundle-budget.mjs` in verify | covered | no runtime (LCP) budget |
 | Security gates | `security:audit`, `security:secrets`, `security:headers`, `smoke:prod` | covered | CSP missing in prod (warn) |
 

@@ -42,7 +42,9 @@ const QMARK = [
 
 function drawCapsule(s2: { frame: string; shade: string }, setCode: string): Cell[] {
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const g = cv.getContext('2d', { willReadFrequently: true })!;
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  // happy-dom has no 2d context; a real browser does. Skip the pack face instead of throwing.
+  if (!g) return [];
   const R = (c: string, x: number, y: number, w: number, h: number) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
   // silhouette + outline: stepped corners (2 px), crimped (zigzag) top and bottom edges
   R(PAL.ink, 0, 2, W, H - 4); R(PAL.ink, 2, 0, W - 4, H); R(PAL.ink, 1, 1, W - 2, H - 2);

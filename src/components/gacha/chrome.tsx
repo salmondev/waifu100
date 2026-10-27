@@ -4,7 +4,7 @@ import Link from "next/link";
 import { SlidingNumber } from "@animate-ui/react/primitives/texts/sliding-number";
 import { Coin, Icon } from "./pixel";
 
-export function TopBar({ coins, streak }: { coins: number | null; streak: number }) {
+export function TopBar({ coins, streak, shields = 0, shieldPrice = 30, onShield }: { coins: number | null; streak: number; shields?: number; shieldPrice?: number; onShield?: () => void }) {
     return (
         <header className="g-top">
             <Link className="g-logo" href="/daily" aria-label="GACHA GUESS หน้าเล่น">
@@ -25,6 +25,14 @@ export function TopBar({ coins, streak }: { coins: number | null; streak: number
                     </span>
                 )}
             </div>
+            {onShield && coins != null && (
+                <>
+                    <button className="g-btn sm" type="button" onClick={onShield} disabled={coins < shieldPrice} aria-label={`ซื้อกันสตรีคขาด ${shieldPrice} เหรียญ คงเหลือ ${shields}`}>
+                        กันสตรีคขาด{shields > 0 ? ` · มี ${shields}` : ""}
+                    </button>
+                    {shields === 0 && <small>{shieldPrice} เหรียญ</small>}
+                </>
+            )}
         </header>
     );
 }

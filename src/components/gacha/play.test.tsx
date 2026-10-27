@@ -405,3 +405,34 @@ describe("how-to-play guide (T-0025)", () => {
         expect(guide(view(dto(101, [], null, 0, true))).classList.contains("win")).toBe(true);
     });
 });
+
+describe("a broken guess image falls back to the initial face", () => {
+    /** The first guess with a given image URL. */
+    const withImage = (r: RoundDto, image: string): RoundDto => ({ ...r, guesses: r.guesses.map((g, i) => (i === 0 ? { ...g, image } : g)) });
+    const slot = (c: HTMLElement, track: string) => c.querySelector<HTMLElement>(`${track} li:first-child`)!;
+    const breaks = (c: HTMLElement, track: string, name: string) => {
+        const img = slot(c, track).querySelector("img")!;
+        expect(img).not.toBeNull();
+        expect(slot(c, track).querySelector(".g-noface")).toBeNull();
+        fireEvent.error(img);
+        expect(slot(c, track).querySelector("img")).toBeNull();
+        expect(slot(c, track).querySelector(".g-noface")!.textContent).toBe(name.trim().charAt(0).toUpperCase());
+    };
+
+    it("play track: the failed image becomes the initial; a new src tries again", () => {
+        const r = withImage(dto(101, [103], null, 0, true), "https://img.example/a.jpg");
+        const { container, rerender } = render(<PlayView round={r} onRound={() => {}} onOpenPack={() => {}} opened={false} />);
+        breaks(container, ".g-board .g-track", r.guesses[0].name);
+        rerender(<PlayView round={withImage(r, "https://img.example/b.jpg")} onRound={() => {}} onOpenPack={() => {}} opened={false} />);
+        expect(slot(container, ".g-board .g-track").querySelector("img")).not.toBeNull();
+        expect(slot(container, ".g-board .g-track").querySelector(".g-noface")).toBeNull();
+    });
+
+    it("pack recap: the failed image becomes the initial; a new src tries again", () => {
+        const r = withImage(dto(101, [103, 101], "won", 0, true, { pull: { result: "new", prevTier: null, tier: "sr" } }), "https://img.example/a.jpg");
+        const { container, rerender } = render(<PackView round={r} coins={0} />);
+        breaks(container, ".g-recap .g-track", r.guesses[0].name);
+        rerender(<PackView round={withImage(r, "https://img.example/b.jpg")} coins={0} />);
+        expect(slot(container, ".g-recap .g-track").querySelector("img")).not.toBeNull();
+    });
+});

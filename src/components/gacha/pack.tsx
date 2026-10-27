@@ -15,6 +15,17 @@ import { storyColours } from "./palette";
 import { Chip, Coin, Icon, TIER_GUESSES, TIER_NAME, type TierName } from "./pixel";
 import { proxied } from "@/lib/img-proxy";
 
+/** A recap guess face; a failed load falls back to the initial, a new src gets a fresh try. */
+function RecapFace({ src, name }: { src: string | null; name: string }) {
+    const [failed, setFailed] = useState<string | null>(null);
+    return src && failed !== src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={proxied(src, 96)} alt="" draggable={false} style={{ objectPosition: FOCAL }} onError={() => setFailed(src)} />
+    ) : (
+        <b className="g-noface" aria-hidden="true">{name.trim().charAt(0).toUpperCase()}</b>
+    );
+}
+
 const LADDER: TierName[] = ["ssr", "sr", "rare", "common"];
 const UNLOCK = 3;
 const REVEAL_AT = 2.7;
@@ -139,12 +150,7 @@ export function PackView({ round, coins }: { round: RoundDto; coins: number }) {
                                 if (!g) return <li key={i} className={free.on && i === 0 ? "free-slot" : undefined}><em>{free.on ? (i === 0 ? "ฟรี" : i) : i + 1}</em></li>;
                                 return (
                                     <li key={i} className={g.correct ? "hit" : "miss"}>
-                                        {g.image ? (
-                                            // eslint-disable-next-line @next/next/no-img-element
-                                            <img src={proxied(g.image, 96)} alt="" draggable={false} style={{ objectPosition: FOCAL }} />
-                                        ) : (
-                                            <b className="g-noface" aria-hidden="true">{g.name.trim().charAt(0).toUpperCase()}</b>
-                                        )}
+                                        <RecapFace src={g.image} name={g.name} />
                                         <span><Icon name={g.correct ? "check" : "cross"} /></span>
                                     </li>
                                 );

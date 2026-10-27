@@ -8,11 +8,12 @@ vi.mock("@/lib/redis", () => ({
 }));
 
 import { setCatalog } from "./catalog";
-import { addDays, bangkokDayKey, dailyPick, guessRoster, hintLadder, type Tier } from "./rules";
+import { addDays, bangkokDayKey, dailyPick, guessRoster, hintLadder, SHIELD_PRICE, type Tier } from "./rules";
 import { hintImageToken } from "./hint-image";
 import { ARCHIVE_DAYS, FIRST_DAY_KEY } from "./rules";
 import {
     buyHint,
+    buyShield,
     configureGacha,
     GachaError,
     getAlbum,
@@ -20,6 +21,8 @@ import {
     getDay,
     getToday,
     guess,
+    guessPractice,
+    startPractice,
     markStorySeen,
     mintRecovery,
     resolveHintImage,
@@ -486,6 +489,24 @@ describe("r2 rules", () => {
         expect(fb.rank.state).toBe("miss");
         expect(await code(guess(ID, 999))).toBe("invalid_character");
         expect(await code(guess(ID, 151))).toBe("already_guessed");
+    });
+
+    it("guess-only characters show their roster image when the catalog has one; card art still wins", async () => {
+        const roster = FRIEREN.roster!.map((r) =>
+            r.id === 151 ? { ...r, image: "https://img.example.test/roster/151.png" } : r.id === 103 ? { ...r, image: "https://img.example.test/roster/103.png" } : r
+        );
+        setCatalog({ ...FIXTURE_CATALOG, anime: [{ ...FRIEREN, roster }, ...FIXTURE_CATALOG.anime.slice(1)] });
+        await pin(101);
+        await guess(ID, 151);
+        await guess(ID, 152);
+        const dto = await guess(ID, 103);
+        expect(dto.guesses.map((g) => [g.id, g.image])).toEqual([
+            [151, "https://img.example.test/roster/151.png"],
+            [152, null], // no roster image: still null
+            [103, FRIEREN.characters.find((c) => c.id === 103)!.image],
+        ]);
+        for (const c of dto.candidates) expect(c).not.toHaveProperty("image");
+        expect(JSON.stringify(dto.candidates)).not.toContain("img.example.test/roster");
     });
 
     it("feedback never leaks the answer's values, only the guess's own", async () => {
@@ -1115,5 +1136,40 @@ describe("archive (past days)", () => {
         store.profiles.set(ID, JSON.stringify(legacy.profile));
         expect(await code(getDay(ID, day))).toBe("day_unavailable");
         expect(await resolveHintImage(hintImageToken({ day, charId: 987654321, kind: "eyes", pid: ID }, SALT))).toBeNull();
+    });
+});
+
+describe("streak shield", () => {
+    it("spends 30 coins and bridges one missed day", async () => {
+        await getToday(ID);
+        await guess(ID, pick().answerId);
+        now = Date.parse("2026-10-29T05:00:00Z"); // two days later, Bangkok 29th; the 28th was missed
+        await getToday(ID);
+        const before = (await getToday(ID)).coins;
+        expect((await getToday(ID)).streak).toBe(0);
+        const bought = await buyShield(ID);
+        expect(bought.coins).toBe(before - SHIELD_PRICE);
+        expect(bought.shields).toBe(0);
+        expect(bought.streak).toBe(2);
+        expect((await profile()).shieldDays).toEqual(["2026-10-28"]);
+        expect(await code(buyShield(ID))).toBe("ok");
+    });
+});
+
+describe("practice", () => {
+    it("can be won without coins, the streak or the album changing", async () => {
+        await getToday(ID);
+        const started = await startPractice(ID);
+        expect(started.practice).toBe(true);
+        expect(started.maxGuesses).toBe(12);
+        const answerId = (await profile()).practice!.answerId;
+        const won = await guessPractice(ID, answerId);
+        expect(won.done).toBe("won");
+        expect(won.practice).toBe(true);
+        const saved = await profile();
+        expect(saved.coins).toBe(45);
+        expect(saved.finishedDays).toEqual([]);
+        expect(saved.collection).toEqual({});
+        expect(saved.rounds[today()].guesses).toEqual([]);
     });
 });

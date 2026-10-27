@@ -4,7 +4,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 `/story` builds a 3×3, Top 10, Top 50 or Top 100 grid of anime or manga; shares open at `/story/v/<id>` with their own title and OG card. Same app, same deploy, same Redis.
 
-- Search runs in the browser: AniList GraphQL (`isAdult: false`), Jikan (`sfw=true`) only when AniList answers 429/5xx; a 429's Retry-After pauses AniList calls. Credit "Data from AniList" is shown.
+- Search uses AniList GraphQL (`isAdult: false`). A 429's Retry-After pauses AniList calls. Jikan is not used. Credit "Data from AniList" is shown.
 - Shares: same `waifu100:share:<id>` key, payload schema v2 adds `meta.v`, `meta.kind`, `meta.size` (absent = waifu/100, so every old share still reads). Story cells store only `{i, a: media id, t, img: cover URL, n: title<=120}`. Story shares are also indexed in `waifu100:feed:story`; the main `waifu100:feed` still lists everything.
 - Community: All / Waifu / Story tabs (`/api/community?kind=`), kind badge on cards. Compare and AI verdict stay waifu-only.
 - Product switches live in `src/lib/story/config.ts`. Server data layer: Effect v4 services in `src/server/` (ShareRepo with an in-memory test layer, typed errors).

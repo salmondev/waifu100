@@ -224,6 +224,7 @@ function fromCard(c: CatalogCharacter): RosterCharacter {
         birthMonth: c.birthMonth ?? null,
         va: c.va ?? null,
         card: true,
+        ...(c.ageGame !== undefined ? { ageGame: c.ageGame } : {}),
     };
 }
 
@@ -250,6 +251,17 @@ export interface FeedbackCell {
     value: string | null;
 }
 
+/**
+ * The age the game compares: ageGame when it is a valid age (a non-negative
+ * integer, or a string parseAge accepts), else the raw AniList age.
+ */
+export function gameAge(c: Pick<RosterCharacter, "age" | "ageGame">): string | null {
+    const g = c.ageGame;
+    if (typeof g === "number") return Number.isSafeInteger(g) && g >= 0 ? String(g) : c.age;
+    if (typeof g === "string" && parseAge(g)) return g;
+    return c.age;
+}
+
 function ageText(raw: string | null): string | null {
     const a = parseAge(raw);
     if (!a) return null;
@@ -270,7 +282,7 @@ export function guessFeedback(guess: RosterCharacter, answer: RosterCharacter, r
     return [
         { col: "gender", state: compareGender(guess.gender, answer.gender), value: guess.gender },
         { col: "role", state: compareExact(guess.role, answer.role), value: guess.role },
-        { col: "age", state: compareAge(parseAge(guess.age), parseAge(answer.age)), value: ageText(guess.age) },
+        { col: "age", state: compareAge(parseAge(gameAge(guess)), parseAge(gameAge(answer))), value: ageText(gameAge(guess)) },
         { col: "month", state: compareMonth(guess.birthMonth, answer.birthMonth), value: guess.birthMonth ? String(guess.birthMonth) : null },
         { col: "rank", state: g > 0 && a > 0 ? compareRank(g, a) : "unknown", value: g > 0 ? String(g) : null },
         { col: "va", state: compareExact(guess.va?.id, answer.va?.id), value: guess.va?.name ?? null },
@@ -418,6 +430,10 @@ export const storyUnlocked = (ownedInAnime: number): boolean => ownedInAnime >= 
 
 export const START_COINS = 35;
 export const DAILY_COINS = 10;
+/** One purchased shield fills a single missed day so the streak does not break. */
+export const SHIELD_PRICE = 30;
+/** Practice rounds stop after this many guesses. They never pay coins or touch the album. */
+export const PRACTICE_GUESSES = 12;
 export const FAST_BONUS: Readonly<Record<number, number>> = { 1: 30, 2: 20, 3: 10 };
 
 /** Keyed by tierSteps (guesses + bought hints in r2 rounds); the tier itself counts guesses only. */
@@ -434,8 +450,8 @@ export function tierSteps(guesses: number, bought: number, r2: boolean): number 
  * Consecutive Bangkok days with a finished round, ending today - or yesterday
  * while today's round is still open, so a streak does not "break" at midnight.
  */
-export function streak(finishedDays: readonly string[], todayKey: string): number {
-    const days = new Set(finishedDays);
+export function streak(finishedDays: readonly string[], todayKey: string, shieldDays: readonly string[] = []): number {
+    const days = new Set([...finishedDays, ...shieldDays]);
     let d = days.has(todayKey) ? todayKey : addDays(todayKey, -1);
     let n = 0;
     while (days.has(d)) {
@@ -443,6 +459,37 @@ export function streak(finishedDays: readonly string[], todayKey: string): numbe
         d = addDays(d, -1);
     }
     return n;
+}
+
+/**
+ * Spend shields on the newest gaps between today and an older finished day.
+ * One shield covers one missed day. A shield does nothing until there is a
+ * finished day further back to reconnect. Already-covered days are kept.
+ */
+export function applyShields(input: {
+    finishedDays: readonly string[];
+    shieldDays: readonly string[];
+    shields: number;
+    todayKey: string;
+}): { shieldDays: string[]; shields: number; changed: boolean } {
+    const shieldDays = [...input.shieldDays];
+    let shields = input.shields;
+    let changed = false;
+    const covered = () => new Set([...input.finishedDays, ...shieldDays]);
+    let d = covered().has(input.todayKey) ? input.todayKey : addDays(input.todayKey, -1);
+    for (let i = 0; i < 400; i++) {
+        if (covered().has(d)) {
+            d = addDays(d, -1);
+            continue;
+        }
+        if (shields <= 0) break;
+        if (!input.finishedDays.some((day) => day < d)) break;
+        shieldDays.push(d);
+        shields -= 1;
+        changed = true;
+        d = addDays(d, -1);
+    }
+    return { shieldDays, shields, changed };
 }
 
 // ---- catalog helpers --------------------------------------------------------
