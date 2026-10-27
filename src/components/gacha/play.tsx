@@ -11,7 +11,7 @@
  */
 import Link from "next/link";
 import { m } from "motion/react";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { DAILY_COINS, type CellState, type FeedbackCell, type HintKey, type HintValue } from "@/server/gacha/rules";
 import { hintImageSrc } from "@/lib/gacha-hint-image";
 import { shareText } from "@/lib/gacha-share";
@@ -103,7 +103,7 @@ function FeedbackGrid({ guesses }: { guesses: RoundDto["guesses"] }) {
 /** Copies the spoiler-free result. The button itself says whether it worked: no toast, no popup. */
 function ShareButton({ round }: { round: RoundDto }) {
     const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
-    const text = shareText(round.day.number, round.maxGuesses, round.guesses, round.done === "won", freeGuessOf(round).used);
+    const text = shareText(round.day.number, round.maxGuesses, round.guesses, round.done === "won", freeGuessOf(round).used, round.archive);
     const copy = async () => {
         try {
             await navigator.clipboard.writeText(text);
@@ -121,7 +121,7 @@ function ShareButton({ round }: { round: RoundDto }) {
             {state === "fail" && (
                 <label className="g-sharebox">
                     <span>คัดลอกอัตโนมัติไม่ได้ เลือกข้อความนี้แล้วคัดลอกเอง</span>
-                    <textarea readOnly rows={round.guesses.length + 1} value={text} onFocus={(e) => e.currentTarget.select()} />
+                    <textarea readOnly rows={text.split("\n").length} value={text} onFocus={(e) => e.currentTarget.select()} />
                 </label>
             )}
         </>
@@ -466,6 +466,48 @@ export function PlayView({ round, onRound, onOpenPack, opened }: { round: RoundD
     );
 }
 
+/**
+ * How-to-play callout under the guess box (T-0025). Open with no toggle before the first guess; after it, a one-line
+ * summary button that expands the same list. The free-guess point only shows when this round has a free guess.
+ */
+function RulesGuide({ round }: { round: RoundDto }) {
+    const [open, setOpen] = useState(false);
+    const listId = useId();
+    const fresh = round.guesses.length === 0 && !round.done;
+    const pt = (key: string, icon: IconName, text: string) => ({ key, icon, text });
+    const points = [
+        ...(freeGuessOf(round).on ? [pt("free", "check", "เดาครั้งแรกฟรี ไม่นับเป็นครั้งที่เดา")] : []),
+        ...(round.steps.hintsCostTier
+            ? [
+                pt("near", "near", "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน"),
+                pt("fast", "card", "ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"),
+                pt("hint", "key", "ซื้อคำใบ้ได้โดยไม่ลดระดับการ์ด"),
+            ]
+            : [
+                pt("hint", "key", "เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ"),
+                pt("fast", "card", "ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"),
+            ]),
+    ];
+    const shown = fresh || open;
+    return (
+        <aside className={`g-rules${shown ? " open" : ""}`} aria-label="วิธีเล่น">
+            {fresh ? (
+                <p className="g-rules-h">วิธีเล่น</p>
+            ) : (
+                <button className="g-rules-t" type="button" aria-expanded={open} aria-controls={listId} onClick={() => setOpen((o) => !o)}>
+                    <span>วิธีเล่น · ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก</span>
+                    <Icon name="down" />
+                </button>
+            )}
+            <ul id={listId} hidden={!shown}>
+                {points.map(({ key, icon, text }) => (
+                    <li key={key} className={`g-rule-${key}`}><i aria-hidden="true"><Icon name={icon} /></i><span>{text}</span></li>
+                ))}
+            </ul>
+        </aside>
+    );
+}
+
 function GuessBox({ round, busy, shakeKey, onGuess }: { round: RoundDto; busy: boolean; shakeKey: number; onGuess: (id: number) => void }) {
     const [text, setText] = useState("");
     const [sel, setSel] = useState(0);
@@ -567,14 +609,7 @@ function GuessBox({ round, busy, shakeKey, onGuess }: { round: RoundDto; busy: b
                 ))}
             </ul>
             {bad && <p className="g-err" id="gerr">ไม่มีชื่อนี้ในเรื่องนี้ เลือกจากรายการ</p>}
-            {round.guesses.length === 0 && (
-                <p className="g-rules">
-                    {freeGuessOf(round).on ? "เดาครั้งแรกฟรี ไม่นับเป็นครั้งที่เดา " : ""}
-                    {round.steps.hintsCostTier
-                        ? "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก ซื้อคำใบ้ได้โดยไม่ลดระดับการ์ด"
-                        : "เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"}
-                </p>
-            )}
+            <RulesGuide round={round} />
         </div>
     );
 }

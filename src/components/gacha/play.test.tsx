@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 
 vi.mock("@/lib/redis", () => ({ withRedis: async () => { throw new Error("no redis in tests"); } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
@@ -156,7 +156,8 @@ describe("r2 round: feedback rows, bought hints count, share", () => {
         await vi.waitFor(() => expect(btn.textContent).toContain("คัดลอกแล้ว"));
         const text = writeText.mock.calls[0][0] as string;
         expect(text.split("\n")[0]).toBe("waifu100 Daily #" + text.split("\n")[0].split("#")[1]);
-        expect(text).toMatch(/^waifu100 Daily #\d+ 2\/6\n/);
+        expect(text).toMatch(/^waifu100 Daily #\d+ · ทายถูกใน 2\/6 ครั้ง\n/);
+        expect(text.split("\n").slice(-2)).toEqual(["ทายตัวละครอนิเมะประจำวัน คุณทายได้กี่ครั้ง? 👇", "https://waifu100.vercel.app/daily"]);
         expect(text).not.toMatch(/Frieren|Stark/);
         expect(text.split("\n")[2]).toBe("🟩🟩🟩🟩🟩🟩");
         expect(c.querySelector("[role='alert'], [role='dialog'], [role='tooltip']")).toBeNull();
@@ -241,7 +242,7 @@ describe("free first guess (T-0024): counter, track, result line", () => {
         [...c.querySelectorAll("button")].find((b) => b.textContent?.includes("คัดลอกผลลัพธ์"))!.click();
         await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
         const lines = (writeText.mock.calls[0][0] as string).split("\n");
-        expect(lines[0]).toMatch(/^waifu100 Daily #\d+ 1\/6 \+free$/);
+        expect(lines[0]).toMatch(/^waifu100 Daily #\d+ · ทายถูกใน 1\/6 ครั้ง \(\+เดาฟรี 1\)$/);
         expect(lines[1].startsWith("🆓 ")).toBe(true);
         expect(lines[2]).toBe("🟩🟩🟩🟩🟩🟩");
     });
@@ -330,5 +331,45 @@ describe("hint shop: not enough coins (T-0024 r2)", () => {
         const c = view(withCoins(50));
         expect(c.querySelector(".g-short")).toBeNull();
         expect(c.querySelector<HTMLButtonElement>(".g-shoprow button")!.hasAttribute("aria-describedby")).toBe(false);
+    });
+});
+
+describe("how-to-play guide (T-0025)", () => {
+    const guide = (c: HTMLElement) => c.querySelector<HTMLElement>(".g-rules")!;
+    const points = (c: HTMLElement) => [...guide(c).querySelectorAll("li")].map((li) => li.textContent);
+
+    it("before the first guess: the full list is open, with icons and no toggle", () => {
+        const c = view(dto(101, [], null, 0, true));
+        expect(guide(c).querySelector("button")).toBeNull();
+        expect(guide(c).querySelector("ul")!.hidden).toBe(false);
+        expect(points(c)).toEqual([
+            "เดาครั้งแรกฟรี ไม่นับเป็นครั้งที่เดา",
+            "เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน",
+            "ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก",
+            "ซื้อคำใบ้ได้โดยไม่ลดระดับการ์ด",
+        ]);
+        for (const li of guide(c).querySelectorAll("li")) expect(li.querySelector("svg")).not.toBeNull();
+    });
+
+    it("after a guess: a one-line summary button, collapsed, that toggles the list", () => {
+        const c = view(dto(101, [103], null, 0, true, { free: true }));
+        const btn = guide(c).querySelector("button")!;
+        const list = guide(c).querySelector("ul")!;
+        expect(btn.getAttribute("aria-expanded")).toBe("false");
+        expect(btn.getAttribute("aria-controls")).toBe(list.id);
+        expect(list.hidden).toBe(true);
+        fireEvent.click(btn);
+        expect(btn.getAttribute("aria-expanded")).toBe("true");
+        expect(list.hidden).toBe(false);
+        fireEvent.click(btn);
+        expect(btn.getAttribute("aria-expanded")).toBe("false");
+        expect(list.hidden).toBe(true);
+    });
+
+    it("no free point when the round has no free guess", () => {
+        const c = view({ ...dto(101, [], null, 0, true), freeGuess: { on: false, used: false } });
+        expect(guide(c).querySelector("button")).toBeNull();
+        expect(points(c)).toEqual(["เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน", "ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก", "ซื้อคำใบ้ได้โดยไม่ลดระดับการ์ด"]);
+        expect(guide(c).textContent).not.toContain("ฟรี");
     });
 });
