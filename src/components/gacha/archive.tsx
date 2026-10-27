@@ -37,7 +37,8 @@ export function ArchiveView({ archive }: { archive: ArchiveDto }) {
                     (ได้ตอนจบรอบ วันละครั้ง) เหมือนปกติ แต่ไม่มีโบนัสเดาไว และไม่นับวันติดกัน
                 </p>
                 <Link className="g-btn red g-arch-today" href="/daily" scroll={false}>
-                    <Icon name="back" />วันนี้ #{archive.today.number}
+                    <Icon name="back" />
+                    <span>วันนี้ #{archive.today.number}{archive.today.anime ? ` · ${archive.today.anime}` : ""}</span>
                     <StateTag state={archive.today.state} tier={archive.today.tier} />
                 </Link>
             </section>
@@ -47,9 +48,12 @@ export function ArchiveView({ archive }: { archive: ArchiveDto }) {
                 <ol className="g-arch-list" aria-label="วันย้อนหลัง">
                     {archive.days.map((d) => (
                         <li key={d.key}>
-                            <Link className={`win g-arch-day ${d.state}`} href={`/daily?day=${d.key}`} scroll={false} aria-label={`#${d.number} ${thaiDate(d.key)} ${STATE_TEXT[d.state]}`}>
+                            <Link className={`win g-arch-day ${d.state}`} href={`/daily?day=${d.key}`} scroll={false} aria-label={`#${d.number} ${d.anime} ${thaiDate(d.key)} ${STATE_TEXT[d.state]}`}>
                                 <b>#{d.number}</b>
-                                <span className="g-arch-date">{thaiDate(d.key)}</span>
+                                <span className="g-arch-date">
+                                    <span className="g-arch-anime">{d.anime}</span>
+                                    {thaiDate(d.key)}
+                                </span>
                                 <StateTag state={d.state} tier={d.tier} />
                             </Link>
                         </li>

@@ -473,7 +473,7 @@ describe("archive (past days) routes", () => {
         const won = await (await guessPOST(req("guess", "POST", { charId: answer, day }))).json();
         expect(won.done).toBe("won");
         const body = await (await archiveGET(req("archive"))).json();
-        expect(body.today).toEqual({ key: day, number: expect.any(Number), state: "won", tier: won.result.pull.tier });
+        expect(body.today).toMatchObject({ key: day, number: expect.any(Number), state: "won", tier: won.result.pull.tier, anime: expect.any(String) });
         expect(body.today.tier).not.toBeNull();
     });
 });

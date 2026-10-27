@@ -196,10 +196,19 @@ export interface RoundDto {
     } | null;
 }
 
+export interface ArchiveDayDto {
+    key: string;
+    number: number;
+    state: ArchiveDayState;
+    tier: Tier | null;
+    /** The day's anime, English title when AniList has one. Not the answer. */
+    anime: string;
+}
+
 export interface ArchiveDto {
-    today: { key: string; number: number; state: ArchiveDayState; tier: Tier | null };
+    today: ArchiveDayDto;
     /** The playable window, newest first: ARCHIVE_DAYS past days, never before the epoch, never future. */
-    days: { key: string; number: number; state: ArchiveDayState; tier: Tier | null }[];
+    days: ArchiveDayDto[];
 }
 
 /** new = never played (playable); playing = started, not finished; won / lost = finished (view only). */
@@ -524,14 +533,21 @@ export async function getDay(id: string, day: string): Promise<RoundDto> {
 
 /** Archive list: today plus the playable window, with this profile's state for each day. Read-only. */
 export async function getArchive(id: string): Promise<ArchiveDto> {
-    const { store, now } = deps();
+    const { store, now, salt } = deps();
+    const idx = await getCatalog();
     const today = bangkokDayKey(now());
     const profile = await store.load(id);
     if (!profile) throw new GachaError("no_profile");
+    const animeName = (key: string) => {
+        const storedId = profile.rounds[key]?.animeId;
+        const animeId = storedId ?? dailyPick(idx.catalog, key, salt()).animeId;
+        const anime = idx.anime.get(animeId);
+        return anime ? (anime.titleEnglish ?? anime.titleRomaji) : "";
+    };
     const entry = (key: string) => {
         const r = profile.rounds[key];
         const state: ArchiveDayState = !r ? "new" : r.done ?? "playing";
-        return { key, number: dayNumber(key), state, tier: r?.pull?.tier ?? null };
+        return { key, number: dayNumber(key), state, tier: r?.pull?.tier ?? null, anime: animeName(key) };
     };
     const t = entry(today);
     return { today: t, days: archiveDays(today).map(entry) };

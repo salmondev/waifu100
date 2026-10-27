@@ -25,12 +25,12 @@ afterEach(() => {
 });
 
 const archive: ArchiveDto = {
-    today: { key: TODAY, number: 31, state: "playing", tier: null },
+    today: { key: TODAY, number: 31, state: "playing", tier: null, anime: "Frieren" },
     days: [
-        { key: "2026-10-26", number: 30, state: "won", tier: "sr" },
-        { key: "2026-10-25", number: 29, state: "lost", tier: null },
-        { key: "2026-10-24", number: 28, state: "playing", tier: null },
-        { key: "2026-10-23", number: 27, state: "new", tier: null },
+        { key: "2026-10-26", number: 30, state: "won", tier: "sr", anime: "Frieren" },
+        { key: "2026-10-25", number: 29, state: "lost", tier: null, anime: "Bocchi the Rock!" },
+        { key: "2026-10-24", number: 28, state: "playing", tier: null, anime: "Spy x Family" },
+        { key: "2026-10-23", number: 27, state: "new", tier: null, anime: "Chainsaw Man" },
     ],
 };
 
@@ -42,6 +42,7 @@ describe("ArchiveView", () => {
         expect(links.map((a) => a.querySelector(".g-arch-st")!.textContent)).toEqual(["เดาถูกSR", "ไม่ได้การ์ด", "เล่นค้างไว้", "ยังไม่เล่น"]);
         for (const a of links) expect(a.querySelector(".g-arch-st svg, .g-arch-st i, .g-arch-st span")).not.toBeNull();
         expect(c.querySelector(".g-arch-today")!.getAttribute("href")).toBe("/daily");
+        expect(links.map((a) => a.querySelector(".g-arch-anime")!.textContent)).toEqual(archive.days.map((d) => d.anime));
         expect(c.textContent).toContain("เล่นได้อีก 1 วัน");
         expect(c.textContent).toContain("ไม่นับวันติดกัน");
         expect(c.querySelector("[role=dialog], [role=alert], [role=tooltip]")).toBeNull();

@@ -851,7 +851,17 @@ describe("archive (past days)", () => {
         expect(list.days).toHaveLength(30);
         expect(list.days.at(-1)!.key).toBe(FIRST_DAY_KEY);
         expect(list.days.every((d) => d.state === "new" && d.key < today())).toBe(true);
-        expect(list.today).toEqual({ key: today(), number: 31, state: "playing", tier: null });
+        expect(list.today).toMatchObject({ key: today(), number: 31, state: "playing", tier: null });
+        const titleOf = (day: string) => {
+            const a = animeOf(pickOn(day).animeId);
+            return a.titleEnglish ?? a.titleRomaji;
+        };
+        expect(list.today.anime).toBe(titleOf(today()));
+        expect(list.days[0].anime).toBe(titleOf(list.days[0].key));
+        const saved = await profile();
+        saved.rounds[today()].animeId = 9002;
+        store.profiles.set(ID, JSON.stringify(saved));
+        expect((await getArchive(ID)).today.anime).toBe("Oshi no Ko");
     });
 
     it("window edges follow Bangkok midnight, not UTC", async () => {

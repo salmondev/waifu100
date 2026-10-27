@@ -550,7 +550,8 @@
 .g-arch-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .g-arch-day { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; color: var(--ink); text-decoration: none; }
 .g-arch-day b { font: 700 16px/1 var(--bit); }
-.g-arch-date { font: 400 13px/1.3 var(--th); }
+.g-arch-date { display: flex; flex-direction: column; gap: 2px; min-width: 0; font: 400 13px/1.3 var(--th); }
+.g-arch-anime { font: 600 15px/1.3 var(--th); }
 .g-arch-day:focus-visible, .g-arch-today:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 .g-arch-day.new { background: #fff; }
 .g-arch-day.won, .g-arch-day.lost { background: var(--paper); }
