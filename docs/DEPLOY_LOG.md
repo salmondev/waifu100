@@ -60,3 +60,29 @@ Format (copy this block):
     - 13 high npm audit findings;
     - 4 P3s: pid token doesn't check that the hint slot was bought; the legacy no-pid token for today is valid for any character; the pid inside the encrypted image URL is exposed if the salt leaks; a round started at 23:59 and finished after midnight gets no bonus/streak, and +10 is credited on the first write after midnight;
     - there is no /daily Playwright e2e yet.
+
+## 2026-10-27 ~09:40 ICT — deploy — PASS — T-0024 r2 (free first guess + hint prices 30/40/50/60/70) + T-0023 (tier counts guesses only)
+- who: Panurut (approved; tier option 1 = tier rules as built, no tier change) / Chief of Staff pushed from the Mac; agent: grok (Engineer 1)
+- reviewer: Engineer 2 (QA r2 on a2a7f33 / 20121cd)
+- commits: develop f526166..a2a7f33 (fast-forward; T-0023 42bb61d, T-0024 630f9cc, r2 a2a7f33; preview waifu100-f8o4fivj7) | main eaed3e3..20121cd (--no-ff merge, first parent eaed3e3, tree = a2a7f33)
+- deployment: waifu100-r502ail4q (Ready; aliased to https://waifu100.vercel.app)
+- checks (pre-push gate at a2a7f33): verify=PASS (unit 882/882, integration 49 + 1 skipped, e2e 35/35, lint 0 errors / 39 warnings) | targeted gacha 248/248 | secrets=PASS
+- prod smoke (2026-10-27 09:30 ICT, GET-only, no profile created; evidence projects/waifu100/t0024-prod-smoke/): smoke:prod=PASS 8/8 GETs + headers (CSP missing, warn) | smoke-gacha=PASS 14/14 | T-0024 static=PASS 7/7 (/ and /daily 200; deployed /daily JS/CSS carry the free-guess rule text, freeGuess reader, r2 'เหรียญไม่พอ (มี' reason, free-slot 12px; none of these exist at eaed3e3)
+- not checked on prod: live round DTO freeGuess {on:true} and first hint price 30. Reading them needs a player profile, and GET /api/gacha/today with a new id creates one (prod write). Covered by the gate tests instead.
+- rollback ref: Vercel promote waifu100-6cdt6zw8v (eaed3e3 build) / `git revert -m 1 20121cd` on main (also reverts T-0023; T-0024 only = `git revert a2a7f33 630f9cc` on develop). Caveats in projects/waifu100/t0024/ROLLBACK.md: open rounds get counted guesses +1 (and bought hints count again on full rollback), coins spent at new prices not refunded, re-ship = revert the revert, client/server skew ('เหลือ N' shown too low until reload).
+- notes:
+  - No env change, no Redis migration. New optional round field `free: true` (ignored by old code).
+  - Open P3s: rollback skew 'เหลือ N' display too low; pack recap has no free-guess badge; old client + new server shows 6 slots until reload; fast-bonus note (SR = SSR +30 once the first guess is free).
+
+## 2026-10-27 ~10:55 ICT — deploy — PASS — T-0025 r2 (rules guide callout on the .win frame, invite share text + auto-grow share box, /daily og/twitter link preview)
+- who: Panurut (approved: "ขึ้น prod") / Chief of Staff pushed from the Mac, no force; agent: grok (Engineer 1)
+- reviewer: Engineer 2 (QA r2 PASS on bc498ca / 0c0d47f)
+- commits: develop a2a7f33..bc498ca (fast-forward; r1 5bae594, r2 bc498ca) | main 20121cd..0c0d47f (--no-ff merge t0025-main-merge, first parent 20121cd, tree c3aae8a = bc498ca)
+- deployment: waifu100-dwbk47aqm (Ready; aliased to https://waifu100.vercel.app)
+- checks (pre-push gate at bc498ca, fresh archive + npm ci + unshare -rn): verify=PASS exit 0 (typecheck ok, lint 0 errors / 39 warnings, unit 893/893, integration 49 + 1 skipped, build ok, bundle ok, e2e 35/35) | E2 QA r2=PASS
+- prod smoke (2026-10-27 11:00 ICT, GET-only, no /api calls, no profile created; evidence projects/waifu100/t0025-prod-smoke/): smoke:prod=PASS 8/8 GETs + headers (CSP missing, warn) | smoke-gacha --pages-only=PASS 6/6 | T-0025 static=PASS 20/20 (/daily og:title/description/url/image + og:image:width/height 1200x630, twitter:card summary_large_image, twitter:image, theme-color #29adff; og and twitter image 200 image/png 1200x630, byte-identical to the local r2 render; deployed JS/CSS carry "g-rules win", .win frame, .g-rules without its own frame, .g-sharebox textarea field-sizing:content, the invite "ทายตัวละครอนิเมะประจำวัน คุณทายได้กี่ครั้ง? 👇" + https://waifu100.vercel.app/daily; none of these markers exist at a2a7f33)
+- not checked on prod: the live share/copy flow and the result screens (they need a played round = a profile = a prod write). Covered by the gate e2e and the r2 screenshots (projects/waifu100/t0025/screenshots/r2/).
+- rollback ref: Vercel promote waifu100-r502ail4q (20121cd build) / `git revert -m 1 0c0d47f` on main (rollback git ref 20121cd). Client-only + metadata change: no data, Redis or API change, so rollback has no data caveats.
+- notes:
+  - No env change, no Redis change, no new deps.
+  - Open P3: T-0026, loss screen at 320px: .g-stats overflows by 19px (gacha.css:233-236). Predates r2; backlog, not started.

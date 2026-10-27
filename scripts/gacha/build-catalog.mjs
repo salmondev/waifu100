@@ -3,7 +3,10 @@
 // Queries the public AniList GraphQL API and writes server-only data:
 //   src/server/gacha/catalog.json       (anime + characters, no descriptions)
 //   src/server/gacha/catalog-gaps.json  (coverage counts)
-// Usage: node scripts/gacha/build-catalog.mjs [--refresh-anime] [--cache <dir>]
+// Usage: node scripts/gacha/build-catalog.mjs [--refresh-anime] [--cache <dir>] [--apply-only]
+//   --apply-only: no network; re-applies src/server/gacha/enrichment.json to the committed catalog.
+// Gaps AniList leaves are filled from src/server/gacha/enrichment.json (T-0027; see
+// scripts/gacha/enrich/README.md). Sidecar values never replace an AniList value.
 //   (Node 20+, no deps, no env vars). By default the anime list and card set of
 //   the committed catalog.json are kept (so players' albums keep their cards) and
 //   only the guess roster + feedback fields are (re)fetched; --refresh-anime
@@ -13,6 +16,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyAnime, applyCharacter, undoCharacter } from "./enrich/lib/apply.mjs";
 
 const ENDPOINT = "https://graphql.anilist.co";
 const MIN_INTERVAL_MS = 2500; // AniList degraded limit is 30 req/min
@@ -34,6 +38,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const OUT_DIR = path.join(ROOT, "src/server/gacha");
 const CATALOG_FILE = path.join(OUT_DIR, "catalog.json");
 const GAPS_FILE = path.join(OUT_DIR, "catalog-gaps.json");
+const ENRICHMENT_FILE = path.join(OUT_DIR, "enrichment.json");
+// Roster images are stored exactly as AniList returns them (the /api/img CDN cache keys on the URL).
+const ANILIST_IMAGE = /^https:\/\/s4\.anilist\.co\//;
 
 const IMAGE_NOTE =
   "Character images are AniList image.large (max 230x345, the largest official size AniList offers for characters); " +
@@ -425,6 +432,8 @@ function rosterEntry(edge, card) {
     alternative: (n.name?.alternative ?? []).map((x) => (x ?? "").trim()).filter(Boolean),
     ...feedbackFields(edge),
     card,
+    // exact AniList URL, never rewritten (guess-only characters show it; T-0027)
+    image: isPlaceholder(n.image?.large) ? null : n.image.large,
   };
 }
 
@@ -461,7 +470,7 @@ async function buildRoster(anime) {
     else {
       missingCards.push(c.id);
       // Not found on AniList's media page any more: keep the card guessable with what the catalog has.
-      roster.push({ id: c.id, name: c.name, nameNative: c.nameNative, alternative: c.alternative, gender: c.gender, age: c.age, role: c.role, favourites: c.favourites, birthMonth: null, va: null, card: true });
+      roster.push({ id: c.id, name: c.name, nameNative: c.nameNative, alternative: c.alternative, gender: c.gender, age: c.age, role: c.role, favourites: c.favourites, birthMonth: null, va: null, card: true, image: c.image ?? null });
     }
   }
   for (const e of extra) roster.push(rosterEntry(e, false));
@@ -483,6 +492,11 @@ function enrichCards(anime, roster) {
 
 async function main() {
   const started = Date.now();
+  if (flag("--apply-only")) {
+    const existing = JSON.parse(await readFile(CATALOG_FILE, "utf8"));
+    console.log(`[gacha] --apply-only: re-applying enrichment.json to the committed catalog (no network)`);
+    return finish(existing.anime, 0, started, { fetchRoster: false });
+  }
   if (!flag("--refresh-anime") && existsSync(CATALOG_FILE)) {
     const existing = JSON.parse(await readFile(CATALOG_FILE, "utf8"));
     console.log(`[gacha] keeping the committed anime list and card set (${existing.anime.length} anime); pass --refresh-anime to rebuild them`);
@@ -542,9 +556,16 @@ async function main() {
   return finish(anime, failed, started);
 }
 
-async function finish(anime, failed, started) {
+async function finish(anime, failed, started, { fetchRoster = true } = {}) {
+  const enrichment = existsSync(ENRICHMENT_FILE) ? JSON.parse(await readFile(ENRICHMENT_FILE, "utf8")) : { characters: {}, anime: {} };
+  // drop last run's sidecar values first, so fresh AniList values always win
+  for (const a of anime) {
+    for (const c of a.characters) undoCharacter(c);
+    for (const r of a.roster ?? []) undoCharacter(r);
+  }
   const missingCardIds = [];
   for (const [i, a] of anime.entries()) {
+    if (!fetchRoster) break;
     try {
       const { roster, missingCards } = await buildRoster(a);
       a.roster = roster;
@@ -556,6 +577,9 @@ async function finish(anime, failed, started) {
     }
     if ((i + 1) % 10 === 0 || i + 1 === anime.length) console.log(`[gacha] roster ${i + 1}/${anime.length}, ${requestCount} requests`);
   }
+
+  const enrichedCounts = applyEnrichment(anime, enrichment);
+  assertRosterImages(anime);
 
   const catalog = { generatedAt: new Date().toISOString(), source: "AniList GraphQL", imageNote: IMAGE_NOTE, anime };
   let json = JSON.stringify(catalog, null, 1) + "\n";
@@ -584,6 +608,7 @@ async function finish(anime, failed, started) {
       silhouette: chars.filter((c) => !c.silhouette).length,
     },
     roster: rosterGaps(anime, missingCardIds),
+    enrichment: enrichedCounts,
     animeUnderMinCharacters: anime
       .filter((a) => a.characters.length < MIN_CHARS)
       .map((a) => ({ title: a.titleEnglish || a.titleRomaji, characters: a.characters.length })),
@@ -615,6 +640,8 @@ function rosterGaps(anime, missingCardIds) {
       age: have((r) => r.age),
       birthMonth: have((r) => r.birthMonth),
       voiceActorJP: have((r) => r.va),
+      image: have((r) => r.image),
+      ageGame: have((r) => r.ageGame),
     },
   };
 }
@@ -623,3 +650,34 @@ main().catch((err) => {
   console.error(`[gacha] failed: ${err?.message ?? err}`);
   process.exit(1);
 });
+
+/** Fills AniList gaps from enrichment.json on card rows, roster rows and anime; returns counts per field. */
+function applyEnrichment(anime, enrichment) {
+  const counts = { characterRows: {}, anime: {} };
+  const bump = (bucket, fields) => { for (const f of fields ?? []) bucket[f] = (bucket[f] ?? 0) + 1; };
+  for (const a of anime) {
+    applyAnime(a, enrichment.anime?.[a.id]);
+    bump(counts.anime, a.enriched);
+    for (const c of a.characters) applyCharacter(c, enrichment.characters?.[c.id], { card: true });
+    for (const r of a.roster ?? []) {
+      applyCharacter(r, enrichment.characters?.[r.id], { card: false });
+      bump(counts.characterRows, r.enriched);
+    }
+  }
+  return counts;
+}
+
+/** Every stored roster image must be the untouched AniList CDN URL; anything else fails the build. */
+function assertRosterImages(anime) {
+  let ok = 0;
+  const bad = [];
+  for (const a of anime) {
+    for (const r of a.roster ?? []) {
+      if (r.image === null || r.image === undefined) continue;
+      if (typeof r.image === "string" && ANILIST_IMAGE.test(r.image)) ok++;
+      else bad.push(r.id);
+    }
+  }
+  if (bad.length) throw new Error(`roster images not on https://s4.anilist.co/: ${bad.slice(0, 10).join(", ")}${bad.length > 10 ? " ..." : ""}`);
+  console.log(`[gacha] roster images: ${ok} non-null, all match ^https://s4.anilist.co/`);
+}
