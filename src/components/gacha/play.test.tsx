@@ -171,6 +171,25 @@ describe("r2 round: feedback rows, bought hints count, share", () => {
         await vi.waitFor(() => expect(c.querySelector(".g-sharebox textarea")).not.toBeNull());
         expect((c.querySelector(".g-sharebox textarea") as HTMLTextAreaElement).value).toMatch(/ X\/6\n/);
     });
+
+    it("the fallback box grows to its wrapped text so the /daily link is not cut off (no field-sizing support)", async () => {
+        Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockRejectedValue(new Error("denied")) }, configurable: true });
+        const sh = vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockReturnValue(173);
+        vi.stubGlobal("CSS", { supports: () => false });
+        try {
+            const c = view(dto(101, [102, 103, 104, 105, 106, 107], "lost", 0, true));
+            [...c.querySelectorAll("button")].find((b) => b.textContent?.includes("คัดลอกผลลัพธ์"))!.click();
+            await vi.waitFor(() => expect(c.querySelector(".g-sharebox textarea")).not.toBeNull());
+            const box = c.querySelector<HTMLTextAreaElement>(".g-sharebox textarea")!;
+            expect(box.style.height).toBe("173px");
+            sh.mockReturnValue(221); // narrower window: more wrapped lines
+            window.dispatchEvent(new Event("resize"));
+            expect(box.style.height).toBe("221px");
+        } finally {
+            sh.mockRestore();
+            vi.unstubAllGlobals();
+        }
+    });
 });
 
 describe("free first guess (T-0024): counter, track, result line", () => {
@@ -371,5 +390,18 @@ describe("how-to-play guide (T-0025)", () => {
         expect(guide(c).querySelector("button")).toBeNull();
         expect(points(c)).toEqual(["เดาผิดจะเห็นว่าใกล้คำตอบแค่ไหน", "ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก", "ซื้อคำใบ้ได้โดยไม่ลดระดับการ์ด"]);
         expect(guide(c).textContent).not.toContain("ฟรี");
+    });
+
+    it("old-rule round with no guesses yet gets the free guess too: 3 points; one already guessed before the deploy: 2", () => {
+        const fresh = view(dto(101, [], null, 0, false));
+        expect(points(fresh)).toEqual(["เดาครั้งแรกฟรี ไม่นับเป็นครั้งที่เดา", "เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ", "ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"]);
+        cleanup();
+        const inFlight = view(dto(101, [102, 103], null, 0, false));
+        fireEvent.click(guide(inFlight).querySelector("button")!);
+        expect(points(inFlight)).toEqual(["เดาผิดแต่ละครั้งเปิดคำใบ้ 1 ข้อ", "ยิ่งเดาถูกเร็ว การ์ดยิ่งหายาก"]);
+    });
+
+    it("uses the shared .win panel frame like its neighbours", () => {
+        expect(guide(view(dto(101, [], null, 0, true))).classList.contains("win")).toBe(true);
     });
 });

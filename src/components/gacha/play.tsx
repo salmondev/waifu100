@@ -11,7 +11,7 @@
  */
 import Link from "next/link";
 import { m } from "motion/react";
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { DAILY_COINS, type CellState, type FeedbackCell, type HintKey, type HintValue } from "@/server/gacha/rules";
 import { hintImageSrc } from "@/lib/gacha-hint-image";
 import { shareText } from "@/lib/gacha-share";
@@ -118,13 +118,34 @@ function ShareButton({ round }: { round: RoundDto }) {
                 <Icon name={state === "ok" ? "check" : "card"} />
                 <span aria-live="polite">{state === "ok" ? "คัดลอกแล้ว" : "คัดลอกผลลัพธ์"}</span>
             </button>
-            {state === "fail" && (
-                <label className="g-sharebox">
-                    <span>คัดลอกอัตโนมัติไม่ได้ เลือกข้อความนี้แล้วคัดลอกเอง</span>
-                    <textarea readOnly rows={text.split("\n").length} value={text} onFocus={(e) => e.currentTarget.select()} />
-                </label>
-            )}
+            {state === "fail" && <ShareFallback text={text} />}
         </>
+    );
+}
+
+/**
+ * The copy-it-yourself box. Its long lines wrap, so it grows to its content (CSS
+ * field-sizing: content, else height from scrollHeight on render and resize) and the
+ * /daily link on the last line is never cut off.
+ */
+function ShareFallback({ text }: { text: string }) {
+    const box = useRef<HTMLTextAreaElement>(null);
+    useLayoutEffect(() => {
+        const el = box.current;
+        if (!el || (typeof CSS !== "undefined" && CSS.supports?.("field-sizing", "content"))) return;
+        const fit = () => {
+            el.style.height = "auto";
+            el.style.height = `${el.scrollHeight}px`;
+        };
+        fit();
+        window.addEventListener("resize", fit);
+        return () => window.removeEventListener("resize", fit);
+    }, [text]);
+    return (
+        <label className="g-sharebox">
+            <span>คัดลอกอัตโนมัติไม่ได้ เลือกข้อความนี้แล้วคัดลอกเอง</span>
+            <textarea ref={box} readOnly rows={text.split("\n").length} value={text} onFocus={(e) => e.currentTarget.select()} />
+        </label>
     );
 }
 
@@ -490,7 +511,7 @@ function RulesGuide({ round }: { round: RoundDto }) {
     ];
     const shown = fresh || open;
     return (
-        <aside className={`g-rules${shown ? " open" : ""}`} aria-label="วิธีเล่น">
+        <aside className={`g-rules win${shown ? " open" : ""}`} aria-label="วิธีเล่น">
             {fresh ? (
                 <p className="g-rules-h">วิธีเล่น</p>
             ) : (

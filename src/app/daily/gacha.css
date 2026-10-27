@@ -331,9 +331,9 @@
 .g-ac li.on { background: var(--ink); color: var(--paper); }
 .g-ac mark { background: none; color: inherit; text-decoration: underline 2px; text-underline-offset: 3px; }
 .g-err { margin: 10px 0 0; font: 400 13px/1.3 var(--th); color: var(--wine); }
-/* T-0025 how-to-play callout: a soft paper card (no pixel frame), hard offset shadow, one colour chip per point. */
-.g-rules { margin: 14px 0 0; padding: 10px 12px; background: #fff; border: 2px solid rgba(29, 43, 83, .16); border-radius: 10px;
-  box-shadow: 0 3px 0 rgba(29, 43, 83, .12); font: 300 13px/1.4 var(--th); animation: grules-in .32s var(--snap) both; }
+/* T-0025 how-to-play callout. The frame is the shared .win panel (3px ink outline, square notched corners, paper), the same as
+   .g-fb/.g-hints/.g-shop; padding is .g-fb's, the top gap is .g-play's panel gap. Only the content is styled here. */
+.g-rules { margin: 18px 0 0; padding: 12px 12px 10px; font: 300 13px/1.4 var(--th); animation: grules-in .32s var(--snap) both; }
 .g-rules-h { margin: 0 0 6px; font: 500 13px/1.2 var(--th); }
 .g-rules-h::before, .g-rules-t > span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; vertical-align: 1px;
   background: var(--red); box-shadow: 4px 4px 0 var(--yellow); } /* small 90s confetti accent */
@@ -342,12 +342,12 @@
 .g-rules-t > span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .g-rules-t svg { flex: none; width: 12px; height: 12px; margin-right: 4px; transition: transform .18s var(--snap); }
 .g-rules-t[aria-expanded="true"] svg { transform: rotate(180deg); }
-.g-rules-t:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; border-radius: 4px; }
+.g-rules-t:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
 .g-rules-t + ul { margin-top: 10px; }
 .g-rules ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; animation: grules-in .24s var(--snap) both; }
 .g-rules li { display: flex; gap: 9px; align-items: center; min-width: 0; }
 .g-rules li span { min-width: 0; overflow-wrap: anywhere; }
-.g-rules li i { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; background: var(--sky); color: var(--ink); }
+.g-rules li i { flex: none; width: 24px; height: 24px; display: grid; place-items: center; background: var(--sky); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
 .g-rules li i svg { width: 14px; height: 14px; }
 .g-rules li.g-rule-free i { background: var(--green); }
 .g-rules li.g-rule-near i { background: var(--sky); }
@@ -539,7 +539,7 @@
 .g-initial i:first-child:not(:empty) { background: var(--ink); color: var(--paper); box-shadow: none; }
 .g-stake-n { margin: -2px 0 6px; font: 400 12px/1.2 var(--th); }
 .g-sharebox { display: grid; gap: 4px; margin-top: 10px; font: 400 12px/1.3 var(--th); text-align: left; }
-.g-sharebox textarea { font: 400 14px/1.3 var(--th); color: var(--ink); background: var(--paper); border: 0; box-shadow: 0 0 0 2px var(--ink); padding: 6px; resize: none; }
+.g-sharebox textarea { box-sizing: border-box; width: 100%; field-sizing: content; overflow: hidden; font: 400 14px/1.3 var(--th); color: var(--ink); background: var(--paper); border: 0; box-shadow: 0 0 0 2px var(--ink); padding: 6px; resize: none; }
 
 /* archive (?view=archive): a list inside /daily, same windows and type scale; Thai >= 12px */
 .g-archline { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
