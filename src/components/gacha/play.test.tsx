@@ -156,8 +156,8 @@ describe("r2 round: feedback rows, bought hints count, share", () => {
         await vi.waitFor(() => expect(btn.textContent).toContain("คัดลอกแล้ว"));
         const text = writeText.mock.calls[0][0] as string;
         expect(text.split("\n")[0]).toBe("waifu100 Daily #" + text.split("\n")[0].split("#")[1]);
-        expect(text).toMatch(/^waifu100 Daily #\d+ · ทายถูกใน 2\/6 ครั้ง\n/);
-        expect(text.split("\n").slice(-2)).toEqual(["ทายตัวละครอนิเมะประจำวัน คุณทายได้กี่ครั้ง? 👇", "https://waifu100.vercel.app/daily"]);
+        expect(text).toMatch(/^waifu100 Daily #\d+\n/);
+        expect(text.split("\n").slice(-2)).toEqual(["ทายตัวละครอนิเมะ สะสมการ์ด 👇", "https://waifu100.vercel.app/daily"]);
         expect(text).not.toMatch(/Frieren|Stark/);
         expect(text.split("\n")[2]).toBe("🟩🟩🟩🟩🟩🟩");
         expect(c.querySelector("[role='alert'], [role='dialog'], [role='tooltip']")).toBeNull();
@@ -169,7 +169,7 @@ describe("r2 round: feedback rows, bought hints count, share", () => {
         const btn = [...c.querySelectorAll("button")].find((b) => b.textContent?.includes("คัดลอกผลลัพธ์"))!;
         btn.click();
         await vi.waitFor(() => expect(c.querySelector(".g-sharebox textarea")).not.toBeNull());
-        expect((c.querySelector(".g-sharebox textarea") as HTMLTextAreaElement).value).toMatch(/ X\/6\n/);
+        expect((c.querySelector(".g-sharebox textarea") as HTMLTextAreaElement).value).toMatch(/^waifu100 Daily #\d+\n/);
     });
 
     it("the fallback box grows to its wrapped text so the /daily link is not cut off (no field-sizing support)", async () => {
@@ -261,8 +261,8 @@ describe("free first guess (T-0024): counter, track, result line", () => {
         [...c.querySelectorAll("button")].find((b) => b.textContent?.includes("คัดลอกผลลัพธ์"))!.click();
         await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
         const lines = (writeText.mock.calls[0][0] as string).split("\n");
-        expect(lines[0]).toMatch(/^waifu100 Daily #\d+ · ทายถูกใน 1\/6 ครั้ง \(\+เดาฟรี 1\)$/);
-        expect(lines[1].startsWith("🆓 ")).toBe(true);
+        expect(lines[0]).toMatch(/^waifu100 Daily #\d+$/);
+        expect(lines[1].includes("🆓")).toBe(false);
         expect(lines[2]).toBe("🟩🟩🟩🟩🟩🟩");
     });
 });
