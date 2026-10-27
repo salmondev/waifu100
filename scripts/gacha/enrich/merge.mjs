@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Merge candidate files (and review items a human set to "approved") into
 // src/server/gacha/enrichment.json; everything not auto-mergeable goes to src/server/gacha/review.json.
-//   node scripts/gacha/enrich/merge.mjs out/age-candidates.json out/jikan-candidates.json [--dry-run]
+//   node scripts/gacha/enrich/merge.mjs out/age-candidates.json out/anilist-desc-candidates.json [--dry-run]
 // Rules (lib/merge.mjs): never overwrites an AniList value or an existing sidecar value; values without
 // full provenance are rejected; only high-confidence, non-review-only values merge without review.
 // Then run `npm run gacha:catalog` to apply enrichment.json to catalog.json.

@@ -16,7 +16,6 @@ export type EnrichmentSource =
     | "anilist-desc"
     | "anilist-pronouns"
     | "derived-cover"
-    | "jikan"
     | "serper"
     | "agent";
 
@@ -87,7 +86,6 @@ export const SOURCES: readonly EnrichmentSource[] = [
     "anilist-desc",
     "anilist-pronouns",
     "derived-cover",
-    "jikan",
     "serper",
     "agent",
 ];

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Serper (Google search) candidates for CARD characters that still miss age or birth month after
-// AniList + Jikan. Web values are review-only: they always land in review.json, never straight in
-// enrichment.json. Dry-run unless --live.
+// AniList. Web values are review-only: they always land in review.json, never straight in
+// enrichment.json. Dry-run unless --live. Jikan is not used.
 //
 //   node scripts/gacha/enrich/serper.mjs                          # dry-run: prints only the queries
 //   SERPER_API_KEY must already be in the shell's environment for --live (it is never printed or written):
-//   node scripts/gacha/enrich/serper.mjs --live --max 50 --after scripts/gacha/enrich/out/jikan-candidates.json
+//   node scripts/gacha/enrich/serper.mjs --live --max 50 --after scripts/gacha/enrich/out/anilist-desc-candidates.json
 //
 // Options: --live, --dry-run (default), --max <n queries, default 50>, --out <file>,
 //          --after <candidates.json> (skip fields an earlier run already found), --include-guess-only,

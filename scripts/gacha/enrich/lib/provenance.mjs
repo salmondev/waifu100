@@ -7,7 +7,6 @@ export const SOURCES = Object.freeze([
   "anilist-desc", // a labelled field (__Age:__, __Birthday:__) in the AniList description
   "anilist-pronouns", // gender guessed from pronouns in the AniList description (review only)
   "derived-cover", // computed from the AniList cover image (no AI)
-  "jikan", // MyAnimeList via the Jikan API
   "serper", // web search snippet (review only)
   "agent", // agent research (review only)
 ]);

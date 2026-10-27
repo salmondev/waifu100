@@ -43,7 +43,6 @@ Every script that calls a network service is **dry-run by default** and needs `-
 | `normalise-age.mjs` | none (reads catalog.json) | `age-candidates.json` |
 | `anilist-desc.mjs [--live] [--max N]` | AniList public, 1 req/2.5 s | `anilist-desc-candidates.json` (age/birthday labels; pronoun gender → review only) |
 | `cover-color.mjs [--live]` | AniList cover images | `cover-color-candidates.json` (saturation-weighted accent colour, sharp) |
-| `jikan.mjs [--live] [--max N=300] [--cards-only] [--fields …] [--anime id,…] [--cache dir]` | Jikan (no key) ≥1.1 s gap, ≤55/min, retry/back-off | `jikan-candidates.json` |
 | `serper.mjs [--live] [--max N=50] [--after file] [--include-guess-only] [--ledger file]` | Serper (paid key) | `serper-candidates.json` (always review) |
 | `redis-measure.mjs [--live] [--sample 500] [--max-keys 20000]` | Redis READ-ONLY (SCAN/GET/TYPE) | `redis-counts.json` (counts only) |
 | `merge.mjs <candidate files…> [--dry-run]` | none | writes enrichment.json + review.json |
@@ -52,28 +51,24 @@ Env vars read (names only): `SERPER_API_KEY` (serper `--live` only; never printe
 → exit 2 with a message), `SERPER_DAILY_CAP` (optional; malformed = 0 queries), `SERPER_ENDPOINT`
 (tests only; localhost only), `REDIS_URL` (redis-measure `--live` only; missing → exit 2).
 
-## Mac commands (CoS runs these; the box cannot reach Jikan (TLS EOF) and has no keys)
+## Mac commands (CoS runs these; Jikan is shut down and is not a source)
 
 ```bash
 cd <waifu100 repo>                 # on branch t0027-enrich (or A+B merged)
 npm ci                             # if node_modules is missing
 
-# 1. Jikan (free, ~1 req/s). Dry-run first, then live; re-run to continue (cached in .cache/jikan).
-node scripts/gacha/enrich/jikan.mjs
-node scripts/gacha/enrich/jikan.mjs --live --max 300
-
-# 2. Serper (PAID, uses the key in .env.local). Load the key into THIS shell only; never echo it.
+# 1. Serper (PAID, uses the key in .env.local). Load the key into THIS shell only; never echo it.
 set -a; source .env.local; set +a
-node scripts/gacha/enrich/serper.mjs --after scripts/gacha/enrich/out/jikan-candidates.json            # dry-run: prints queries only
-node scripts/gacha/enrich/serper.mjs --live --max 50 --after scripts/gacha/enrich/out/jikan-candidates.json
+node scripts/gacha/enrich/serper.mjs --after scripts/gacha/enrich/out/anilist-desc-candidates.json            # dry-run: prints queries only
+node scripts/gacha/enrich/serper.mjs --live --max 50 --after scripts/gacha/enrich/out/anilist-desc-candidates.json
 
-# 3. Redis read-only counts (needs REDIS_URL in the shell; output has counts only)
+# 2. Redis read-only counts (needs REDIS_URL in the shell; output has counts only)
 node scripts/gacha/enrich/redis-measure.mjs              # dry-run
 node scripts/gacha/enrich/redis-measure.mjs --live
 ```
 
 **Bring back** (no secrets inside; serper output is checked for the key before writing):
-`scripts/gacha/enrich/out/jikan-candidates.json`, `out/serper-candidates.json`, `out/redis-counts.json`.
+`scripts/gacha/enrich/out/serper-candidates.json`, `out/redis-counts.json`.
 
 ## Merge order
 
@@ -95,4 +90,4 @@ Field contract for the game side (Slice B): see `docs/gacha-catalog-fields.md` o
 - Unit tests (normaliser incl. parity with feedback.ts parseAge; merge: no overwrite / provenance
   required / low+pronoun → review; Serper key never printed, missing key exits non-zero; redis
   read-only proxy; catalog roster images match s4.anilist.co; enrichment.json validates).
-- Jikan + Serper + Redis runs on the Mac, then merge + review + regenerate.
+- Serper + Redis runs on the Mac, then merge + review + regenerate. Jikan is shut down and is not used.

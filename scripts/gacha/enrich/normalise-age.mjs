@@ -18,7 +18,7 @@ const candidates = [];
 const stats = { checked: 0, high: 0, review: 0, nothing: 0, reasons: {} };
 for (const g of missingByAnime(catalog, enrichment, { fields: ["ageGame"] })) {
   for (const c of g.chars) {
-    if (!c.ageRaw) continue; // AniList has no age at all: Jikan/Serper territory
+    if (!c.ageRaw) continue; // AniList has no age at all: Serper territory
     stats.checked++;
     const r = normaliseAge(c.ageRaw);
     stats.reasons[r.reason] = (stats.reasons[r.reason] ?? 0) + 1;
