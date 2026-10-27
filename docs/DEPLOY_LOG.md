@@ -86,3 +86,16 @@ Format (copy this block):
 - notes:
   - No env change, no Redis change, no new deps.
   - Open P3: T-0026, loss screen at 320px: .g-stats overflows by 19px (gacha.css:233-236). Predates r2; backlog, not started.
+
+## 2026-10-27 22:14 ICT — deploy — PASS
+- who: Panurut (approved: "ทำตามกระบวนการตรวจสอบและ deploy prod ได้เลย") / agent: grok
+- reviewer: same session ran the gate; no separate reviewer
+- commit: c7f241f (main, --no-ff, first parent 0c0d47f, tree = develop 649767e) — T-0027 enrichment + roster images/ageGame, star tiers, streak shield, practice mode, album badge, grid drop; Jikan removed
+- deployment: waifu100-fqc96gtoi (Ready; aliased to https://waifu100.vercel.app). Preview first: waifu100-3eyhyluwp (develop 649767e)
+- checks: verify=PASS (typecheck ok, lint 0 errors, unit 988/988, integration 49 + 1 skipped, build ok, bundle 593 KB gzip, e2e 35/35) | audit=triaged: 13 high, same set as the previous deploy, lockfile unchanged | secrets=PASS | smoke:prod=PASS 8/8 GETs | headers=warn: no CSP
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-dwbk47aqm-salmondevs-projects.vercel.app` (0c0d47f) / `git revert -m 1 c7f241f`
+- notes:
+  - No new env var. New optional profile fields `shields`, `shieldDays`, `practice` (old code ignores them).
+  - Jikan is not called. Catalog enrichment is the committed sidecar only; review.json stays unmerged.
+  - GET https://waifu100.vercel.app/daily returned 200 with title "Gacha Guess รายวัน | WAIFU100". No /api/gacha/today call.
