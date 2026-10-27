@@ -48,12 +48,12 @@ describe("ArchiveView", () => {
         expect(c.querySelector("[role=dialog], [role=alert], [role=tooltip]")).toBeNull();
     });
     it("the today button shows today's real state and tier (won today: a tier chip, not '?')", () => {
-        const c = render(<ArchiveView archive={{ ...archive, today: { key: TODAY, number: 31, state: "won", tier: "ssr" } }} />).container;
+        const c = render(<ArchiveView archive={{ ...archive, today: { key: TODAY, number: 31, state: "won", tier: "ssr", anime: "Frieren" } }} />).container;
         const st = c.querySelector(".g-arch-today .g-arch-st")!;
         expect(st.className).toContain("won");
         expect(st.textContent).toBe("เดาถูกSSR");
         cleanup();
-        const lost = render(<ArchiveView archive={{ ...archive, today: { key: TODAY, number: 31, state: "lost", tier: null } }} />).container;
+        const lost = render(<ArchiveView archive={{ ...archive, today: { key: TODAY, number: 31, state: "lost", tier: null, anime: "Frieren" } }} />).container;
         expect(lost.querySelector(".g-arch-today .g-arch-st")!.textContent).toBe("ไม่ได้การ์ด");
     });
 });
