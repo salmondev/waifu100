@@ -99,3 +99,13 @@ Format (copy this block):
   - No new env var. New optional profile fields `shields`, `shieldDays`, `practice` (old code ignores them).
   - Jikan is not called. Catalog enrichment is the committed sidecar only; review.json stays unmerged.
   - GET https://waifu100.vercel.app/daily returned 200 with title "Gacha Guess รายวัน | WAIFU100". No /api/gacha/today call.
+
+## 2026-10-27 23:10 ICT — deploy — PASS
+- who: Panurut (approved: "เอาตามนี้ปรับแล้วขึ้น prod เลย ด่วน") / agent: grok
+- reviewer: same session, gate only
+- commit: 3057114 (main, --no-ff, first parent e6ae3d1, tree = develop 8162c96) — simpler share text
+- deployment: waifu100-r5ef0osm3 (Ready; aliased to https://waifu100.vercel.app). Preview: waifu100-kszvnhx4f
+- checks: verify=PASS (unit, integration 49 + 1 skipped, e2e 35/35, bundle 593 KB) | secrets=PASS | smoke:prod=PASS 8/8 | headers=warn: no CSP | GET /daily=200
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-2t1hfpuph-salmondevs-projects.vercel.app` / `git revert -m 1 3057114`
+- notes: Share text is now `waifu100 Daily #N`, one square row per guess, then `ทายตัวละครอนิเมะ สะสมการ์ด 👇` and the /daily link. No 1/6, no 🆓, no archive line.
