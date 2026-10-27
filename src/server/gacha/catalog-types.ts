@@ -33,6 +33,17 @@ export interface RosterCharacter {
     va: VoiceActor | null;
     /** true = also a card character (a possible answer). */
     card: boolean;
+    /**
+     * AniList image URL (shown for guess-only characters). Written by
+     * scripts/gacha/build-catalog.mjs; absent in older catalogs.
+     */
+    image?: string | null;
+    /**
+     * Normalized game age: a number is that exact age, a string uses the parseAge
+     * format ("17", "17-18", "100+"); `age` stays raw. Written by
+     * scripts/gacha/build-catalog.mjs from enrichment.json; absent in older catalogs.
+     */
+    ageGame?: string | number | null;
 }
 
 export interface CatalogCharacter {
@@ -57,6 +68,8 @@ export interface CatalogCharacter {
     /** r2 feedback fields (absent in catalogs generated before T-0016 r2). */
     birthMonth?: number | null;
     va?: VoiceActor | null;
+    /** Normalized game age (see RosterCharacter.ageGame); absent in older catalogs. */
+    ageGame?: string | number | null;
 }
 
 export interface CatalogAnime {

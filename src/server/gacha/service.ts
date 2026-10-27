@@ -139,8 +139,8 @@ export interface RoundDto {
      */
     freeGuess: { on: boolean; used: boolean };
     /**
-     * image: the card art for card characters, null for guess-only ones (no art is
-     * stored for them). feedback: the Loldle row comparing the guess with the answer.
+     * image: the card art for card characters; guess-only ones show their roster
+     * image when the catalog has one, else null. feedback: the Loldle row comparing the guess with the answer.
      */
     guesses: { id: number; name: string; image: string | null; correct: boolean; feedback: FeedbackCell[] }[];
     /**
@@ -394,7 +394,7 @@ export function roundDto(profile: GachaProfile, round: GachaRound, idx: CatalogI
         guesses: round.guesses.flatMap((g) => {
             const c = byId.get(g);
             if (!c) return [];
-            return [{ id: c.id, name: c.name, image: cards.get(c.id)?.image ?? null, correct: g === round.answerId, feedback: guessFeedback(c, answerEntry, roster) }];
+            return [{ id: c.id, name: c.name, image: cards.get(c.id)?.image ?? c.image ?? null, correct: g === round.answerId, feedback: guessFeedback(c, answerEntry, roster) }];
         }),
         steps: { used: countedGuesses(round), hintsCostTier: isR2(round) },
         hints: {

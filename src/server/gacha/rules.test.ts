@@ -6,10 +6,11 @@ import {
     isArchiveDay,
     isDayKey,
     LAUNCH_DAY_KEY,
-    addDays, answerPool, answerWeight, bangkokDayKey, dailyPick, dayNumber, fastBonus, FEEDBACK_COLUMNS, guessFeedback, guessRoster, hintLadder, hintValue,
+    addDays, answerPool, answerWeight, bangkokDayKey, dailyPick, dayNumber, fastBonus, FEEDBACK_COLUMNS, gameAge, guessFeedback, guessRoster, hintLadder, hintValue,
     HINT_ORDER, HINT_SLOTS, isEmptySlot, missingHints, nameShape, nextBuyableSlot, openHintCount, playableAnime, secondsUntilNextBangkokDay, pullResult,
     storyUnlocked, streak, tierForGuesses, tierSteps,
 } from "./rules";
+import type { RosterCharacter } from "./catalog-types";
 import { KEEP_ROUND_DAYS } from "./store";
 import { FIXTURE_CATALOG } from "./test-fixture";
 
@@ -142,6 +143,44 @@ describe("guess roster + feedback", () => {
     });
     it("a correct guess is a hit on every column that has data", () => {
         expect(guessFeedback(entry(101), entry(101), roster).every((c) => c.state === "hit")).toBe(true);
+    });
+    describe("ageGame (normalized game age)", () => {
+        const age = (g: RosterCharacter, a: RosterCharacter) => guessFeedback(g, a, roster).find((c) => c.col === "age")!;
+        const parted = { ...entry(151), age: "16 (Part 1), 19 (Part 2)" };
+
+        it("absent: the raw age is used, exactly as before", () => {
+            expect(entry(103).ageGame).toBeUndefined();
+            expect(age(entry(103), entry(101))).toEqual({ col: "age", state: "up", value: "17" });
+            expect(age(parted, entry(103))).toEqual({ col: "age", state: "unknown", value: null });
+        });
+        it("overrides the raw age on the guess, the answer or both, for state and value", () => {
+            const g = { ...parted, ageGame: 16 };
+            expect(age(g, entry(103))).toEqual({ col: "age", state: "up", value: "16" }); // 16 vs 17
+            expect(age(entry(103), g)).toEqual({ col: "age", state: "down", value: "17" });
+            expect(age(g, { ...entry(103), ageGame: 16 })).toEqual({ col: "age", state: "hit", value: "16" });
+        });
+        it("accepts numbers and parseAge strings", () => {
+            expect(age({ ...parted, ageGame: 20 }, entry(103))).toEqual({ col: "age", state: "down", value: "20" });
+            expect(age({ ...parted, ageGame: "17-18" }, entry(103))).toEqual({ col: "age", state: "near", value: "17-18" });
+            expect(age({ ...parted, ageGame: "100+" }, entry(103))).toEqual({ col: "age", state: "down", value: "100+" });
+            expect(gameAge({ age: "Unknown", ageGame: 0 })).toBe("0");
+        });
+        it("null, unparseable or invalid ageGame falls back to the raw age", () => {
+            for (const ageGame of [null, "", "teen", "16 (Part 1)", -1, 16.5, NaN, Infinity]) {
+                expect(age({ ...entry(103), ageGame }, entry(101))).toEqual({ col: "age", state: "up", value: "17" });
+                expect(gameAge({ age: "17", ageGame })).toBe("17");
+            }
+            expect(age({ ...parted, ageGame: "teen" }, entry(103)).state).toBe("unknown");
+        });
+        it("guessRoster carries ageGame from card characters only when set", () => {
+            const cardsOnly = FIXTURE_CATALOG.anime[1];
+            expect(guessRoster(cardsOnly).every((r) => !("ageGame" in r))).toBe(true);
+            const withAge = { ...cardsOnly, characters: cardsOnly.characters.map((c) => (c.id === 201 ? { ...c, ageGame: "20" } : c)) };
+            const r = guessRoster(withAge);
+            expect(r.find((x) => x.id === 201)!.ageGame).toBe("20");
+            expect(r.filter((x) => x.id !== 201).every((x) => !("ageGame" in x))).toBe(true);
+            expect(r.every((x) => !("image" in x))).toBe(true);
+        });
     });
 });
 

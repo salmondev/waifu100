@@ -224,6 +224,7 @@ function fromCard(c: CatalogCharacter): RosterCharacter {
         birthMonth: c.birthMonth ?? null,
         va: c.va ?? null,
         card: true,
+        ...(c.ageGame !== undefined ? { ageGame: c.ageGame } : {}),
     };
 }
 
@@ -250,6 +251,17 @@ export interface FeedbackCell {
     value: string | null;
 }
 
+/**
+ * The age the game compares: ageGame when it is a valid age (a non-negative
+ * integer, or a string parseAge accepts), else the raw AniList age.
+ */
+export function gameAge(c: Pick<RosterCharacter, "age" | "ageGame">): string | null {
+    const g = c.ageGame;
+    if (typeof g === "number") return Number.isSafeInteger(g) && g >= 0 ? String(g) : c.age;
+    if (typeof g === "string" && parseAge(g)) return g;
+    return c.age;
+}
+
 function ageText(raw: string | null): string | null {
     const a = parseAge(raw);
     if (!a) return null;
@@ -270,7 +282,7 @@ export function guessFeedback(guess: RosterCharacter, answer: RosterCharacter, r
     return [
         { col: "gender", state: compareGender(guess.gender, answer.gender), value: guess.gender },
         { col: "role", state: compareExact(guess.role, answer.role), value: guess.role },
-        { col: "age", state: compareAge(parseAge(guess.age), parseAge(answer.age)), value: ageText(guess.age) },
+        { col: "age", state: compareAge(parseAge(gameAge(guess)), parseAge(gameAge(answer))), value: ageText(gameAge(guess)) },
         { col: "month", state: compareMonth(guess.birthMonth, answer.birthMonth), value: guess.birthMonth ? String(guess.birthMonth) : null },
         { col: "rank", state: g > 0 && a > 0 ? compareRank(g, a) : "unknown", value: g > 0 ? String(g) : null },
         { col: "va", state: compareExact(guess.va?.id, answer.va?.id), value: guess.va?.name ?? null },

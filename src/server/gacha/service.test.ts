@@ -488,6 +488,24 @@ describe("r2 rules", () => {
         expect(await code(guess(ID, 151))).toBe("already_guessed");
     });
 
+    it("guess-only characters show their roster image when the catalog has one; card art still wins", async () => {
+        const roster = FRIEREN.roster!.map((r) =>
+            r.id === 151 ? { ...r, image: "https://img.example.test/roster/151.png" } : r.id === 103 ? { ...r, image: "https://img.example.test/roster/103.png" } : r
+        );
+        setCatalog({ ...FIXTURE_CATALOG, anime: [{ ...FRIEREN, roster }, ...FIXTURE_CATALOG.anime.slice(1)] });
+        await pin(101);
+        await guess(ID, 151);
+        await guess(ID, 152);
+        const dto = await guess(ID, 103);
+        expect(dto.guesses.map((g) => [g.id, g.image])).toEqual([
+            [151, "https://img.example.test/roster/151.png"],
+            [152, null], // no roster image: still null
+            [103, FRIEREN.characters.find((c) => c.id === 103)!.image],
+        ]);
+        for (const c of dto.candidates) expect(c).not.toHaveProperty("image");
+        expect(JSON.stringify(dto.candidates)).not.toContain("img.example.test/roster");
+    });
+
     it("feedback never leaks the answer's values, only the guess's own", async () => {
         await pin(101);
         const miss = await guess(ID, 103);
