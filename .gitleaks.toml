@@ -1,0 +1,5 @@
+title = "waifu100"
+
+[allowlist]
+description = "Test doubles already in history. Not credentials."
+regexes = ['''vercel_blob_rw_e2e_dummy''']
