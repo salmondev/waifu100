@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { domAnimation, LazyMotion, m, MotionConfig } from "motion/react";
 import { useEffect, useState } from "react";
 import { AlbumView } from "./album";
-import { errorText, gachaApi, type AlbumDto, type ArchiveDto, type RoundDto } from "./api";
+import { errorText, GachaClientError, gachaApi, type AlbumDto, type ArchiveDto, type RoundDto } from "./api";
 import { ArchiveView } from "./archive";
 import { CardDefs } from "./card";
 import { Footer, TopBar } from "./chrome";
@@ -22,7 +22,7 @@ export function GachaApp() {
     const params = useSearchParams();
     const router = useRouter();
     const viewParam = params.get("view");
-    const view = viewParam === "album" || viewParam === "pack" || viewParam === "archive" ? viewParam : "play";
+    const view = viewParam === "album" || viewParam === "pack" || viewParam === "archive" || viewParam === "practice" ? viewParam : "play";
     const animeParam = Number(params.get("anime")) || null;
     const dayRaw = params.get("day");
     const dayParam = dayRaw && /^\d{4}-\d{2}-\d{2}$/.test(dayRaw) ? dayRaw : null;
@@ -31,6 +31,8 @@ export function GachaApp() {
     const [album, setAlbum] = useState<AlbumDto | null>(null);
     const [archive, setArchive] = useState<ArchiveDto | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [note, setNote] = useState<string | null>(null);
+    const [practice, setPractice] = useState<RoundDto | null>(null);
     const [nonce, setNonce] = useState(0);
 
     useEffect(() => {
@@ -65,6 +67,21 @@ export function GachaApp() {
         };
     }, [view, nonce, today]);
     useEffect(() => {
+        if (view !== "practice") return;
+        let alive = true;
+        gachaApi
+            .practice()
+            .then((r) => alive && setPractice(r))
+            .catch((e) => {
+                if (!alive) return;
+                if (e instanceof GachaClientError && e.code === "no_practice") setPractice(null);
+                else setNote(errorText(e));
+            });
+        return () => {
+            alive = false;
+        };
+    }, [view, nonce]);
+    useEffect(() => {
         if (view !== "album") return;
         let alive = true;
         gachaApi
@@ -89,6 +106,16 @@ export function GachaApp() {
     // Every DTO carries the profile's coins / streak; the round on screen is the freshest.
     const coins = (round ?? today)?.coins ?? album?.coins ?? null;
     const streak = (round ?? today)?.streak ?? album?.streak ?? 0;
+    const shields = (round ?? today)?.shields ?? album?.shields ?? 0;
+    const shieldPrice = (round ?? today)?.shieldPrice ?? album?.shieldPrice ?? 30;
+    const buyShield = async () => {
+        setNote(null);
+        try {
+            setToday(await gachaApi.shield());
+        } catch (e) {
+            setNote(errorText(e));
+        }
+    };
     let body: React.ReactNode;
     if (error && (view === "archive" ? !archive : !round)) {
         body = (
@@ -114,6 +141,8 @@ export function GachaApp() {
         );
     } else if (!round) {
         body = <main className="g-empty" aria-busy="true"><div className="win g-emptywin"><p>กำลังโหลดรอบของวันนี้</p></div></main>;
+    } else if (view === "practice") {
+        body = <PracticeView round={practice} onRound={setPractice} onNote={setNote} />;
     } else if (view === "pack") {
         body = <PackView round={round} coins={round.coins} />;
     } else {
@@ -132,7 +161,8 @@ export function GachaApp() {
             <MotionConfig reducedMotion="user">
                 <div className="gg" data-view={view}>
                     <CardDefs />
-                    {view !== "pack" && <TopBar coins={coins} streak={streak} />}
+                    {view !== "pack" && <TopBar coins={coins} streak={streak} shields={shields} shieldPrice={shieldPrice} onShield={today ? buyShield : undefined} />}
+                    {note && <p className="g-note" role="status">{note}</p>}
                     <m.div key={view} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: steps4 }}>
                         {body}
                     </m.div>
@@ -140,5 +170,36 @@ export function GachaApp() {
                 </div>
             </MotionConfig>
         </LazyMotion>
+    );
+}
+
+function PracticeView({ round, onRound, onNote }: { round: RoundDto | null; onRound: (r: RoundDto) => void; onNote: (s: string | null) => void }) {
+    const begin = async () => {
+        onNote(null);
+        try {
+            onRound(await gachaApi.startPractice());
+        } catch (e) {
+            onNote(errorText(e));
+        }
+    };
+    if (!round) {
+        return (
+            <main className="g-empty">
+                <div className="win g-emptywin">
+                    <p>โหมดฝึกไม่ใช้เหรียญ ไม่นับสตรีค และไม่ได้การ์ดเข้าอัลบั้ม</p>
+                    <button className="g-btn red" type="button" onClick={begin}>เริ่มโจทย์ฝึก</button>
+                    <Link className="g-btn" href="/daily" scroll={false}>กลับไปวันนี้</Link>
+                </div>
+            </main>
+        );
+    }
+    return (
+        <PlayView
+            round={round}
+            onRound={onRound}
+            opened={false}
+            onOpenPack={() => undefined}
+            onRestart={begin}
+        />
     );
 }

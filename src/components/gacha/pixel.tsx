@@ -93,14 +93,22 @@ export const TIER_NAME: Record<TierName, string> = { common: "Common", rare: "Ra
 export const TIER_LABEL: Record<TierName, string> = { common: "C", rare: "R", sr: "SR", ssr: "SSR" };
 /** Guesses per tier (hints never count, T-0023). */
 export const TIER_GUESSES: Record<TierName, string> = { ssr: "1", sr: "2", rare: "3-4", common: "5+" };
+/** Common has no star. Rare, SR and SSR are 1, 2 and 3 stars. */
+export const TIER_STARS: Record<TierName, number> = { common: 0, rare: 1, sr: 2, ssr: 3 };
 
 export function TierMark({ tier }: { tier: TierName }) {
-    if (tier === "ssr") return (<><Px rows={MARK.star} className="tm" /><Px rows={MARK.star} className="tm" /></>);
-    return <Px rows={tier === "common" ? MARK.circle : tier === "rare" ? MARK.diamond : MARK.star} className="tm" />;
+    const n = TIER_STARS[tier];
+    if (n === 0) return null;
+    return (
+        <>
+            {Array.from({ length: n }, (_, i) => (
+                <Px key={i} rows={MARK.star} className="tm" />
+            ))}
+        </>
+    );
 }
 
-export const markSvg = (tier: TierName): string =>
-    tier === "ssr" ? pxSvg(MARK.star) + pxSvg(MARK.star) : pxSvg(tier === "common" ? MARK.circle : tier === "rare" ? MARK.diamond : MARK.star);
+export const markSvg = (tier: TierName): string => pxSvg(MARK.star).repeat(TIER_STARS[tier]);
 
 export function Chip({ tier, extra = "" }: { tier: TierName; extra?: string }) {
     return (

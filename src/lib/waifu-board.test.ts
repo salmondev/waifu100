@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseWaifuStorage, resizeWaifuGrid, waifuSyncBody } from "@/lib/waifu-board";
+import { parseWaifuStorage, placeCharacterOnWaifuGrid, resizeWaifuGrid, waifuSyncBody } from "@/lib/waifu-board";
 import type { GridCell } from "@/types";
 
 const cell = (name: string, img = "https://img.example.com/a.jpg"): GridCell => ({
@@ -28,5 +28,18 @@ describe("waifu board", () => {
         expect(waifuSyncBody({ ...base, grid: resizeWaifuGrid([cell("A", "data:image/png;base64,AA")], 9) })).toBeNull();
         const body = waifuSyncBody({ ...base, grid: resizeWaifuGrid([cell("A")], 9) });
         expect(body).toMatchObject({ kind: "waifu", size: 9, customTitle: "T" });
+    });
+
+    it("places a gacha card in the first empty cell and refuses a duplicate or a full board", () => {
+        const rin = { mal_id: 10, name: "Rin", images: { jpg: { image_url: "https://s4.anilist.co/rin.png" } } };
+        const first = placeCharacterOnWaifuGrid(null, rin);
+        expect(first.placed).toBe(true);
+        expect(parseWaifuStorage(first.stored).grid[0]?.character?.name).toBe("Rin");
+        const again = placeCharacterOnWaifuGrid(first.stored, rin);
+        expect(again.placed).toBe(false);
+        expect(again.full).toBe(false);
+        const full = placeCharacterOnWaifuGrid(JSON.stringify({ size: 9, grid: Array.from({ length: 9 }, () => cell("A")) }), { mal_id: 11, name: "Saber", images: { jpg: { image_url: "https://s4.anilist.co/s.png" } } });
+        expect(full.full).toBe(true);
+        expect(full.placed).toBe(false);
     });
 });

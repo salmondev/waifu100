@@ -85,6 +85,10 @@ export const gachaApi = {
     /** Buys ladder slot `slot` (1-based) of `day`'s round; the server refuses any slot but the next closed one. */
     hint: (slot: number, day: string) => call<RoundDto>("hint", "POST", { slot, day }).then(normalizeRound),
     album: () => call<AlbumDto>("album"),
+    shield: () => call<RoundDto>("shield", "POST", {}).then(normalizeRound),
+    practice: () => call<RoundDto>("practice").then(normalizeRound),
+    startPractice: () => call<RoundDto>("practice", "POST", {}).then(normalizeRound),
+    practiceGuess: (charId: number) => call<RoundDto>("practice/guess", "POST", { charId }).then(normalizeRound),
     storySeen: (animeId: number) => call<{ animeId: number; fresh: false }>("story-seen", "POST", { animeId }),
     recovery: () => call<{ code: string }>("recovery", "POST", {}),
     restore: (code: string) => call<{ id: string }>("restore", "POST", { code }, false),
