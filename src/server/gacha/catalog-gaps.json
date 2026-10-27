@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-10-26T16:59:56.888Z",
+ "generatedAt": "2026-10-27T08:01:21.334Z",
  "anime": 150,
  "animeFailed": 0,
  "characters": 918,
@@ -34,7 +34,17 @@
    "role": 2069,
    "age": 1031,
    "birthMonth": 989,
-   "voiceActorJP": 2001
+   "voiceActorJP": 2001,
+   "image": 2069,
+   "ageGame": 7
+  }
+ },
+ "enrichment": {
+  "characterRows": {
+   "ageGame": 7
+  },
+  "anime": {
+   "coverColor": 11
   }
  },
  "animeUnderMinCharacters": []
