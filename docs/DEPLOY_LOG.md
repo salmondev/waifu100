@@ -109,3 +109,13 @@ Format (copy this block):
 - result: shipped
 - rollback ref: `vercel promote https://waifu100-2t1hfpuph-salmondevs-projects.vercel.app` / `git revert -m 1 3057114`
 - notes: Share text is now `waifu100 Daily #N`, one square row per guess, then `ทายตัวละครอนิเมะ สะสมการ์ด 👇` and the /daily link. No 1/6, no 🆓, no archive line.
+
+## 2026-10-27 23:36 ICT — deploy — PASS
+- who: Panurut (approved: "ขึ้นเลย") / agent: grok
+- reviewer: same session, gate only
+- commit: 16d0a43 (main, --no-ff, first parent d73f856, tree = develop 40e176f) — archive day list shows the anime title
+- deployment: waifu100-htjhk2ijt (Ready; aliased to https://waifu100.vercel.app). Preview: waifu100-b200ef3dh
+- checks: verify=PASS (typecheck ok, lint 0 errors, unit 981/981, integration 49 + 1 skipped, build ok, bundle 593 KB gzip, largest 132 KB, e2e 35/35) | secrets=PASS | smoke:prod=PASS 8/8 | headers=warn: no CSP | GET /daily=200
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-r5ef0osm3-salmondevs-projects.vercel.app` / `git revert -m 1 16d0a43`
+- notes: Each archive day and the today button show the series title (English, else romaji). A started day keeps the anime stored on that round. The character stays hidden. No new env, no Redis migration. No /api/gacha/today call.
