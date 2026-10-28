@@ -464,6 +464,10 @@
 .g-pockets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; }
 .g-pocket { min-width: 0; display: grid; justify-items: center; }
 .g-pocket .c2 { --w: 100px; }
+.g-pocket-open { display: grid; justify-items: center; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; }
+.g-pocket-open:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.g-admire { position: fixed; inset: 0; z-index: 40; background: var(--ink); overflow: auto; display: grid; align-content: center; justify-items: center; gap: 18px; padding: 24px 16px; }
+.g-admire .c2 { --w: min(calc(100vw - 90px), 280px, calc((100vh - 160px) * 63 / 88)); }
 .g-earn small { font: 300 12px/1 var(--th); }
 
 /* ---- round 7: desktop. The column widens and every card scales up (myst, reveal, album pockets, story card). ---- */
@@ -475,6 +479,7 @@
   .g-reveal .c2 { --w: min(380px, calc((100vh - 290px) * 63 / 88)); }
   .g-pockets { grid-template-columns: repeat(4, 1fr); gap: 18px 16px; }
   .g-pocket .c2 { --w: 168px; }
+  .g-admire .c2 { --w: min(380px, calc((100vh - 160px) * 63 / 88)); }
   /* round 9: the story card is a 2x2 cell of the same binder grid (left), the 8 pockets fill the rest */
   .g-binder { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 16px; align-items: start; }
   .g-blabel { grid-column: 1 / -1; }

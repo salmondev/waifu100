@@ -123,7 +123,7 @@ function ShareButton({ round, quiet = false }: { round: RoundDto; quiet?: boolea
     );
 }
 
-/** Shares this pull: a personal link whose preview is the card. Bigger than the square-result button. */
+/** Copies this pull's card link. Bigger than the square-result button. Does not open the share sheet. */
 function CardShareButton({ round }: { round: RoundDto }) {
     const [state, setState] = useState<"idle" | "busy" | "ok" | "fail">("idle");
     const [fallback, setFallback] = useState<string | null>(null);
@@ -139,18 +139,6 @@ function CardShareButton({ round }: { round: RoundDto }) {
             return;
         }
         try {
-            if (typeof navigator.share === "function") {
-                try {
-                    await navigator.share({ text });
-                    setState("ok");
-                    return;
-                } catch (e) {
-                    if (e instanceof DOMException && e.name === "AbortError") {
-                        setState("idle");
-                        return;
-                    }
-                }
-            }
             await navigator.clipboard.writeText(text);
             setState("ok");
         } catch {

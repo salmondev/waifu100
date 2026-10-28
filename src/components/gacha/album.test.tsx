@@ -9,7 +9,8 @@ import type { AlbumDto } from "./api";
 
 const card = (n: number) => ({
     id: 100 + n, name: `C${n}`, nameNative: null, image: `https://s4.anilist.co/c${n}.png`, number: `00${n}`, tier: "rare" as const,
-    setCode: "FRN", animeId: 9001, day: "2026-10-2" + n,
+    setCode: "FRN", animeId: 9001, animeTitle: "Frieren", coverColor: "#e4e0d6", role: "MAIN" as const,
+    occupation: "นักเวทย์", gender: "Female", favourites: 1200, day: "2026-10-2" + n,
 });
 
 const album = (fresh: boolean): AlbumDto => ({
@@ -76,6 +77,33 @@ const twoStories = (): AlbumDto => {
     const second = { ...a.anime[0], id: 9002, titleEnglish: "Bocchi", setCode: "BTR", owned: 1, cards: [{ ...card(4), animeId: 9002 }] };
     return { ...a, anime: [a.anime[0], second] } as unknown as AlbumDto;
 };
+
+describe("album owned cards open", () => {
+    it("an owned card is a button named with the character and tier, and an empty slot is not", () => {
+        render(<AlbumView album={album(false)} round={null} animeParam={null} onRestored={() => {}} />);
+        expect(screen.getByRole("button", { name: "C1 Rare" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "C2 Rare" })).toBeTruthy();
+        expect(document.querySelector('[aria-label="ช่องว่าง 004"]')?.closest("button")).toBeNull();
+    });
+
+    it("opens the full card and closes from the button or Escape", async () => {
+        render(<AlbumView album={album(false)} round={null} animeParam={null} onRestored={() => {}} />);
+        await act(async () => void fireEvent.click(screen.getByRole("button", { name: "C1 Rare" })));
+        const dialog = screen.getByRole("dialog");
+        expect(dialog.getAttribute("aria-label")).toBe("C1 Rare");
+        expect(dialog.querySelector(".c2-mini")).toBeNull();
+        expect(dialog.querySelector(".c2-name")?.textContent).toContain("C1");
+        expect(dialog.querySelector(".c2-orn")).toBeTruthy();
+        expect(dialog.querySelector(".c2-crest")).toBeTruthy();
+        expect(dialog.querySelector(".c2-role")?.textContent).toContain("นักเวทย์");
+        await act(async () => void fireEvent.click(screen.getByRole("button", { name: "ปิด" })));
+        expect(screen.queryByRole("dialog")).toBeNull();
+        await act(async () => void fireEvent.click(screen.getByRole("button", { name: "C2 Rare" })));
+        expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("C2 Rare");
+        await act(async () => void fireEvent.keyDown(window, { key: "Escape" }));
+        expect(screen.queryByRole("dialog")).toBeNull();
+    });
+});
 
 describe("album story tabs", () => {
     it("aria-controls only ever points at a panel that is in the DOM", () => {

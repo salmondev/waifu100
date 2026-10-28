@@ -5,7 +5,7 @@
  */
 import { createHash, randomInt } from "node:crypto";
 import { GachaConfigError, resolveDailySalt } from "./config";
-import { cardShareToken, readCardShareToken } from "./card-share";
+import { publishCardShare, readCardShare } from "./card-share";
 import { cardShareDescription, cardShareHeading, cardShareText, cardShareUrl, type CardShareTier } from "@/lib/gacha-card-share";
 import { hintImageUrl, readHintImageToken, type HintImageRef } from "./hint-image";
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
@@ -877,8 +877,9 @@ export interface CardShareView {
 }
 
 /**
- * A link for a card this player already won. Reads the stored round and does
- * not write. The code is the pull (character, tier, guess count), not the player.
+ * A link for a card this player already won. The short code is stored for the
+ * pull (character, tier, guess count), not the player, and the profile is not
+ * written.
  */
 export async function issueCardShare(id: string, day?: string): Promise<{ url: string; text: string }> {
     const { store, now, salt } = deps();
@@ -892,12 +893,12 @@ export async function issueCardShare(id: string, day?: string): Promise<{ url: s
     if (!round || round.done !== "won" || !round.pull) throw new GachaError("no_card");
     const { answer } = roundParts(round, idx);
     const guesses = countedGuesses(round);
-    const code = cardShareToken({ day: target, charId: answer.id, tier: round.pull.tier, guesses }, salt());
+    const code = await publishCardShare({ day: target, charId: answer.id, tier: round.pull.tier, guesses }, salt());
     const url = cardShareUrl(code);
     return { url, text: cardShareText(round.pull.tier, answer.name, dayNumber(target), url) };
 }
 
-/** The card behind a share code, or null when the code is not one this salt minted. */
+/** The card behind a share code, or null when this salt did not publish it. */
 export async function loadCardShare(code: string): Promise<CardShareView | null> {
     let salt: string;
     try {
@@ -905,7 +906,7 @@ export async function loadCardShare(code: string): Promise<CardShareView | null>
     } catch {
         return null;
     }
-    const ref = readCardShareToken(code, salt);
+    const ref = await readCardShare(code, salt);
     if (!ref) return null;
     const found = (await getCatalog()).characters.get(ref.charId);
     if (!found) return null;
