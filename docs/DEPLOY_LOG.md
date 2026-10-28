@@ -129,3 +129,13 @@ Format (copy this block):
 - result: shipped
 - rollback ref: `vercel promote https://waifu100-lgg2o5h3f-salmondevs-projects.vercel.app` / `git revert -m 1 85d9024`
 - notes: After a win, «แชร์การ์ด» is the large red button. It copies `SSR ★★★ Name`, `waifu100 Daily #N`, and `https://waifu100.vercel.app/c/<code>`. The preview image is that pull. Opening the link shows the same card as the pack, plus «มาเล่น». «คัดลอกผลลัพธ์» stays, smaller, and still hides the name. Practice and a loss have no card button. The code is signed with the existing daily salt; no new env and no Redis write. No /api/gacha/today call.
+
+## 2026-10-28 16:19 ICT — deploy — PASS
+- who: Panurut (approved: "ทำแล้วเอาขึ้น prod เลย") / agent: grok
+- reviewer: same session, gate only
+- commit: 70fc9fc (main, --no-ff, first parent 8a508ea, tree = develop f8d35b9) — catalog card art is no longer replaced by the moderation placeholder
+- deployment: waifu100-13a9ivofb (Ready; aliased to https://waifu100.vercel.app). Preview: waifu100-hro1v20ik
+- checks: verify=PASS (typecheck ok, lint 0 errors, unit 992/992, integration 49 + 1 skipped, build ok, bundle 606 KB gzip, largest 132 KB, e2e 35/35) | secrets=PASS | smoke:prod=PASS 8/8 | headers=warn: no CSP | GET /daily=200
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-3j5y3kaba-salmondevs-projects.vercel.app` / `git revert -m 1 70fc9fc`
+- notes: Akeno Himejima's portrait was already in the catalog and the AniList file returned 200. The mountain on the card was the moderation placeholder, cached after a safety block. Shipped catalog images (918 cards, 2069 roster faces, 150 covers; 2142 unique URLs, all HTTP 200, none missing) are now served as themselves. Visitor uploads are still checked. Image URLs gained `&v=2` so the cached placeholder is not reused. If a portrait still cannot load, the card shows that character's initial. No new env, no Redis migration, no /api/gacha/today call.
