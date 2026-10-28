@@ -451,7 +451,14 @@ export function PlayView({ round, onRound, onOpenPack, opened, onRestart }: { ro
             </section>
             <FeedbackGrid guesses={round.guesses} />
             {!round.practice && <section className="g-hints win" aria-label="คำใบ้">
-                <h3 className="g-h3">คำใบ้ <small>{r2 ? "ซื้อทีละข้อ ไม่นับเป็นครั้งที่เดา" : "เปิดทีละข้อเมื่อเดาผิด"}</small></h3>
+                <h3 className="g-h3">
+                    <span>คำใบ้ <small>{r2 ? "ซื้อทีละข้อ ไม่นับเป็นครั้งที่เดา" : "เปิดทีละข้อเมื่อเดาผิด"}</small></span>
+                    {!done && round.dailyCoins ? (
+                        <span className="g-free"><Coin />รับฟรีวันนี้ +{round.dailyCoins}</span>
+                    ) : !done && round.archive ? (
+                        <span className="g-free"><Coin />จบรอบรับ +{DAILY_COINS}</span>
+                    ) : null}
+                </h3>
                 {Array.from({ length: round.hints.slots }, (_, i) => {
                     // Fixed five-slot ladder. Locked slots are numbered only: the server does not say
                     // which kind sits behind them, nor how many real hints there are.
@@ -493,44 +500,33 @@ export function PlayView({ round, onRound, onOpenPack, opened, onRestart }: { ro
                 {round.hints.empty > 0 && (
                     <p className="g-note">ช่องที่ไม่มีข้อมูลไม่นับเป็นคำใบ้และไม่เสียเหรียญ คำใบ้รอบนี้มี {round.hints.open.length} ข้อ</p>
                 )}
+                {!done && (round.hints.next ? (
+                    <div className="g-shoprow">
+                        <span className="g-hi"><Icon name="lock" /></span>
+                        <span className="g-nm">
+                            คำใบ้ข้อที่ {round.hints.next.slot}
+                            <small>
+                                {r2 ? "ไม่นับเป็นครั้งที่เดา" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
+                            </small>
+                            {!round.hints.next.affordable && (
+                                <small className="g-short" id="g-short">เหรียญไม่พอ (มี {round.coins} ต้องใช้ {round.hints.next.price})</small>
+                            )}
+                        </span>
+                        <button
+                            className="g-btn sm coin"
+                            type="button"
+                            aria-describedby={round.hints.next.affordable ? undefined : "g-short"}
+                            disabled={busy || !round.hints.next.affordable}
+                            onClick={() => buy(round.hints.next!.slot)}
+                            aria-label={`ซื้อคำใบ้ ${round.hints.next.price} เหรียญ`}
+                        >
+                            <Coin /><b>{round.hints.next.price}</b>
+                        </button>
+                    </div>
+                ) : (
+                    <div className="g-shoprow"><span className="g-nm">เปิดครบแล้ว</span></div>
+                ))}
             </section>}
-            {!round.practice && !done && (
-                <section className="g-shop win">
-                    <h3 className="g-h3">
-                        {r2 ? "ซื้อคำใบ้" : "ซื้อคำใบ้ก่อน"} {round.dailyCoins ? (
-                            <span className="g-free"><Coin />รับฟรีวันนี้ +{round.dailyCoins}</span>
-                        ) : round.archive ? (
-                            <span className="g-free"><Coin />จบรอบรับ +{DAILY_COINS}</span>
-                        ) : null}
-                    </h3>
-                    {round.hints.next ? (
-                        <div className="g-shoprow">
-                            <span className="g-hi"><Icon name="lock" /></span>
-                            <span className="g-nm">
-                                คำใบ้ข้อที่ {round.hints.next.slot}
-                                <small>
-                                    {r2 ? "ไม่นับเป็นครั้งที่เดา" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
-                                </small>
-                                {!round.hints.next.affordable && (
-                                    <small className="g-short" id="g-short">เหรียญไม่พอ (มี {round.coins} ต้องใช้ {round.hints.next.price})</small>
-                                )}
-                            </span>
-                            <button
-                                className="g-btn sm coin"
-                                type="button"
-                                aria-describedby={round.hints.next.affordable ? undefined : "g-short"}
-                                disabled={busy || !round.hints.next.affordable}
-                                onClick={() => buy(round.hints.next!.slot)}
-                                aria-label={`ซื้อคำใบ้ ${round.hints.next.price} เหรียญ`}
-                            >
-                                <Coin /><b>{round.hints.next.price}</b>
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="g-shoprow"><span className="g-nm">เปิดคำใบ้ครบทุกข้อแล้ว</span></div>
-                    )}
-                </section>
-            )}
         </main>
     );
 }
