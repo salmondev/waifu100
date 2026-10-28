@@ -139,3 +139,13 @@ Format (copy this block):
 - result: shipped
 - rollback ref: `vercel promote https://waifu100-3j5y3kaba-salmondevs-projects.vercel.app` / `git revert -m 1 70fc9fc`
 - notes: Akeno Himejima's portrait was already in the catalog and the AniList file returned 200. The mountain on the card was the moderation placeholder, cached after a safety block. Shipped catalog images (918 cards, 2069 roster faces, 150 covers; 2142 unique URLs, all HTTP 200, none missing) are now served as themselves. Visitor uploads are still checked. Image URLs gained `&v=2` so the cached placeholder is not reused. If a portrait still cannot load, the card shows that character's initial. No new env, no Redis migration, no /api/gacha/today call.
+
+## 2026-10-28 16:41 ICT — deploy — PASS
+- who: Panurut (approved: "เอาทุกอย่างขึ้น prod เลย") / agent: grok
+- reviewer: same session, gate only
+- commit: f843fa3 (main, --no-ff, first parent efdfedf, tree = develop b5da5da) — framed card shares, short links, copy-only share, album card view
+- deployment: waifu100-l77dvjowc (Ready; aliased to https://waifu100.vercel.app). Preview: waifu100-o4u236onh
+- checks: verify=PASS (typecheck ok, lint 0 errors, unit 994/994, integration 49 + 1 skipped, build ok, bundle 606 KB gzip, largest 132 KB, e2e 35/35) | secrets=PASS | smoke:prod=PASS 8/8 | headers=warn: no CSP | GET /daily=200
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-lses2x8op-salmondevs-projects.vercel.app` / `git revert -m 1 f843fa3`
+- notes: Share preview is a framed card (tier border, name, series, drawn stars). The public link is `https://waifu100.vercel.app/c/` plus 8 characters. «แชร์การ์ด» only copies text. An owned album card opens the full card; close with the button or Escape. New Redis key `waifu100:gg:cs:<code>` holds the pull. No new env. No /api/gacha/today call. Catalog art fix from f8d35b9 stays in this tree.
