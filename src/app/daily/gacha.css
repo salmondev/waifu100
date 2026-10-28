@@ -232,6 +232,11 @@
 .g-logo-a { background: var(--paper); color: var(--ink); }
 .g-logo-b { background: var(--ink); color: var(--paper); }
 .g-stats { display: flex; gap: 12px; }
+.g-shield { display: inline-flex; align-items: center; gap: 8px; padding: 0 10px 0 0; background: var(--paper); color: var(--ink); box-shadow: var(--px, 0 0 0 2px var(--ink)); }
+.g-shield .g-btn { box-shadow: none; }
+.g-shield .g-btn:active:not(:disabled) { box-shadow: none; }
+.g-shield b, .g-shield small { display: inline-flex; align-items: center; gap: 4px; font: 600 14px/1 var(--th); }
+.g-shield .pxi, .g-shield .coin { width: 14px; height: 14px; }
 .g-stat { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; }
 .g-stat b { font: 700 15px/1 var(--bit); }
 .g-stat small { font: 400 12px/1 var(--th); }
@@ -467,6 +472,7 @@
 .g-pocket-open { display: grid; justify-items: center; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; }
 .g-pocket-open:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 .g-admire { position: fixed; inset: 0; z-index: 40; background: var(--ink); overflow: auto; display: grid; align-content: center; justify-items: center; gap: 18px; padding: 24px 16px; }
+.g-admire-row { display: flex; gap: 12px; align-items: center; }
 .g-admire .c2 { --w: min(calc(100vw - 90px), 280px, calc((100vh - 160px) * 63 / 88)); }
 .g-earn small { font: 300 12px/1 var(--th); }
 

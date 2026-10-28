@@ -154,7 +154,7 @@ function CardShareButton({ round }: { round: RoundDto }) {
                 <span aria-live="polite">{label}</span>
             </button>
             {state === "fail" && fallback && <ShareFallback text={fallback} />}
-            {state === "fail" && !fallback && <p className="g-note">แชร์การ์ดไม่ได้ ลองอีกครั้ง</p>}
+            {state === "fail" && !fallback && <p className="g-note">แชร์ไม่ได้</p>}
         </>
     );
 }
@@ -179,7 +179,7 @@ function ShareFallback({ text }: { text: string }) {
     }, [text]);
     return (
         <label className="g-sharebox">
-            <span>คัดลอกอัตโนมัติไม่ได้ เลือกข้อความนี้แล้วคัดลอกเอง</span>
+            <span>คัดลอกเองจากช่องนี้</span>
             <textarea ref={box} readOnly rows={text.split("\n").length} value={text} onFocus={(e) => e.currentTarget.select()} />
         </label>
     );
