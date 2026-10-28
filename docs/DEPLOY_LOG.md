@@ -159,3 +159,13 @@ Format (copy this block):
 - result: shipped
 - rollback ref: `vercel promote https://waifu100-1qj2nob68-salmondevs-projects.vercel.app` / `git revert -m 1 d167b8c`
 - notes: The shield price sits on the same control as «กันสตรีค». Opening an album card has «แชร์», which copies the same card text as a win (tier, name, the day, the short link). Nearby album and recovery lines are shorter. A card whose round is gone can still be shared from the album entry. No new env. No /api/gacha/today call.
+
+## 2026-10-28 17:14 ICT — deploy — PASS
+- who: Panurut (approved: "ปรับแล้วเอาขึ้นเลย") / agent: grok
+- reviewer: same session, gate only
+- commit: 1372152 (main, --no-ff, first parent 16f2315, tree = develop 05eef93) — hint purchase sits under the hint list
+- deployment: waifu100-kxdgputo3 (Ready; aliased to https://waifu100.vercel.app). Preview: waifu100-84cxn42qc
+- checks: verify=PASS (typecheck ok, lint 0 errors, unit 995/995, integration 49 + 1 skipped, build ok, bundle 606 KB gzip, largest 132 KB, e2e 35/35) | secrets=PASS | smoke:prod=PASS 8/8 | headers=warn: no CSP | GET /daily=200
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-iesl2sk2e-salmondevs-projects.vercel.app` / `git revert -m 1 1372152`
+- notes: The separate «ซื้อคำใบ้» card is gone. The price button is the last row of the hint card. The daily-coin badge stays on that card's title. No new env. No /api/gacha/today call.
