@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { m } from "motion/react";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { DAILY_COINS, type CellState, type FeedbackCell, type HintKey, type HintValue } from "@/server/gacha/rules";
+import { DAILY_COINS, HINT_PRICES, type CellState, type FeedbackCell, type HintKey, type HintValue } from "@/server/gacha/rules";
 import { hintImageSrc } from "@/lib/gacha-hint-image";
 import { shareText } from "@/lib/gacha-share";
 import { proxied } from "@/lib/img-proxy";
@@ -480,10 +480,12 @@ export function PlayView({ round, onRound, onOpenPack, opened, onRestart }: { ro
                         );
                     }
                     const bought = !!h && i >= freeOpen && !done;
+                    const next = !h && !done && round.hints.next?.slot === i + 1;
+                    const price = HINT_PRICES[i] ?? HINT_PRICES[HINT_PRICES.length - 1];
                     return (
                         <m.div
                             key={h ? `${h.key}-open` : `slot-${i}`}
-                            className={`g-hint${h ? " open" : ""}`}
+                            className={`g-hint${h ? " open" : ""}${next ? " next" : ""}`}
                             data-hint={h ? h.key : "locked"}
                             initial={h ? { opacity: 0 } : false}
                             animate={{ opacity: 1 }}
@@ -493,39 +495,28 @@ export function PlayView({ round, onRound, onOpenPack, opened, onRestart }: { ro
                             <div className="g-hb">
                                 <small><b>{i + 1}</b>{meta ? meta.label : "คำใบ้ลับ"}{bought ? <em>ซื้อแล้ว</em> : null}</small>
                                 {h ? <HintBody h={h} /> : <span className="g-lock"><Icon name="lock" />{r2 ? "ยังไม่ได้ซื้อ" : `เปิดเมื่อเดาผิดครั้งที่ ${i + 1}`}</span>}
+                                {next && round.hints.next && !round.hints.next.affordable && (
+                                    <small className="g-short" id="g-short">เหรียญไม่พอ (มี {round.coins} ต้องใช้ {price})</small>
+                                )}
                             </div>
+                            {!h && !done && (
+                                <button
+                                    className="g-btn sm coin"
+                                    type="button"
+                                    aria-describedby={next && round.hints.next && !round.hints.next.affordable ? "g-short" : undefined}
+                                    disabled={busy || !next || !round.hints.next?.affordable}
+                                    onClick={() => buy(i + 1)}
+                                    aria-label={`ซื้อคำใบ้ข้อที่ ${i + 1} ${price} เหรียญ`}
+                                >
+                                    <Coin /><b>{price}</b>
+                                </button>
+                            )}
                         </m.div>
                     );
                 })}
                 {round.hints.empty > 0 && (
-                    <p className="g-note">ช่องที่ไม่มีข้อมูลไม่นับเป็นคำใบ้และไม่เสียเหรียญ คำใบ้รอบนี้มี {round.hints.open.length} ข้อ</p>
+                    <p className="g-note">ไม่มีข้อมูลไม่นับเป็นคำใบ้ และไม่เสียเหรียญ มี {round.hints.open.length} ข้อ</p>
                 )}
-                {!done && (round.hints.next ? (
-                    <div className="g-shoprow">
-                        <span className="g-hi"><Icon name="lock" /></span>
-                        <span className="g-nm">
-                            คำใบ้ข้อที่ {round.hints.next.slot}
-                            <small>
-                                {r2 ? "ไม่นับเป็นครั้งที่เดา" : `ข้อถัดไป ปกติเปิดเมื่อผิดครั้งที่ ${round.hints.next.slot}`} · ถ้าไม่มีข้อมูล คืนเหรียญเต็มจำนวน
-                            </small>
-                            {!round.hints.next.affordable && (
-                                <small className="g-short" id="g-short">เหรียญไม่พอ (มี {round.coins} ต้องใช้ {round.hints.next.price})</small>
-                            )}
-                        </span>
-                        <button
-                            className="g-btn sm coin"
-                            type="button"
-                            aria-describedby={round.hints.next.affordable ? undefined : "g-short"}
-                            disabled={busy || !round.hints.next.affordable}
-                            onClick={() => buy(round.hints.next!.slot)}
-                            aria-label={`ซื้อคำใบ้ ${round.hints.next.price} เหรียญ`}
-                        >
-                            <Coin /><b>{round.hints.next.price}</b>
-                        </button>
-                    </div>
-                ) : (
-                    <div className="g-shoprow"><span className="g-nm">เปิดครบแล้ว</span></div>
-                ))}
             </section>}
         </main>
     );

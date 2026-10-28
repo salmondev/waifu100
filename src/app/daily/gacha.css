@@ -365,7 +365,11 @@
 @keyframes gshake { 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }
 
 .g-hints, .g-shop { padding: 12px 12px 6px; }
-.g-hint { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-top: 2px dotted rgba(29, 43, 83, .25); }
+.g-hint { display: flex; gap: 10px; align-items: center; padding: 9px 0; border-top: 2px dotted rgba(29, 43, 83, .25); }
+.g-hint .g-hb { flex: 1; }
+.g-hint .g-btn { flex: none; min-width: 74px; }
+.g-hint .g-btn b { font: 700 13px/1 var(--bit); }
+.g-hint.open { align-items: flex-start; }
 .g-hi { flex: none; width: 30px; height: 30px; display: grid; place-items: center; background: var(--ink); color: var(--paper); }
 .g-hi .pxi { width: 18px; height: 18px; }
 .g-hint:not(.open) .g-hi { background: var(--grey); color: var(--slate); }
@@ -396,7 +400,7 @@
 .g-free .pxi { width: 12px; height: 12px; }
 .g-shoprow { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 2px dotted rgba(29, 43, 83, .25); }
 .g-nm { flex: 1; display: grid; font: 400 14px/1.3 var(--th); } .g-nm small { font: 300 12px/1.3 var(--th); }
-.g-nm small.g-short { font-weight: 400; margin-top: 2px; } /* T-0024 r2: why the buy button is disabled */
+.g-nm small.g-short, .g-hb small.g-short { font-weight: 400; margin-top: 2px; display: block; } /* T-0024 r2: why the buy button is disabled */
 .g-shoprow .g-btn { min-width: 74px; }
 .g-shoprow .g-btn b { font: 700 13px/1 var(--bit); }
 .g-ctl { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; padding-top: 2px; }
