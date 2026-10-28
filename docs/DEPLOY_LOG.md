@@ -119,3 +119,13 @@ Format (copy this block):
 - result: shipped
 - rollback ref: `vercel promote https://waifu100-r5ef0osm3-salmondevs-projects.vercel.app` / `git revert -m 1 16d0a43`
 - notes: Each archive day and the today button show the series title (English, else romaji). A started day keeps the anime stored on that round. The character stays hidden. No new env, no Redis migration. No /api/gacha/today call.
+
+## 2026-10-28 16:02 ICT — deploy — PASS
+- who: Panurut (approved: "ลองทำแล้วเอาขึ้น prod เลย") / agent: grok
+- reviewer: same session, gate only
+- commit: 85d9024 (main, --no-ff, first parent 9e76b0e, tree = develop 968d9d3) — share a won card on its own link
+- deployment: waifu100-bdvqfirgp (Ready; aliased to https://waifu100.vercel.app). Preview: waifu100-cht8jqdjv
+- checks: verify=PASS (typecheck ok, lint 0 errors, unit 991/991, integration 49 + 1 skipped, build ok, bundle 605 KB gzip, largest 132 KB, e2e 35/35) | secrets=PASS | smoke:prod=PASS 8/8 | headers=warn: no CSP | GET /daily=200 | audit=not re-run; lockfile unchanged, previous triage stands (13 high)
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-lgg2o5h3f-salmondevs-projects.vercel.app` / `git revert -m 1 85d9024`
+- notes: After a win, «แชร์การ์ด» is the large red button. It copies `SSR ★★★ Name`, `waifu100 Daily #N`, and `https://waifu100.vercel.app/c/<code>`. The preview image is that pull. Opening the link shows the same card as the pack, plus «มาเล่น». «คัดลอกผลลัพธ์» stays, smaller, and still hides the name. Practice and a loss have no card button. The code is signed with the existing daily salt; no new env and no Redis write. No /api/gacha/today call.
