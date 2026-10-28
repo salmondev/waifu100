@@ -169,3 +169,13 @@ Format (copy this block):
 - result: shipped
 - rollback ref: `vercel promote https://waifu100-iesl2sk2e-salmondevs-projects.vercel.app` / `git revert -m 1 1372152`
 - notes: The separate «ซื้อคำใบ้» card is gone. The price button is the last row of the hint card. The daily-coin badge stays on that card's title. No new env. No /api/gacha/today call.
+
+## 2026-10-28 17:24 ICT — deploy — PASS
+- who: Panurut (approved by correcting the live hint layout: "ปุ่มควรอยู่หลังแถวแต่ละ row") / agent: grok
+- reviewer: same session, gate only
+- commit: 6152a92 (main, --no-ff, first parent 4a04f2b, tree = develop 322c45c) — each hint row has its price
+- deployment: waifu100-c7upgqaub (Ready; aliased to https://waifu100.vercel.app). Preview: waifu100-9p4fjw493
+- checks: verify=PASS (typecheck ok, lint 0 errors, unit 995/995, integration 49 + 1 skipped, build ok, bundle 605 KB gzip, largest 132 KB, e2e 35/35) | secrets=PASS | smoke:prod=PASS 8/8 | headers=warn: no CSP | GET /daily=200
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-r8la6k481-salmondevs-projects.vercel.app` / `git revert -m 1 6152a92`
+- notes: The buy button is on the right of each locked hint row. Only the next row can be bought. Later rows show their price and stay disabled. No separate purchase row. No new env. No /api/gacha/today call.
