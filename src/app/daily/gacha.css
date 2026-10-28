@@ -390,7 +390,8 @@
 .g-pic.blur img { transform: scale(1.1); }
 .g-hint .g-hb:has(.g-pic) { grid-template-columns: auto 1fr; align-items: end; column-gap: 10px; }
 .g-hint .g-hb:has(.g-pic) small { grid-column: 1 / -1; }
-.g-shop h3 { justify-content: space-between; }
+.g-hints h3 { justify-content: space-between; width: 100%; }
+.g-hints h3 .g-free { margin-left: auto; }
 .g-free { display: inline-flex; align-items: center; gap: 5px; font: 400 12px/1 var(--th); background: var(--green); padding: 4px 6px; box-shadow: 0 0 0 2px var(--ink); }
 .g-free .pxi { width: 12px; height: 12px; }
 .g-shoprow { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 2px dotted rgba(29, 43, 83, .25); }
