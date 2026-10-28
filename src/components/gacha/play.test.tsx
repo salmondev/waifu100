@@ -97,8 +97,10 @@ describe("hint slots (legacy round: a free hint per wrong guess)", () => {
         expect(slots).toEqual(["eyes", "locked", "locked", "locked", "locked"]);
         expect(c.querySelectorAll('.g-hint[data-hint="locked"]')[0].textContent).toContain("คำใบ้ลับ");
         expect(c.querySelector(".g-hint.missing")).toBeNull();
-        expect(c.querySelector(".g-shoprow")!.textContent).toContain("คำใบ้ข้อที่ 2");
-        expect(c.querySelector(".g-shoprow")!.textContent).not.toMatch(/เงา|ภาพเบลอ|นักพากย์|ตัวอักษร/);
+        const nextRow = c.querySelector(".g-hint.next")!;
+        expect(nextRow.textContent).toContain("คำใบ้ลับ");
+        expect(nextRow.querySelector("button")!.textContent).toContain("40");
+        expect(nextRow.textContent).not.toMatch(/เงา|ภาพเบลอ|นักพากย์|ตัวอักษร/);
     });
 
     it("a finished round shows the 'no data' slots even with hints still locked", () => {
@@ -372,9 +374,9 @@ describe("hint shop: not enough coins (T-0024 r2)", () => {
         const r = withCoins(12);
         expect(r.hints.next).toMatchObject({ price: 30, affordable: false });
         const c = view(r);
-        const reason = c.querySelector(".g-shoprow .g-short");
+        const reason = c.querySelector(".g-hint.next .g-short");
         expect(reason?.textContent).toBe("เหรียญไม่พอ (มี 12 ต้องใช้ 30)");
-        const btn = c.querySelector<HTMLButtonElement>(".g-shoprow button")!;
+        const btn = c.querySelector<HTMLButtonElement>(".g-hint.next button")!;
         expect(btn.disabled).toBe(true);
         expect(btn.getAttribute("aria-describedby")).toBe(reason!.id);
         expect(c.querySelector("[role=dialog], [role=alert]")).toBeNull();
@@ -383,7 +385,7 @@ describe("hint shop: not enough coins (T-0024 r2)", () => {
     it("shows no reason when the hint is affordable", () => {
         const c = view(withCoins(50));
         expect(c.querySelector(".g-short")).toBeNull();
-        expect(c.querySelector<HTMLButtonElement>(".g-shoprow button")!.hasAttribute("aria-describedby")).toBe(false);
+        expect(c.querySelector<HTMLButtonElement>(".g-hint.next button")!.hasAttribute("aria-describedby")).toBe(false);
     });
 });
 
