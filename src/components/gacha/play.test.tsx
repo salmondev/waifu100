@@ -268,10 +268,11 @@ describe("free first guess (T-0024): counter, track, result line", () => {
 
     it("the card share button is the big red one and copies that pull's link", async () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
+        const osShare = vi.fn();
         Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-        Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
-        const text = "SSR ★★★ Frieren\nwaifu100 Daily #31\nhttps://waifu100.vercel.app/c/abc";
-        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ text, url: "https://waifu100.vercel.app/c/abc" }), { status: 200 })));
+        Object.defineProperty(navigator, "share", { value: osShare, configurable: true });
+        const text = "SSR ★★★ Frieren\nwaifu100 Daily #31\nhttps://waifu100.vercel.app/c/Ab3kP9xQ";
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ text, url: "https://waifu100.vercel.app/c/Ab3kP9xQ" }), { status: 200 })));
         try {
             const c = view(dto(101, [101], "won", 0, true, { free: true, pull: { result: "new", prevTier: null, tier: "ssr" } }));
             const buttons = [...c.querySelector(".g-result .g-row")!.querySelectorAll("button")];
@@ -284,6 +285,7 @@ describe("free first guess (T-0024): counter, track, result line", () => {
             buttons[0].click();
             await vi.waitFor(() => expect(buttons[0].textContent).toContain("แชร์แล้ว"));
             expect(writeText.mock.calls[0][0]).toBe(text);
+            expect(osShare).not.toHaveBeenCalled();
         } finally {
             vi.unstubAllGlobals();
         }

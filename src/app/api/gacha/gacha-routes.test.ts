@@ -522,7 +522,7 @@ describe("card share", () => {
         expect(res.status).toBe(200);
         expect(res.headers.get("cache-control")).toBe("no-store");
         const body = await res.json();
-        expect(body.url).toMatch(/^https:\/\/waifu100\.vercel\.app\/c\/[A-Za-z0-9_-]+$/);
+        expect(body.url).toMatch(/^https:\/\/waifu100\.vercel\.app\/c\/[A-Za-z0-9]{8}$/);
         expect(body.text).toBe([`SSR ★★★ ${name}`, `waifu100 Daily #${won.day.number}`, body.url].join("\n"));
         const view = await loadCardShare(body.url.split("/c/")[1]);
         expect(view).toMatchObject({ name, tier: "ssr", dayKey: day, dayNumber: won.day.number });

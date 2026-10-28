@@ -10,11 +10,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@animate-ui/react/primitives/tabs";
 import { errorText, gachaApi, setGachaId, type AlbumDto, type RoundDto } from "./api";
-import { cardBackHtml, cardMiniHtml, CardHtml, storyCardHtml } from "./card";
+import { cardBackHtml, cardHtml, cardMiniHtml, CardHtml, storyCardHtml } from "./card";
 import { animeSubtitle, animeTitle } from "./chrome";
 import { storyColours } from "./palette";
 import { placeCharacterOnWaifuGrid, WAIFU_GRID_KEY } from "@/lib/waifu-board";
-import { Icon, Px, SETSYM, type TierName } from "./pixel";
+import { Icon, Px, SETSYM, TIER_NAME, type TierName } from "./pixel";
 
 const UNLOCK = 3;
 
@@ -144,8 +144,18 @@ const PANEL_ID = "g-album-panel";
 function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.RefObject<HTMLElement | null>; fresh: boolean; onSeen: (animeId: number) => void }) {
     const colours = storyColours(g.coverColor);
     const [gridNote, setGridNote] = useState<string | null>(null);
+    const [open, setOpen] = useState<Group["cards"][number] | null>(null);
     const byNo = new Map(g.cards.map((c) => [c.number, c]));
     const title = animeTitle(g);
+    const openTier = (open?.tier ?? "common") as TierName;
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setOpen(null);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open]);
     return (
         <section className="g-binder win" ref={binderRef} style={{ ["--story" as string]: colours.frame }} aria-label={`อัลบั้ม ${title}`}>
             <div className="g-blabel"><b>{title}</b><span>{g.setCode}</span>{g.story.unlocked && <b className="g-tag">ครบชุด</b>}<em>{g.owned}/{g.total}</em></div>
@@ -192,7 +202,18 @@ function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.Re
                     const c = byNo.get(no);
                     return (
                         <div className="g-pocket" key={no}>
-                            <CardHtml html={c ? cardMiniHtml(c, (c.tier ?? "common") as TierName) : cardBackHtml({ no, mini: true })} />
+                            {c ? (
+                                <button
+                                    className="g-pocket-open"
+                                    type="button"
+                                    aria-label={`${c.name} ${TIER_NAME[(c.tier ?? "common") as TierName]}`}
+                                    onClick={() => setOpen(c)}
+                                >
+                                    <CardHtml html={cardMiniHtml(c, (c.tier ?? "common") as TierName)} />
+                                </button>
+                            ) : (
+                                <CardHtml html={cardBackHtml({ no, mini: true })} />
+                            )}
                             {c?.image && (
                                 <button className="g-btn sm" type="button" onClick={() => setGridNote(placeOnGrid(c.name, c.id, c.image!))}>ใส่กริด</button>
                             )}
@@ -201,6 +222,20 @@ function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.Re
                 })}
             </div>
             {gridNote && <p className="g-note" role="status">{gridNote}</p>}
+            {open && (
+                <div
+                    className="g-admire"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`${open.name} ${TIER_NAME[openTier]}`}
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setOpen(null);
+                    }}
+                >
+                    <CardHtml html={cardHtml(open, openTier, { day: open.day, total: g.total })} />
+                    <button className="g-btn" type="button" onClick={() => setOpen(null)}>ปิด</button>
+                </div>
+            )}
         </section>
     );
 }
