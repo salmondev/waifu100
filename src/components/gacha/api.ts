@@ -105,7 +105,7 @@ export function errorText(e: unknown): string {
         if (e.code === "already_guessed") return "เดาชื่อนี้ไปแล้ว";
         if (e.code === "round_over") return "รอบนี้จบแล้ว";
         if (e.code === "day_unavailable" || e.code === "invalid_day") return "วันนี้ยังเล่นไม่ได้ เลือกวันอื่นจากรายการย้อนหลัง";
-        if (e.code === "no_card") return "รอบนี้ยังไม่มีการ์ดให้แชร์";
+        if (e.code === "no_card") return "แชร์ไม่ได้";
     }
     return "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง";
 }

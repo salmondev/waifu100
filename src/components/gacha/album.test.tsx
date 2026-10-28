@@ -103,6 +103,24 @@ describe("album owned cards open", () => {
         await act(async () => void fireEvent.keyDown(window, { key: "Escape" }));
         expect(screen.queryByRole("dialog")).toBeNull();
     });
+
+    it("share copies the card link for the day they got it", async () => {
+        const text = "Rare ★ C1\nwaifu100 Daily #12\nhttps://waifu100.vercel.app/c/Ab3kP9xQ";
+        fetchMock.mockImplementation(async (url: string) => {
+            if (String(url).includes("card-share")) return new Response(JSON.stringify({ text, url: "https://waifu100.vercel.app/c/Ab3kP9xQ" }), { status: 200 });
+            return new Response(JSON.stringify({ animeId: 9001, fresh: false }), { status: 200 });
+        });
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+        render(<AlbumView album={album(false)} round={null} animeParam={null} onRestored={() => {}} />);
+        await act(async () => void fireEvent.click(screen.getByRole("button", { name: "C1 Rare" })));
+        await act(async () => void fireEvent.click(screen.getByRole("button", { name: "แชร์" })));
+        await act(async () => {});
+        expect(writeText.mock.calls[0][0]).toBe(text);
+        const [, init] = fetchMock.mock.calls.find(([u]) => String(u).includes("card-share"))!;
+        expect(JSON.parse(String((init as RequestInit).body))).toEqual({ day: "2026-10-21" });
+        expect(screen.getByRole("button", { name: "คัดลอกแล้ว" })).toBeTruthy();
+    });
 });
 
 describe("album story tabs", () => {

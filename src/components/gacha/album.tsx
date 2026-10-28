@@ -28,12 +28,49 @@ function placeOnGrid(name: string, id: number, image: string): string {
         });
         if (next.placed) localStorage.setItem(WAIFU_GRID_KEY, next.stored);
         if (next.full) return "กริดเต็มแล้ว";
-        return next.placed ? `ใส่ ${name} ลงกริดแล้ว เปิดหน้าแรกเพื่อดู` : `${name} อยู่ในกริดแล้ว`;
+        return next.placed ? `ใส่ ${name} ในกริดแล้ว` : `${name} อยู่ในกริดแล้ว`;
     } catch {
         return "ใส่กริดไม่ได้";
     }
 }
 type Group = AlbumDto["anime"][number];
+
+/** Same text as the win-screen share: tier, name, the day they got it, and the card link. */
+function CardDayShare({ day }: { day: string }) {
+    const [state, setState] = useState<"idle" | "busy" | "ok" | "fail">("idle");
+    const [fallback, setFallback] = useState<string | null>(null);
+    const share = async () => {
+        if (state === "busy") return;
+        setState("busy");
+        setFallback(null);
+        try {
+            const { text } = await gachaApi.cardShare(day);
+            try {
+                await navigator.clipboard.writeText(text);
+                setState("ok");
+            } catch {
+                setFallback(text);
+                setState("fail");
+            }
+        } catch {
+            setState("fail");
+        }
+    };
+    return (
+        <>
+            <button className="g-btn red" type="button" onClick={share} disabled={state === "busy"}>
+                {state === "ok" ? "คัดลอกแล้ว" : "แชร์"}
+            </button>
+            {state === "fail" && !fallback && <p className="g-note">แชร์ไม่ได้</p>}
+            {fallback && (
+                <label className="g-sharebox">
+                    <span>คัดลอกเองจากช่องนี้</span>
+                    <textarea readOnly rows={fallback.split("\n").length} value={fallback} onFocus={(e) => e.currentTarget.select()} />
+                </label>
+            )}
+        </>
+    );
+}
 
 export function AlbumView({ album, round, animeParam, onRestored }: { album: AlbumDto; round: RoundDto | null; animeParam: number | null; onRestored: () => void }) {
     const router = useRouter();
@@ -99,7 +136,7 @@ export function AlbumView({ album, round, animeParam, onRestored }: { album: Alb
             <header className="g-ahead win">
                 <div>
                     <h1>อัลบั้ม</h1>
-                    <p>มีการ์ด <b>{album.owned}</b> ใบ ไม่มีใบซ้ำ · เหรียญตรา <b>{album.badges ?? 0}</b> เรื่อง</p>
+                    <p>การ์ด <b>{album.owned}</b> ใบ · ครบชุด <b>{album.badges ?? 0}</b> เรื่อง</p>
                 </div>
                 <Link className="g-btn sm" href="/daily" scroll={false}><Icon name="back" />กลับไปเล่น</Link>
             </header>
@@ -131,7 +168,7 @@ export function AlbumView({ album, round, animeParam, onRestored }: { album: Alb
                     </div>
                 </>
             ) : (
-                <section className="g-binder win"><p className="g-note">ยังไม่มีการ์ด เดาตัวละครของวันนี้ให้ถูกเพื่อรับใบแรก</p></section>
+                <section className="g-binder win"><p className="g-note">ยังไม่มีการ์ด</p></section>
             )}
             <Recovery onRestored={onRestored} />
         </main>
@@ -188,7 +225,7 @@ function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.Re
                         <Icon name="lock" />
                         <div>
                             <b>สตอรี่การ์ด {title}</b>
-                            <span>มีแล้ว {g.owned} จาก {UNLOCK} ตัว เก็บอีก {UNLOCK - g.owned} ตัวเพื่อปลดล็อก</span>
+                            <span>อีก {UNLOCK - g.owned} ตัว</span>
                             <div className="g-meter">
                                 {Array.from({ length: UNLOCK }, (_, i) => <i key={i} className={i < g.owned ? "on" : ""} />)}
                             </div>
@@ -233,7 +270,10 @@ function Binder({ g, binderRef, fresh, onSeen }: { g: Group; binderRef: React.Re
                     }}
                 >
                     <CardHtml html={cardHtml(open, openTier, { day: open.day, total: g.total })} />
-                    <button className="g-btn" type="button" onClick={() => setOpen(null)}>ปิด</button>
+                    <div className="g-admire-row">
+                        <CardDayShare day={open.day} />
+                        <button className="g-btn" type="button" onClick={() => setOpen(null)}>ปิด</button>
+                    </div>
                 </div>
             )}
         </section>
@@ -264,7 +304,7 @@ function Recovery({ onRestored }: { onRestored: () => void }) {
             const { id } = await gachaApi.restore(input.trim());
             setGachaId(id);
             setInput("");
-            setMsg("กู้คืนแล้ว เครื่องนี้ใช้ความคืบหน้าจากรหัสนั้น");
+            setMsg("ย้ายมาแล้ว");
             onRestored();
         } catch (e) {
             setMsg(errorText(e));
@@ -274,15 +314,15 @@ function Recovery({ onRestored }: { onRestored: () => void }) {
     };
     return (
         <section className="g-recover win" aria-label="รหัสกู้คืน">
-            <h3 className="g-h3">ย้ายไปเครื่องอื่น <small>ไม่ต้องสมัครสมาชิก</small></h3>
+            <h3 className="g-h3">ย้ายเครื่อง</h3>
             <div className="g-recrow">
-                <p>สร้างรหัสกู้คืน แล้วนำไปใส่ในเครื่องใหม่ อัลบั้ม เหรียญ และสตรีคจะตามไป สร้างใหม่เมื่อไรรหัสเก่าจะใช้ไม่ได้</p>
+                <p>สร้างรหัสไปใส่เครื่องใหม่ สร้างใหม่แล้วรหัสเก่าใช้ไม่ได้</p>
                 <button className="g-btn sm" type="button" onClick={mint} disabled={busy}><Icon name="key" />สร้างรหัส</button>
             </div>
             {code && (
                 <p className="g-code">
                     <output aria-live="polite">{code}</output>
-                    <small>เก็บรหัสนี้ไว้เป็นความลับ ใครมีรหัสก็เล่นต่อจากคุณได้</small>
+                    <small>อย่าให้คนอื่นเห็น</small>
                 </p>
             )}
             <form

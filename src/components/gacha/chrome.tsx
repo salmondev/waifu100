@@ -26,12 +26,13 @@ export function TopBar({ coins, streak, shields = 0, shieldPrice = 30, onShield 
                 )}
             </div>
             {onShield && coins != null && (
-                <>
-                    <button className="g-btn sm" type="button" onClick={onShield} disabled={coins < shieldPrice} aria-label={`ซื้อกันสตรีคขาด ${shieldPrice} เหรียญ คงเหลือ ${shields}`}>
-                        กันสตรีคขาด{shields > 0 ? ` · มี ${shields}` : ""}
+                <div className="g-shield">
+                    <button className="g-btn sm" type="button" onClick={onShield} disabled={coins < shieldPrice} aria-label={`กันสตรีค ${shieldPrice} เหรียญ พลาดเล่น 1 วัน สตรีคไม่หาย${shields > 0 ? ` มีอยู่ ${shields}` : ""}`}>
+                        กันสตรีค
                     </button>
-                    {shields === 0 && <small>{shieldPrice} เหรียญ</small>}
-                </>
+                    {shields > 0 && <b>มี {shields}</b>}
+                    <small><Coin />{shieldPrice}</small>
+                </div>
             )}
         </header>
     );

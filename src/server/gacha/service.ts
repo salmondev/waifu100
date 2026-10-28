@@ -886,16 +886,34 @@ export async function issueCardShare(id: string, day?: string): Promise<{ url: s
     const idx = await getCatalog();
     const today = bangkokDayKey(now());
     const target = day ?? today;
-    if (target !== today && !isArchiveDay(target, today)) throw new GachaError("day_unavailable");
+    if (epochDay(target) > epochDay(today)) throw new GachaError("day_unavailable");
     const profile = await store.load(id);
     if (!profile) throw new GachaError("no_profile");
     const round = profile.rounds[target];
-    if (!round || round.done !== "won" || !round.pull) throw new GachaError("no_card");
-    const { answer } = roundParts(round, idx);
-    const guesses = countedGuesses(round);
-    const code = await publishCardShare({ day: target, charId: answer.id, tier: round.pull.tier, guesses }, salt());
+    const owned = Object.entries(profile.collection).find(([, e]) => e.day === target);
+    let charId: number;
+    let tier: Tier;
+    let guesses: number;
+    let name: string;
+    if (round?.done === "won" && round.pull) {
+        const { answer } = roundParts(round, idx);
+        charId = answer.id;
+        tier = round.pull.tier;
+        guesses = countedGuesses(round);
+        name = answer.name;
+    } else if (owned) {
+        charId = Number(owned[0]);
+        const found = idx.characters.get(charId);
+        if (!found) throw new GachaError("no_card");
+        tier = owned[1].tier;
+        guesses = tier === "ssr" ? 1 : tier === "sr" ? 2 : tier === "rare" ? 3 : 5;
+        name = found.character.name;
+    } else {
+        throw new GachaError("no_card");
+    }
+    const code = await publishCardShare({ day: target, charId, tier, guesses }, salt());
     const url = cardShareUrl(code);
-    return { url, text: cardShareText(round.pull.tier, answer.name, dayNumber(target), url) };
+    return { url, text: cardShareText(tier, name, dayNumber(target), url) };
 }
 
 /** The card behind a share code, or null when this salt did not publish it. */
