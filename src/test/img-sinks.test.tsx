@@ -38,7 +38,7 @@ const SAFE_VARS: Record<string, { name: string; proof: RegExp }[]> = {
     // Server-rendered hint images: same-origin /api/gacha/hint-image or nothing (see gacha-hint-image.test.ts).
     "components/gacha/play.tsx": [{ name: "safe", proof: /const safe = hintImageSrc\(src\)/ }],
     // Gacha Guess card markup is an HTML string; the src is proxied() and then HTML-escaped.
-    "components/gacha/card.tsx": [{ name: '"${esc(proxied(src, w))}"', proof: /<img src="\$\{esc\(proxied\(src, w\)\)\}"/ }],
+    "components/gacha/card.tsx": [{ name: '"${esc(url)}"', proof: /const url = proxied\(src, w\)/ }],
 };
 
 const sinks: { file: string; expr: string }[] = [];
@@ -71,7 +71,7 @@ describe("image sinks (static)", () => {
 
 describe("proxied()", () => {
     it.each([
-        ["https://s4.anilist.co/a.jpg", /^\/api\/img\?u=https%3A%2F%2Fs4\.anilist\.co%2Fa\.jpg&w=256$/],
+        ["https://s4.anilist.co/a.jpg", /^\/api\/img\?u=https%3A%2F%2Fs4\.anilist\.co%2Fa\.jpg&w=256&v=2$/],
         ["https://evil.example.com/a.jpg", /^\/api\/img\?u=/],
         ["http://s4.anilist.co/a.jpg", /^$/],
         ["javascript:alert(1)", /^$/],

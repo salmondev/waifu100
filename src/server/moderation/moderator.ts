@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { ClassifyError, geminiClassifier, type Classifier } from "@/server/moderation/classifier";
 import { redisVerdictStore, type Verdict, type VerdictStore } from "@/server/moderation/verdict-store";
+import { isCatalogArtUrl } from "@/server/gacha/catalog";
 import { ImageFetchError, safeFetchImage, type SafeFetchOptions } from "@/server/moderation/safe-fetch";
 
 /**
@@ -219,6 +220,24 @@ export async function getModeratedImage(
         ({ bytes } = await safeFetchImage(url, { ...deps.fetchOptions, allow: opts.allow }));
     } catch (e) {
         return { ok: false, reason: e instanceof ImageFetchError ? e.reason : "fetch", definitive: false };
+    }
+    // Official card art is the game's own catalog, not a visitor upload. A safety
+    // model that rejects a portrait would otherwise stick the mountain placeholder
+    // on that card forever (the "b" verdict is cached). Fetch stays SSRF-safe.
+    // Uploads and any URL that is not in the catalog still go through the checker.
+    if (await isCatalogArtUrl(url)) {
+        try {
+            const boxH = opts.square ? width : opts.height;
+            const jpeg = boxH !== undefined && opts.letterbox
+                ? await letterboxed(bytes, width, boxH)
+                : await sharp(bytes, { limitInputPixels: 50_000_000 })
+                      .resize(width, boxH, { fit: boxH !== undefined ? "cover" : "inside", withoutEnlargement: boxH === undefined })
+                      .jpeg({ quality: 78 })
+                      .toBuffer();
+            return { ok: true, hash: sha256(bytes), jpeg, checked: true };
+        } catch {
+            return { ok: false, hash: sha256(bytes), reason: "decode", definitive: true };
+        }
     }
     const { hash, verdict, reason, limited } = await moderateBytes(bytes, { beforeClassify: opts.beforeClassify });
     if (verdict !== "a" && verdict !== "u") {

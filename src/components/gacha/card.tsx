@@ -168,8 +168,14 @@ export function roleLine(c: Pick<CardDto, "occupation" | "role" | "gender">): st
     return g ? `${base} · ${g}` : base;
 }
 
-const img = (src: string, w: number, alt = "") =>
-    `<img src="${esc(proxied(src, w))}" alt="${esc(alt)}" draggable="false" style="object-position:${FOCAL}">`;
+/** Letter instead of a broken icon when the portrait cannot be loaded. The proxy serves catalog art itself, so this is the leftover case. */
+const FACE_ERR = "this.replaceWith(Object.assign(document.createElement('b'),{className:'c2-noface',textContent:(this.alt||'?').trim().charAt(0).toUpperCase()||'?'}))";
+const img = (src: string, w: number, alt = "") => {
+    const url = proxied(src, w);
+    const letter = esc((alt.trim().charAt(0) || "?").toUpperCase());
+    if (!url) return `<b class="c2-noface">${letter}</b>`;
+    return `<img src="${esc(url)}" alt="${esc(alt)}" draggable="false" style="object-position:${FOCAL}" onerror="${FACE_ERR}">`;
+};
 
 export function cardHtml(c: CardDto, tier: TierName, opts: { day?: string | null; guesses?: number | null; total?: number | null } = {}): string {
     const s2 = storyColours(c.coverColor);
@@ -179,7 +185,7 @@ export function cardHtml(c: CardDto, tier: TierName, opts: { day?: string | null
     return `<article class="c2" data-tier="${tier}" style="${storyVars(s2)}" aria-label="${esc(c.name)} ${TIER_NAME[tier]}">
   <div class="c2-tilt"><div class="c2-body">
     <i class="c2-fx" aria-hidden="true"></i>
-    <div class="c2-art">${img(c.image, 460)}${tier === "ssr" ? '<canvas class="c2-foil"></canvas>' : `<i class="c2-holo"${faceMask(false)}></i>`}</div>
+    <div class="c2-art">${img(c.image, 460, c.name)}${tier === "ssr" ? '<canvas class="c2-foil"></canvas>' : `<i class="c2-holo"${faceMask(false)}></i>`}</div>
     ${ornament(tier)}
     <header class="c2-name">
       <div class="c2-nm"><b>${esc(c.name)}</b><small>${esc(c.animeTitle)}</small></div>
@@ -219,7 +225,7 @@ export function storyCardHtml(st: StoryInput): string {
     return `<article class="c2 c2-story" data-tier="story" style="${storyVars(s2)}" aria-label="${esc(st.title)} story card">
   <div class="c2-tilt"><div class="c2-body">
     <i class="c2-fx" aria-hidden="true"></i>
-    <div class="c2-art">${img(st.cover, 460)}</div>
+    <div class="c2-art">${img(st.cover, 460, st.title)}</div>
     ${ornament("sr")}
     <header class="c2-name">
       <div class="c2-nm"><b>${esc(st.title)}</b>${st.subtitle ? `<small>${esc(st.subtitle)}</small>` : ""}</div>
@@ -243,7 +249,7 @@ export function cardMiniHtml(c: CardDto, tier: TierName): string {
     return `<article class="c2 c2-mini" data-tier="${tier}" style="${storyVars(s2)}" aria-label="${esc(c.name)} ${TIER_NAME[tier]}">
   <div class="c2-tilt"><div class="c2-body">
     <i class="c2-fx" aria-hidden="true"></i>
-    <div class="c2-art">${img(c.image, 230)}<i class="c2-holo"${faceMask(true)}></i></div>
+    <div class="c2-art">${img(c.image, 230, c.name)}<i class="c2-holo"${faceMask(true)}></i></div>
     ${ornament(tier === "ssr" ? "ssr" : "common")}
     <div class="c2-mname"><b>${esc(c.name)}</b><span><em>${esc(c.number)}</em>${TIER_LABEL[tier]}</span></div>
     <i class="c2-glare" aria-hidden="true"></i>

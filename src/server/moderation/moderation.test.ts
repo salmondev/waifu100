@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
+import { setCatalog } from "@/server/gacha/catalog";
+import type { Catalog } from "@/server/gacha/catalog-types";
 import { animatedGifFrames, configureModeration, getModeratedImage, GIF_MAX_BYTES, GIF_MAX_FRAMES, moderateBytes, sha256 } from "@/server/moderation/moderator";
 import { ClassifyError, parseClassification } from "@/server/moderation/classifier";
 import { memoryVerdictStore } from "@/server/moderation/verdict-store";
@@ -124,6 +126,58 @@ describe("moderated image", () => {
         const bytes = await png("#654321");
         configureModeration({ classify: async (xs) => xs.map(() => false), store: memoryVerdictStore(), fetchOptions: { fetch: fetchReturning(bytes) as unknown as typeof fetch } });
         expect(await getModeratedImage("https://img.example.com/b.png", 64)).toMatchObject({ ok: false, reason: "blocked", definitive: true });
+    });
+
+    it("serves a shipped catalog portrait even when the checker would block it, and still blocks other URLs", async () => {
+        const bytes = await png("#abcdef");
+        const url = "https://s4.anilist.co/file/anilistcdn/character/large/b51347-test.png";
+        const catalog = {
+            generatedAt: "2026-10-28T00:00:00.000Z",
+            source: "test",
+            imageNote: "",
+            anime: [{
+                id: 1,
+                titleRomaji: "Test",
+                titleEnglish: null,
+                titleNative: null,
+                cover: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx1-test.jpg",
+                coverColor: null,
+                popularity: 1,
+                setCode: "TST",
+                siteUrl: "https://anilist.co/anime/1",
+                characters: [{
+                    id: 51347,
+                    name: "Akeno Himejima",
+                    nameNative: null,
+                    alternative: [],
+                    gender: "Female",
+                    age: null,
+                    role: "MAIN" as const,
+                    favourites: 1,
+                    image: url,
+                    siteUrl: "https://anilist.co/character/51347",
+                    hair: null,
+                    occupation: null,
+                    quote: null,
+                    silhouette: null,
+                }],
+            }],
+        } satisfies Catalog;
+        setCatalog(catalog);
+        const classify = vi.fn(async (xs: unknown[]) => xs.map(() => false));
+        const store = memoryVerdictStore();
+        configureModeration({ classify, store, fetchOptions: { fetch: fetchReturning(bytes) as unknown as typeof fetch } });
+        try {
+            const served = await getModeratedImage(url, 64);
+            expect(served.ok).toBe(true);
+            if (served.ok) expect(served.checked).toBe(true);
+            expect(classify).not.toHaveBeenCalled();
+            expect(store.map.size).toBe(0);
+            expect(await getModeratedImage("https://img.example.com/upload.png", 64)).toMatchObject({ ok: false, reason: "blocked", definitive: true });
+            expect(classify).toHaveBeenCalledTimes(1);
+        } finally {
+            setCatalog(null);
+        }
     });
 });
 

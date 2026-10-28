@@ -11,7 +11,8 @@ export function proxied(url: string | null | undefined, width = 256): string {
     // Same-origin path only; "//host" and "/\\host" are protocol-relative remote URLs (review M4).
     if (url.startsWith("/")) return /^\/[\/\\]/.test(url) ? "" : url;
     if (!/^https:\/\//i.test(url)) return ""; // http and others are never shown
-    return `${IMG_PROXY_PATH}?u=${encodeURIComponent(url)}&w=${width}`;
+    // v=2: drop a CDN-cached mountain placeholder from before catalog art was served as itself.
+    return `${IMG_PROXY_PATH}?u=${encodeURIComponent(url)}&w=${width}&v=2`;
 }
 
 /** Absolute proxied URL (og:image needs one). */

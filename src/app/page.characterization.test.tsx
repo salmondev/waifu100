@@ -54,7 +54,7 @@ describe("waifu builder (characterization)", () => {
         expect(cells[1].querySelector("img")).toBeNull();
         // Custom image wins and every remote image goes through the moderated proxy.
         expect(cells[57].querySelector("img")?.getAttribute("src")).toBe(
-            `/api/img?u=${encodeURIComponent("https://img.example.com/custom.png")}&w=384`
+            `/api/img?u=${encodeURIComponent("https://img.example.com/custom.png")}&w=384&v=2`
         );
         expect(cells[0].querySelector("img")?.getAttribute("src")?.startsWith("/api/img?u=")).toBe(true);
     });

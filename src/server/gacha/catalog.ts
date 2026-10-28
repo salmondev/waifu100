@@ -33,6 +33,32 @@ export function setCatalog(catalog: Catalog | null): void {
     injected = catalog ? indexCatalog(catalog) : null;
 }
 
+const artUrls = new WeakMap<CatalogIndex, Set<string>>();
+
+/** Exact image URLs shipped in the catalog: card art, roster faces, anime covers. */
+export function catalogArtUrls(idx: CatalogIndex): Set<string> {
+    let set = artUrls.get(idx);
+    if (set) return set;
+    set = new Set();
+    for (const anime of idx.catalog.anime) {
+        if (anime.cover) set.add(anime.cover);
+        for (const character of anime.characters) if (character.image) set.add(character.image);
+        for (const entry of anime.roster ?? []) if (entry.image) set.add(entry.image);
+    }
+    artUrls.set(idx, set);
+    return set;
+}
+
+/** True when this URL is a picture we shipped, not a visitor upload. */
+export async function isCatalogArtUrl(url: string): Promise<boolean> {
+    if (!url.startsWith("https://")) return false;
+    try {
+        return catalogArtUrls(await getCatalog()).has(url);
+    } catch {
+        return false;
+    }
+}
+
 export async function getCatalog(): Promise<CatalogIndex> {
     if (injected) return injected;
     if (!loaded) {
