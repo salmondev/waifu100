@@ -558,3 +558,8 @@
 .g-arch-st { display: inline-flex; align-items: center; gap: 4px; font: 400 12px/1.2 var(--th); color: var(--ink); }
 .g-arch-today .g-arch-st { color: inherit; }
 .g-arch-empty { padding: 14px; margin: 0; font: 400 13px/1.4 var(--th); text-align: center; }
+
+/* A shared pull: the card, then one way into today's game. */
+.g-cardshare { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 28px 16px 40px; text-align: center; }
+.g-cardshare .c2 { --w: min(320px, calc(100vw - 48px)); }
+.g-cardshare .g-lead { margin: 0; }

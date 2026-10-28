@@ -22,6 +22,7 @@ const SAFE_VARS: Record<string, { name: string; proof: RegExp }[]> = {
     "components/community/GridCard.tsx": [{ name: "preview", proof: /const preview = proxied\(/ }],
     // Server OG cards: src is a data: URI built from getModeratedImage() bytes.
     "lib/share-og.tsx": [{ name: "src", proof: /getModeratedImage\(/ }],
+    "server/gacha/card-share-image.tsx": [{ name: "src", proof: /getModeratedImage\(/ }],
     "lib/compare-og.tsx": [{ name: "src", proof: /resolveImages/ }],
     // Hidden probes / export: assigned from proxied() or canvas data URLs.
     "app/page.tsx": [

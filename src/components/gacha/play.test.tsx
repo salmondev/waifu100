@@ -265,6 +265,38 @@ describe("free first guess (T-0024): counter, track, result line", () => {
         expect(lines[1].includes("🆓")).toBe(false);
         expect(lines[2]).toBe("🟩🟩🟩🟩🟩🟩");
     });
+
+    it("the card share button is the big red one and copies that pull's link", async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+        Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+        const text = "SSR ★★★ Frieren\nwaifu100 Daily #31\nhttps://waifu100.vercel.app/c/abc";
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ text, url: "https://waifu100.vercel.app/c/abc" }), { status: 200 })));
+        try {
+            const c = view(dto(101, [101], "won", 0, true, { free: true, pull: { result: "new", prevTier: null, tier: "ssr" } }));
+            const buttons = [...c.querySelector(".g-result .g-row")!.querySelectorAll("button")];
+            expect(buttons[0].textContent).toContain("แชร์การ์ด");
+            expect(buttons[0].classList.contains("red")).toBe(true);
+            expect(buttons[0].classList.contains("big")).toBe(true);
+            const copy = buttons.find((b) => b.textContent?.includes("คัดลอกผลลัพธ์"))!;
+            expect(copy.classList.contains("sm")).toBe(true);
+            expect(copy.classList.contains("red")).toBe(false);
+            buttons[0].click();
+            await vi.waitFor(() => expect(buttons[0].textContent).toContain("แชร์แล้ว"));
+            expect(writeText.mock.calls[0][0]).toBe(text);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("a loss and a practice win have no card-share button", () => {
+        const lost = view(dto(101, [102, 103, 104, 105, 106, 107], "lost", 0, true));
+        expect(lost.textContent).not.toContain("แชร์การ์ด");
+        cleanup();
+        const practice = dto(101, [101], "won", 0, true, { pull: { result: "new", prevTier: null, tier: "ssr" } });
+        practice.practice = true;
+        expect(view(practice).textContent).not.toContain("แชร์การ์ด");
+    });
 });
 
 describe("pack recap counts only counted guesses (T-0024)", () => {

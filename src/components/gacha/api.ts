@@ -86,6 +86,8 @@ export const gachaApi = {
     hint: (slot: number, day: string) => call<RoundDto>("hint", "POST", { slot, day }).then(normalizeRound),
     album: () => call<AlbumDto>("album"),
     shield: () => call<RoundDto>("shield", "POST", {}).then(normalizeRound),
+    /** The personal card link for a day this player already won. */
+    cardShare: (day: string) => call<{ url: string; text: string }>("card-share", "POST", { day }),
     practice: () => call<RoundDto>("practice").then(normalizeRound),
     startPractice: () => call<RoundDto>("practice", "POST", {}).then(normalizeRound),
     practiceGuess: (charId: number) => call<RoundDto>("practice/guess", "POST", { charId }).then(normalizeRound),
@@ -103,6 +105,7 @@ export function errorText(e: unknown): string {
         if (e.code === "already_guessed") return "เดาชื่อนี้ไปแล้ว";
         if (e.code === "round_over") return "รอบนี้จบแล้ว";
         if (e.code === "day_unavailable" || e.code === "invalid_day") return "วันนี้ยังเล่นไม่ได้ เลือกวันอื่นจากรายการย้อนหลัง";
+        if (e.code === "no_card") return "รอบนี้ยังไม่มีการ์ดให้แชร์";
     }
     return "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง";
 }

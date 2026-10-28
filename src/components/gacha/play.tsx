@@ -101,7 +101,7 @@ function FeedbackGrid({ guesses }: { guesses: RoundDto["guesses"] }) {
 }
 
 /** Copies the spoiler-free result. The button itself says whether it worked: no toast, no popup. */
-function ShareButton({ round }: { round: RoundDto }) {
+function ShareButton({ round, quiet = false }: { round: RoundDto; quiet?: boolean }) {
     const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
     const text = shareText(round.day.number, round.maxGuesses, round.guesses, round.done === "won", freeGuessOf(round).used, round.archive);
     const copy = async () => {
@@ -114,11 +114,59 @@ function ShareButton({ round }: { round: RoundDto }) {
     };
     return (
         <>
-            <button className="g-btn" type="button" onClick={copy} data-share={state}>
+            <button className={quiet ? "g-btn sm" : "g-btn"} type="button" onClick={copy} data-share={state}>
                 <Icon name={state === "ok" ? "check" : "card"} />
                 <span aria-live="polite">{state === "ok" ? "คัดลอกแล้ว" : "คัดลอกผลลัพธ์"}</span>
             </button>
             {state === "fail" && <ShareFallback text={text} />}
+        </>
+    );
+}
+
+/** Shares this pull: a personal link whose preview is the card. Bigger than the square-result button. */
+function CardShareButton({ round }: { round: RoundDto }) {
+    const [state, setState] = useState<"idle" | "busy" | "ok" | "fail">("idle");
+    const [fallback, setFallback] = useState<string | null>(null);
+    const share = async () => {
+        if (state === "busy") return;
+        setState("busy");
+        setFallback(null);
+        let text = "";
+        try {
+            text = (await gachaApi.cardShare(round.day.key)).text;
+        } catch {
+            setState("fail");
+            return;
+        }
+        try {
+            if (typeof navigator.share === "function") {
+                try {
+                    await navigator.share({ text });
+                    setState("ok");
+                    return;
+                } catch (e) {
+                    if (e instanceof DOMException && e.name === "AbortError") {
+                        setState("idle");
+                        return;
+                    }
+                }
+            }
+            await navigator.clipboard.writeText(text);
+            setState("ok");
+        } catch {
+            setFallback(text);
+            setState("fail");
+        }
+    };
+    const label = state === "busy" ? "กำลังแชร์" : state === "ok" ? "แชร์แล้ว" : "แชร์การ์ด";
+    return (
+        <>
+            <button className="g-btn red big" type="button" onClick={share} disabled={state === "busy"} data-card-share={state}>
+                <Icon name={state === "ok" ? "check" : "card"} />
+                <span aria-live="polite">{label}</span>
+            </button>
+            {state === "fail" && fallback && <ShareFallback text={fallback} />}
+            {state === "fail" && !fallback && <p className="g-note">แชร์การ์ดไม่ได้ ลองอีกครั้ง</p>}
         </>
     );
 }
@@ -389,8 +437,9 @@ export function PlayView({ round, onRound, onOpenPack, opened, onRestart }: { ro
                                 <button className="g-btn red" type="button" onClick={onRestart}>เล่นโจทย์ใหม่</button>
                             ) : (
                                 <>
+                                    {round.result?.pull && <CardShareButton round={round} />}
                                     <button className="g-btn red" type="button" onClick={onOpenPack}>{opened ? "ดูการ์ดที่ได้" : "เปิดซอง"}</button>
-                                    <ShareButton round={round} />
+                                    <ShareButton round={round} quiet={!!round.result?.pull} />
                                 </>
                             )}
                         </div>

@@ -5,6 +5,8 @@
  */
 import { createHash, randomInt } from "node:crypto";
 import { GachaConfigError, resolveDailySalt } from "./config";
+import { cardShareToken, readCardShareToken } from "./card-share";
+import { cardShareDescription, cardShareHeading, cardShareText, cardShareUrl, type CardShareTier } from "@/lib/gacha-card-share";
 import { hintImageUrl, readHintImageToken, type HintImageRef } from "./hint-image";
 import { getCatalog, type CatalogAnime, type CatalogCharacter, type CatalogIndex } from "./catalog";
 import type { RosterCharacter } from "./catalog-types";
@@ -30,7 +32,8 @@ export type GachaErrorCode =
     | "hint_out_of_order"
     | "day_unavailable"
     | "story_locked"
-    | "no_practice";
+    | "no_practice"
+    | "no_card";
 
 const STATUS: Record<GachaErrorCode, number> = {
     create_limited: 429,
@@ -44,6 +47,7 @@ const STATUS: Record<GachaErrorCode, number> = {
     day_unavailable: 404,
     story_locked: 409,
     no_practice: 404,
+    no_card: 404,
 };
 
 export class GachaError extends Error {
@@ -857,6 +861,69 @@ export async function markStorySeen(id: string, animeId: number): Promise<{ anim
 }
 
 // ---- recovery codes ---------------------------------------------------------
+
+export interface CardShareView {
+    card: CardDto;
+    tier: CardShareTier;
+    dayKey: string;
+    guesses: number;
+    total: number;
+    dayNumber: number;
+    title: string;
+    description: string;
+    image: string | null;
+    name: string;
+    animeTitle: string;
+}
+
+/**
+ * A link for a card this player already won. Reads the stored round and does
+ * not write. The code is the pull (character, tier, guess count), not the player.
+ */
+export async function issueCardShare(id: string, day?: string): Promise<{ url: string; text: string }> {
+    const { store, now, salt } = deps();
+    const idx = await getCatalog();
+    const today = bangkokDayKey(now());
+    const target = day ?? today;
+    if (target !== today && !isArchiveDay(target, today)) throw new GachaError("day_unavailable");
+    const profile = await store.load(id);
+    if (!profile) throw new GachaError("no_profile");
+    const round = profile.rounds[target];
+    if (!round || round.done !== "won" || !round.pull) throw new GachaError("no_card");
+    const { answer } = roundParts(round, idx);
+    const guesses = countedGuesses(round);
+    const code = cardShareToken({ day: target, charId: answer.id, tier: round.pull.tier, guesses }, salt());
+    const url = cardShareUrl(code);
+    return { url, text: cardShareText(round.pull.tier, answer.name, dayNumber(target), url) };
+}
+
+/** The card behind a share code, or null when the code is not one this salt minted. */
+export async function loadCardShare(code: string): Promise<CardShareView | null> {
+    let salt: string;
+    try {
+        salt = deps().salt();
+    } catch {
+        return null;
+    }
+    const ref = readCardShareToken(code, salt);
+    if (!ref) return null;
+    const found = (await getCatalog()).characters.get(ref.charId);
+    if (!found) return null;
+    const { character, anime } = found;
+    return {
+        card: card(anime, character, ref.tier),
+        tier: ref.tier,
+        dayKey: ref.day,
+        guesses: ref.guesses,
+        total: anime.characters.length,
+        dayNumber: dayNumber(ref.day),
+        title: cardShareHeading(ref.tier, character.name),
+        description: cardShareDescription(dayNumber(ref.day)),
+        image: character.image.startsWith("https://") ? character.image : null,
+        name: character.name,
+        animeTitle: anime.titleEnglish ?? anime.titleRomaji,
+    };
+}
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const CODE_CHARS = 12; // 12 x 5 bits = 60 bits

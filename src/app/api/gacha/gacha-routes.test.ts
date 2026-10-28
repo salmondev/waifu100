@@ -36,6 +36,8 @@ import { POST as storySeenPOST } from "./story-seen/route";
 import { GET as practiceGET, POST as practicePOST } from "./practice/route";
 import { POST as practiceGuessPOST } from "./practice/guess/route";
 import { POST as shieldPOST } from "./shield/route";
+import { POST as cardSharePOST } from "./card-share/route";
+import { loadCardShare } from "@/server/gacha/service";
 import { GET as todayGET } from "./today/route";
 
 const ID = "3f1c2b7a-9d4e-4a6b-8c1d-2e3f4a5b6c7d";
@@ -84,6 +86,7 @@ describe("DAILY_SALT fails closed in production", () => {
         ["story-seen", () => storySeenPOST(req("story-seen", "POST", { animeId: 9001 }))],
         ["shield", () => shieldPOST(req("shield", "POST", {}))],
         ["practice", () => practicePOST(req("practice", "POST", {}))],
+        ["card-share", () => cardSharePOST(req("card-share", "POST", {}))],
     ];
 
     it.each(calls)("%s -> 503 gacha_misconfigured without touching the store (NODE_ENV=production)", async (_n, call) => {
@@ -497,5 +500,46 @@ describe("shield and practice routes", () => {
         expect(saved.rounds[before.day.key].guesses).toEqual([]);
         expect(saved.collection).toEqual({});
         expect((await practiceGET(req("practice"))).status).toBe(200);
+        const shared = await cardSharePOST(req("card-share", "POST", { day: before.day.key }));
+        expect(shared.status).toBe(404);
+        expect(await shared.json()).toMatchObject({ code: "no_card" });
+    });
+});
+
+describe("card share", () => {
+    const salt = "card-share-salt";
+    beforeEach(() => vi.stubEnv("DAILY_SALT", salt));
+    const day = bangkokDayKey(T0);
+
+    it("a won round mints one card link and does not write the profile", async () => {
+        await todayGET(req("today"));
+        const answer = dailyPick(FIXTURE_CATALOG, day, salt).answerId;
+        const name = FIXTURE_CATALOG.anime.flatMap((a) => a.characters).find((c) => c.id === answer)!.name;
+        const won = await (await guessPOST(req("guess", "POST", { charId: answer, day }))).json();
+        expect(won.done).toBe("won");
+        const before = JSON.stringify(await store.load(ID));
+        const res = await cardSharePOST(req("card-share", "POST", { day }));
+        expect(res.status).toBe(200);
+        expect(res.headers.get("cache-control")).toBe("no-store");
+        const body = await res.json();
+        expect(body.url).toMatch(/^https:\/\/waifu100\.vercel\.app\/c\/[A-Za-z0-9_-]+$/);
+        expect(body.text).toBe([`SSR ★★★ ${name}`, `waifu100 Daily #${won.day.number}`, body.url].join("\n"));
+        const view = await loadCardShare(body.url.split("/c/")[1]);
+        expect(view).toMatchObject({ name, tier: "ssr", dayKey: day, dayNumber: won.day.number });
+        const again = await (await cardSharePOST(req("card-share", "POST", { day }))).json();
+        expect(again.url).toBe(body.url);
+        expect(JSON.stringify(await store.load(ID))).toBe(before);
+        expect(await loadCardShare("not-a-real-card-code")).toBeNull();
+    });
+
+    it("refuses a round that was not won, a missing player, and a bad day", async () => {
+        await todayGET(req("today"));
+        const open = await cardSharePOST(req("card-share", "POST", { day }));
+        expect(open.status).toBe(404);
+        expect(await open.json()).toMatchObject({ code: "no_card" });
+        const stranger = req("card-share", "POST", { day });
+        stranger.headers.set(GACHA_ID_HEADER, "7a2b3c4d-5e6f-4a1b-9c2d-3e4f5a6b7c8d");
+        expect((await cardSharePOST(stranger)).status).toBe(404);
+        expect((await cardSharePOST(req("card-share", "POST", { day: "nope" }))).status).toBe(400);
     });
 });
