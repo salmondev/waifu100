@@ -149,3 +149,13 @@ Format (copy this block):
 - result: shipped
 - rollback ref: `vercel promote https://waifu100-lses2x8op-salmondevs-projects.vercel.app` / `git revert -m 1 f843fa3`
 - notes: Share preview is a framed card (tier border, name, series, drawn stars). The public link is `https://waifu100.vercel.app/c/` plus 8 characters. «แชร์การ์ด» only copies text. An owned album card opens the full card; close with the button or Escape. New Redis key `waifu100:gg:cs:<code>` holds the pull. No new env. No /api/gacha/today call. Catalog art fix from f8d35b9 stays in this tree.
+
+## 2026-10-28 17:00 ICT — deploy — PASS
+- who: Panurut (approved: "ปรับแล้วเอาขึ้น prod เลย") / agent: grok
+- reviewer: same session, gate only
+- commit: d167b8c (main, --no-ff, first parent 16f77cc, tree = develop c98125b) — clearer streak shield, album share, shorter Thai
+- deployment: waifu100-mbvmm4s6w (Ready; aliased to https://waifu100.vercel.app). Preview: waifu100-ah3k3b3zc
+- checks: verify=PASS (typecheck ok, lint 0 errors, unit 995/995, integration 49 + 1 skipped, build ok, bundle 606 KB gzip, largest 132 KB, e2e 35/35) | secrets=PASS | smoke:prod=PASS 8/8 | headers=warn: no CSP | GET /daily=200
+- result: shipped
+- rollback ref: `vercel promote https://waifu100-1qj2nob68-salmondevs-projects.vercel.app` / `git revert -m 1 d167b8c`
+- notes: The shield price sits on the same control as «กันสตรีค». Opening an album card has «แชร์», which copies the same card text as a win (tier, name, the day, the short link). Nearby album and recovery lines are shorter. A card whose round is gone can still be shared from the album entry. No new env. No /api/gacha/today call.
