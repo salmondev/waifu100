@@ -65,6 +65,7 @@ const MESSAGES: Record<string, string> = {
     not_enough_coins: "Not enough coins.",
     hint_out_of_order: "Hints open in ladder order; that slot is not the next one.",
     day_unavailable: "That day is not open: only today and the archive window can be played.",
+    no_card: "This round has no card to share.",
 };
 
 const UUID_ANYWHERE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;

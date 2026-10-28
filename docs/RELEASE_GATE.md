@@ -110,6 +110,7 @@ blocked), **E** = `tests/e2e/*` (Playwright, all network mocked).
 | Gacha streak shield (30 coins, one missed day) | U `src/server/gacha/{rules,service}.test.ts`; API `gacha-routes.test.ts` shield | covered | no e2e |
 | Gacha practice mode | U `src/server/gacha/service.test.ts`; API `gacha-routes.test.ts` practice | covered | no e2e; practice does not write the album, streak, or today's guesses |
 | Gacha album badge and drop onto the waifu grid | U `src/lib/waifu-board.test.ts`, `src/components/gacha/album.test.tsx` | partial | placing a card is covered in the board helper; the album button is not in e2e |
+| Gacha card share (personal link, embed is that pull, square result stays) | U `src/lib/gacha-card-share.test.ts`, `src/server/gacha/card-share.test.ts`, `src/components/gacha/play.test.tsx`; API `gacha-routes.test.ts` card-share | covered | the embed image is drawn in the request; no Playwright spec. Opening `/c/<code>` renders the same card component as the pack |
 | Gacha catalog enrichment (roster image, ageGame, sidecar) | U `src/server/gacha/enrich-*.test.ts`, `rules.test.ts` `gameAge` | covered | Jikan is not used; low-confidence values stay in `review.json` |
 | Perf / bundle | `scripts/bundle-budget.mjs` in verify | covered | no runtime (LCP) budget |
 | Security gates | `security:audit`, `security:secrets`, `security:headers`, `smoke:prod` | covered | CSP missing in prod (warn) |
