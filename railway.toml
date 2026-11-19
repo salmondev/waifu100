@@ -1,7 +1,0 @@
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.together"
-
-[deploy]
-healthcheckPath = "/"
-restartPolicyType = "ON_FAILURE"
